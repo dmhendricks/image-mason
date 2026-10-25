@@ -1,0 +1,231 @@
+using ImageMason.Imaging;
+
+namespace ImageMason.Tests.Imaging;
+
+public sealed class ImageFormatTests
+{
+    [Fact]
+    public void Detect_RecognizesEachFormatByMagicBytes()
+    {
+        Assert.Equal(ImageFormat.Png, ImageFormatDetector.Detect(TestImages.NoisyPng(4, 4)));
+        Assert.Equal(ImageFormat.Jpeg, ImageFormatDetector.Detect(TestImages.JpegHeader(4, 4)));
+        Assert.Equal(ImageFormat.WebP, ImageFormatDetector.Detect(TestImages.WebPLossy(4, 4)));
+        Assert.Equal(ImageFormat.Avif, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4)));
+        Assert.Equal(ImageFormat.Avif, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "avis")));
+        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "heic")[..16]));
+        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect("GIF89a"u8));
+        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect("RIFF\0\0\0\0WAVE"u8));
+        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect([]));
+    }
+
+    [Theory]
+    [InlineData("jpeg", ImageFormat.Jpeg)]
+    [InlineData("JPG", ImageFormat.Jpeg)]
+    [InlineData("png", ImageFormat.Png)]
+    [InlineData(" webp ", ImageFormat.WebP)]
+    [InlineData("avif", ImageFormat.Avif)]
+    public void TryParse_AcceptsFormatNames(string value, ImageFormat expected)
+    {
+        Assert.True(ImageFormatDetector.TryParse(value, out var format));
+        Assert.Equal(expected, format);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("gif")]
+    [InlineData("image/png")]
+    public void TryParse_RejectsOtherValues(string? value)
+    {
+        Assert.False(ImageFormatDetector.TryParse(value, out _));
+    }
+
+    [Fact]
+    public void Extension_AndFromExtension_RoundTrip()
+    {
+        foreach (var format in ImageFormatDetector.Supported)
+            Assert.Equal(format, ImageFormatDetector.FromExtension(format.Extension()));
+
+        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.FromExtension(".jpeg"));
+    }
+
+    [Fact]
+    public void ReadWebP_ReadsEachBitstreamHeader()
+    {
+        Assert.Equal(new ImageInfo(640, 427, 1), ImageInfo.Read(TestImages.WebPLossy(640, 427), ImageFormat.WebP));
+        Assert.Equal(new ImageInfo(480, 320, 1), ImageInfo.Read(TestImages.WebPLossless(480, 320), ImageFormat.WebP));
+        Assert.Equal(new ImageInfo(5000, 3000, 1), ImageInfo.Read(TestImages.WebPExtended(5000, 3000), ImageFormat.WebP));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadWebP_ReadsTheExifOrientation(bool exifPrefix)
+    {
+        var info = ImageInfo.Read(TestImages.WebPExtended(400, 300, orientation: 6, exifPrefix: exifPrefix), ImageFormat.WebP);
+
+        Assert.Equal(6, info.Orientation);
+        Assert.Equal(300, info.DisplayWidth);
+    }
+
+    [Fact]
+    public void ReadWebP_FlagsAnimation()
+    {
+        Assert.True(ImageInfo.Read(TestImages.WebPExtended(10, 10, animated: true), ImageFormat.WebP).Animated);
+        Assert.False(ImageInfo.Read(TestImages.WebPExtended(10, 10), ImageFormat.WebP).Animated);
+    }
+
+    [Fact]
+    public void ReadAvif_UsesThePrimaryItemsProperties()
+    {
+        Assert.Equal(new ImageInfo(4032, 3024, 1), ImageInfo.Read(TestImages.AvifHeader(4032, 3024), ImageFormat.Avif));
+    }
+
+    [Fact]
+    public void ReadAvif_TakesTheLargestSizeWithoutAssociations()
+    {
+        var info = ImageInfo.Read(TestImages.AvifHeader(4032, 3024, associations: false), ImageFormat.Avif);
+
+        Assert.Equal((4032, 3024), (info.Width, info.Height));
+    }
+
+    [Theory]
+    [InlineData(0, 4032)]
+    [InlineData(1, 3024)]
+    [InlineData(2, 4032)]
+    [InlineData(3, 3024)]
+    public void ReadAvif_QuarterTurnsSwapTheDisplayWidth(int rotation, int displayWidth)
+    {
+        Assert.Equal(displayWidth, ImageInfo.Read(TestImages.AvifHeader(4032, 3024, rotation), ImageFormat.Avif).DisplayWidth);
+    }
+
+    [Fact]
+    public void ReadAvif_FlagsImageSequences()
+    {
+        Assert.True(ImageInfo.Read(TestImages.AvifHeader(10, 10, brand: "avis"), ImageFormat.Avif).Animated);
+    }
+
+    [Fact]
+    public void ReadAvif_ReturnsNothingForATruncatedFile()
+    {
+        var avif = TestImages.AvifHeader(4032, 3024);
+
+        for (var length = 0; length < avif.Length; length += 7)
+            Assert.Equal(0, ImageInfo.Read(avif.AsSpan(0, length), ImageFormat.Avif).Width);
+    }
+
+    [Fact]
+    public void ReadDetails_Png()
+    {
+        Assert.Equal(new ImageDetails(8, false, false), ImageHeader.ReadDetails(TestImages.NoisyPng(4, 4), ImageFormat.Png));
+        Assert.Equal(new ImageDetails(8, true, true),
+            ImageHeader.ReadDetails(TestImages.Png(4, 4, (_, _) => (0, 0, 0, 0), alpha: true, chunks: "iCCP"), ImageFormat.Png));
+    }
+
+    [Fact]
+    public void ReadDetails_Jpeg()
+    {
+        Assert.Equal(new ImageDetails(8, false, true), ImageHeader.ReadDetails(TestImages.JpegHeader(4, 4, icc: true), ImageFormat.Jpeg));
+    }
+
+    [Fact]
+    public void ReadDetails_WebP()
+    {
+        Assert.Equal(new ImageDetails(8, false, false), ImageHeader.ReadDetails(TestImages.WebPLossy(4, 4), ImageFormat.WebP));
+        Assert.Equal(new ImageDetails(8, true, false), ImageHeader.ReadDetails(TestImages.WebPLossless(4, 4, alpha: true), ImageFormat.WebP));
+        Assert.Equal(new ImageDetails(8, true, true),
+            ImageHeader.ReadDetails(TestImages.WebPExtended(4, 4, alpha: true, icc: true), ImageFormat.WebP));
+    }
+
+    [Fact]
+    public void ReadDetails_Avif()
+    {
+        Assert.Equal(new ImageDetails(8, false, false), ImageHeader.ReadDetails(TestImages.AvifHeader(4, 4), ImageFormat.Avif));
+        Assert.Equal(new ImageDetails(10, true, true),
+            ImageHeader.ReadDetails(TestImages.AvifHeader(4, 4, bitDepth: 10, alpha: true, icc: true), ImageFormat.Avif));
+    }
+
+    [Fact]
+    public void DisplayHeight_SwapsWithDisplayWidth()
+    {
+        Assert.Equal(4032, new ImageInfo(4032, 3024, 6).DisplayHeight);
+        Assert.Equal(3024, new ImageInfo(4032, 3024, 1).DisplayHeight);
+    }
+
+    [Fact]
+    public void PngHasAlpha_ChecksColorTypeAndTransparencyChunk()
+    {
+        Assert.False(ImageHeader.PngHasAlpha(TestImages.NoisyPng(4, 4)));
+        Assert.True(ImageHeader.PngHasAlpha(TestImages.NoisyPng(4, 4, alpha: true)));
+        Assert.True(ImageHeader.PngHasAlpha(TestImages.Png(4, 4, (_, _) => (0, 0, 0, 255), chunks: "tRNS")));
+    }
+
+    [Fact]
+    public void HasIccProfile_FindsPngAndJpegProfiles()
+    {
+        Assert.True(ImageHeader.HasIccProfile(TestImages.Png(4, 4, (_, _) => (0, 0, 0, 255), chunks: "iCCP"), ImageFormat.Png));
+        Assert.False(ImageHeader.HasIccProfile(TestImages.NoisyPng(4, 4), ImageFormat.Png));
+        Assert.True(ImageHeader.HasIccProfile(TestImages.JpegHeader(4, 4, icc: true), ImageFormat.Jpeg));
+        Assert.False(ImageHeader.HasIccProfile(TestImages.JpegHeader(4, 4, orientation: 6), ImageFormat.Jpeg));
+    }
+
+    [Fact]
+    public void ReadPng_ReturnsHeaderDimensions()
+    {
+        var info = ImageInfo.Read(TestImages.NoisyPng(37, 21), ImageFormat.Png);
+
+        Assert.Equal(new ImageInfo(37, 21, 1), info);
+        Assert.Equal(777, info.PixelCount);
+    }
+
+    [Fact]
+    public void ReadJpeg_ReturnsDimensionsFromStartOfFrame()
+    {
+        var info = ImageInfo.Read(TestImages.JpegHeader(4032, 3024), ImageFormat.Jpeg);
+
+        Assert.Equal(new ImageInfo(4032, 3024, 1), info);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadJpeg_ReadsExifOrientationInEitherByteOrder(bool bigEndian)
+    {
+        var info = ImageInfo.Read(TestImages.JpegHeader(4032, 3024, orientation: 6, bigEndianExif: bigEndian), ImageFormat.Jpeg);
+
+        Assert.Equal(6, info.Orientation);
+    }
+
+    [Theory]
+    [InlineData(1, 4032)]
+    [InlineData(3, 4032)]
+    [InlineData(6, 3024)]
+    [InlineData(8, 3024)]
+    public void DisplayWidth_SwapsDimensionsForRotatedOrientations(int orientation, int expected)
+    {
+        Assert.Equal(expected, new ImageInfo(4032, 3024, orientation).DisplayWidth);
+    }
+
+    [Fact]
+    public void ReadJpeg_IgnoresAnOutOfRangeOrientation()
+    {
+        var info = ImageInfo.Read(TestImages.JpegHeader(10, 10, orientation: 9), ImageFormat.Jpeg);
+
+        Assert.Equal(1, info.Orientation);
+    }
+
+    [Fact]
+    public void ReadInfo_RejectsImagesOverThePixelLimit()
+    {
+        var png = TestImages.NoisyPng(100, 100);
+
+        Assert.Equal(10_000, ImageOptimizer.ReadInfo(png, ImageFormat.Png, maxPixels: 10_000).PixelCount);
+        Assert.Throws<ImageTooLargeException>(() => ImageOptimizer.ReadInfo(png, ImageFormat.Png, maxPixels: 9_999));
+    }
+
+    [Fact]
+    public void ReadInfo_RejectsUnreadableDimensions()
+    {
+        Assert.Throws<UnsupportedImageException>(() => ImageOptimizer.ReadInfo([0xFF, 0xD8, 0xFF], ImageFormat.Jpeg, maxPixels: 1_000));
+    }
+}

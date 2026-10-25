@@ -1,0 +1,174 @@
+name: Release
+
+# Runs when a version tag is pushed:
+#
+#   1. Move the Unreleased notes in CHANGELOG.md under "## [X.Y.Z] - YYYY-MM-DD" and commit.
+#   2. git tag vX.Y.Z && git push origin vX.Y.Z
+#
+# Jobs:
+#
+#   test     - unit tests, and checks that CHANGELOG.md has a section for the version.
+#   release  - builds the image and smoke tests it, then pushes the same build to Docker Hub with
+#              provenance and an SBOM, creates the GitHub release, and syncs the Docker Hub description.
+#              Nothing is pushed unless the image passed the smoke test.
+#
+# v1.2.3 is pushed as 1.2.3, 1.2 and latest. A prerelease such as v1.3.0-rc.1 is pushed as 1.3.0-rc.1 only.
+#
+# Required repository secrets:
+#   DOCKERHUB_USERNAME - Docker Hub account
+#   DOCKERHUB_TOKEN    - Docker Hub personal access token with Read, Write, Delete access (the description
+#                        sync needs Delete)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: hendridm/image-mason
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Read version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+              echo "::error::Tag $TAG is not a version such as v1.2.3 or v1.3.0-rc.1"
+              exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$([[ -n "${BASH_REMATCH[2]}" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Check CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+              echo "::error file=CHANGELOG.md::No '## [$VERSION]' section. Move the Unreleased notes under it before tagging."
+              exit 1
+          fi
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Unit tests
+        run: dotnet test --solution ImageMason.slnx -c Release
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      VERSION: ${{ needs.test.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          # For a prerelease, {{major}}.{{minor}} resolves to the full version, so only that tag is pushed.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          flavor: latest=${{ needs.test.outputs.prerelease == 'false' }}
+
+      # The tools stage compiles libjxl, mozjpeg and libvips; the GitHub Actions cache keeps it between runs.
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: image-mason:release
+          build-args: VERSION=${{ env.VERSION }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: scripts/smoke-test.sh image-mason:release "$VERSION"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Same inputs as the tested build, so every layer comes from the builder's cache.
+      - name: Push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: VERSION=${{ env.VERSION }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          provenance: mode=max
+          sbom: true
+
+      - name: Release notes
+        run: |
+          awk -v heading="## [$VERSION]" '
+              index($0, heading) == 1 { found = 1; next }
+              found && (/^## \[/ || /^\[[^]]+\]: /) { exit }
+              found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          {
+              echo
+              echo "**Docker image:** \`docker pull $IMAGE_NAME:$VERSION\`"
+          } >> "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/notes.md
+          prerelease: ${{ needs.test.outputs.prerelease }}
+          make_latest: ${{ needs.test.outputs.prerelease == 'true' && 'false' || 'true' }}
+
+      # Keep the Docker Hub overview in sync with README.md. Skipped for prereleases, so the page always
+      # describes the image that latest points to.
+      - name: Sync Docker Hub description
+        if: needs.test.outputs.prerelease == 'false'
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.IMAGE_NAME }}
+          short-description: Self-hosted API that shrinks and converts JPEG, PNG, WebP and AVIF images
+          readme-filepath: ./README.md

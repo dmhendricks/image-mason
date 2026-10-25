@@ -1,0 +1,15 @@
+# Development override: builds the image from the local Dockerfile, with debug logging.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Or set COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml in .env, then run `docker compose up --build`.
+
+services:
+  image-mason:
+    image: image-mason:dev
+    build:
+      context: .
+      args:
+        VERSION: 0.0.0-dev
+    environment:
+      IMAGE_MASON_LOG_LEVEL: Debug

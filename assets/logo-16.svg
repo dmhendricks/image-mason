@@ -1,0 +1,26 @@
+<!-- Pixel-aligned variant of logo.svg, used for the 16x16 favicon.ico layer. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <g shape-rendering="crispEdges">
+    <rect x="1" y="8" width="4" height="2" fill="#c9573a"/>
+    <rect x="6" y="8" width="4" height="2" fill="#b5432a"/>
+    <rect x="11" y="8" width="4" height="2" fill="#d66845"/>
+
+    <rect x="1" y="11" width="2" height="2" fill="#b5432a"/>
+    <rect x="4" y="11" width="4" height="2" fill="#a33a23"/>
+    <rect x="9" y="11" width="4" height="2" fill="#c9573a"/>
+    <rect x="14" y="11" width="1" height="2" fill="#b5432a"/>
+
+    <rect x="1" y="14" width="4" height="2" fill="#d66845"/>
+    <rect x="6" y="14" width="4" height="2" fill="#c9573a"/>
+    <rect x="11" y="14" width="4" height="2" fill="#a33a23"/>
+  </g>
+
+  <!-- Trowel: same shape as logo.svg at quarter scale, with a thicker shank so it survives at 16px -->
+  <g transform="translate(1.5 7) rotate(-28) scale(0.25)" stroke-linejoin="round">
+    <path d="M0 0 L24 -9 L24 0 Z" fill="#d5dae0" stroke="#d5dae0" stroke-width="4"/>
+    <path d="M0 0 L24 0 L24 9 Z" fill="#a9b1bb" stroke="#a9b1bb" stroke-width="4"/>
+    <rect x="24" y="-2.5" width="8" height="5" fill="#8f969f"/>
+    <rect x="30" y="-5" width="14" height="5" rx="2" fill="#f9b872"/>
+    <rect x="30" y="0" width="14" height="5" rx="2" fill="#ec9a4c"/>
+  </g>
+</svg>

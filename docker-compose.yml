@@ -1,0 +1,35 @@
+# Image Mason
+#
+#   cp .env.sample .env    # then set IMAGE_MASON_API_KEY
+#   docker compose up -d   # http://localhost:8080
+#
+# To build from the local Dockerfile instead of pulling the image, see docker-compose.dev.yml.
+
+name: image-mason
+
+services:
+  image-mason:
+    image: hendridm/image-mason:${IMAGE_MASON_TAG:-latest}
+    container_name: image-mason
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    # Only /data (stored images) and /tmp (scratch files, deleted after each request) are writable.
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    volumes:
+      - image-mason-data:/data
+    # Jobs share this memory: lossy presets need about 150 MB per megapixel, so 4g runs one 12 MP photo
+    # alongside several small images. Larger jobs wait for memory, and jobs that could never fit get 422.
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4g
+    restart: unless-stopped
+
+volumes:
+  image-mason-data:

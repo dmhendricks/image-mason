@@ -1,0 +1,7 @@
+Image Mason
+Copyright 2026 Daniel Hendricks
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The Docker image includes third-party software distributed under their own
+licenses. See THIRD_PARTY_NOTICES.md and the licenses/ directory.

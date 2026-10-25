@@ -1,0 +1,13 @@
+# Allow-list: the image build needs only the sources, the shared build files and the license files.
+# Everything else (.git, .env, docs/, local/, tests/) stays out of the build context.
+*
+!src/
+!Directory.Build.props
+!Directory.Packages.props
+!LICENSE
+!NOTICE
+!THIRD_PARTY_NOTICES.md
+!licenses/
+
+**/bin/
+**/obj/

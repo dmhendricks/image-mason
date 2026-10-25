@@ -1,0 +1,150 @@
+# Third-Party Notices
+
+Image Mason is licensed under the [Apache License 2.0](LICENSE). The Docker image also contains
+third-party software, distributed under the licenses listed below. Those licenses apply to those
+components only.
+
+The image tools (`cjpegli`, `ssimulacra2`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`,
+`oxipng`, `pngquant`) run as separate programs. None of them is linked into the Image Mason application. The application binary
+contains the .NET runtime and ASP.NET Core, compiled in ahead of time.
+
+Full license texts are in the [`licenses/`](licenses/) directory. In the image, they are in
+`/usr/share/licenses/image-mason/`.
+
+## Image Tools
+
+| Component | Version | License | Included as | Source |
+|---|---|---|---|---|
+| libjxl (`cjpegli`, `ssimulacra2`) | 0.11.2 | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/libjxl/libjxl/tree/v0.11.2> |
+| mozjpeg (`jpegtran`) | 4.1.5 | IJG AND BSD-3-Clause AND Zlib | Built from source | <https://github.com/mozilla/mozjpeg/tree/v4.1.5> |
+| libvips (`vips`, `vipsthumbnail`) | 8.18.7 | LGPL-2.1-or-later | Built from source | <https://github.com/libvips/libvips/tree/v8.18.7> |
+| libavif (`avifenc`, `avifdec`) | 1.4.2 | BSD-2-Clause | Built from source | <https://github.com/AOMediaCodec/libavif/tree/v1.4.2> |
+| aom (AV1 encoder, in libavif) | 3.15.2 | BSD-2-Clause, plus the AOM Patent License 1.0 | Built from source | <https://aomedia.googlesource.com/aom/+/refs/tags/v3.15.2> |
+| dav1d (AV1 decoder, in libavif) | 1.5.4 | BSD-2-Clause | Built from source | <https://code.videolan.org/videolan/dav1d/-/tree/1.5.4> |
+| libyuv (in libavif) | 1924 (`644251f2`) | BSD-3-Clause, plus a patent grant | Built from source | <https://chromium.googlesource.com/libyuv/libyuv/+/644251f252a84bf8ce91ff0aca86a9b16b069ab8> |
+| libargparse (in `avifenc`, `avifdec`) | `ee74d1b5` | MIT | Built from source | <https://github.com/kmurray/libargparse/tree/ee74d1b53bd680748af14e737378de57e2a0a954> |
+| libwebp (`cwebp`, and WebP in libvips) | 1.6.0 | BSD-3-Clause, plus a patent grant | Alpine package | <https://github.com/webmproject/libwebp/tree/v1.6.0> |
+| oxipng | 9.1.5 | MIT | Alpine package | <https://github.com/oxipng/oxipng/tree/v9.1.5> |
+| pngquant (with libimagequant) | 3.0.3 | GPL-3.0-or-later | Alpine package | <https://github.com/kornelski/pngquant/tree/3.0.3> |
+
+### libjxl
+
+Copyright (c) the JPEG XL Project Authors. All rights reserved.
+See [`licenses/libjxl-LICENSE.txt`](licenses/libjxl-LICENSE.txt) and
+[`licenses/libjxl-PATENTS.txt`](licenses/libjxl-PATENTS.txt).
+
+### mozjpeg
+
+This software is based in part on the work of the Independent JPEG Group.
+
+Copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding.
+Copyright (C) 2009-2023 D. R. Commander. Copyright (C) 2015 Viktor Szathmáry.
+See [`licenses/mozjpeg-LICENSE.md`](licenses/mozjpeg-LICENSE.md) and
+[`licenses/mozjpeg-README.ijg.txt`](licenses/mozjpeg-README.ijg.txt).
+
+### libvips
+
+Licensed under the GNU Lesser General Public License, version 2.1 or later.
+See [`licenses/libvips-LICENSE.txt`](licenses/libvips-LICENSE.txt).
+
+### libavif
+
+Copyright 2019 Joe Drago. All rights reserved. See [`licenses/libavif-LICENSE.txt`](licenses/libavif-LICENSE.txt),
+which also covers code libavif includes from other projects.
+
+### aom
+
+Copyright (c) 2016, Alliance for Open Media. All rights reserved.
+See [`licenses/aom-LICENSE.txt`](licenses/aom-LICENSE.txt) and
+[`licenses/aom-PATENTS.txt`](licenses/aom-PATENTS.txt) (Alliance for Open Media Patent License 1.0).
+
+### dav1d
+
+Copyright © 2018-2025, VideoLAN and dav1d authors. All rights reserved.
+See [`licenses/dav1d-COPYING.txt`](licenses/dav1d-COPYING.txt).
+
+### libyuv
+
+Copyright 2011 The LibYuv Project Authors. All rights reserved.
+See [`licenses/libyuv-LICENSE.txt`](licenses/libyuv-LICENSE.txt) and
+[`licenses/libyuv-PATENTS.txt`](licenses/libyuv-PATENTS.txt).
+
+### libargparse
+
+Copyright 2017 K. Murray. Licensed under the MIT License.
+See [`licenses/libargparse-LICENSE.md`](licenses/libargparse-LICENSE.md).
+
+### libwebp
+
+Copyright (c) 2010, Google Inc. All rights reserved.
+See [`licenses/libwebp-COPYING.txt`](licenses/libwebp-COPYING.txt) and
+[`licenses/libwebp-PATENTS.txt`](licenses/libwebp-PATENTS.txt).
+
+### oxipng
+
+Copyright (c) 2016 Joshua Holmer. Licensed under the MIT License.
+See [`licenses/oxipng-LICENSE.txt`](licenses/oxipng-LICENSE.txt).
+
+### pngquant and libimagequant
+
+pngquant © 2009-2018 by Kornel Lesiński. Licensed under the GNU General Public License, version 3 or
+later. Derived from code by Jef Poskanzer and Greg Roelofs under their original licenses.
+See [`licenses/pngquant-COPYRIGHT.txt`](licenses/pngquant-COPYRIGHT.txt) and
+[`licenses/libimagequant-COPYRIGHT.txt`](licenses/libimagequant-COPYRIGHT.txt).
+
+## .NET
+
+| Component | License | Source |
+|---|---|---|
+| .NET runtime | MIT | <https://github.com/dotnet/runtime> |
+| ASP.NET Core | MIT | <https://github.com/dotnet/aspnetcore> |
+| Asp.Versioning.Http | MIT | <https://github.com/dotnet/aspnet-api-versioning> |
+
+Copyright (c) .NET Foundation and Contributors. See [`licenses/dotnet-LICENSE.txt`](licenses/dotnet-LICENSE.txt)
+and [`licenses/asp-versioning-LICENSE.txt`](licenses/asp-versioning-LICENSE.txt). The .NET runtime and
+ASP.NET Core include further third-party components, listed in their own `THIRD-PARTY-NOTICES.TXT` files:
+
+- <https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT>
+- <https://github.com/dotnet/aspnetcore/blob/main/THIRD-PARTY-NOTICES.txt>
+
+## Base Image and Shared Libraries
+
+The image is built on `mcr.microsoft.com/dotnet/runtime-deps` (Alpine Linux 3.24). These Alpine packages
+are installed, each under its own license. Versions change as Alpine publishes updates. To list the
+packages in a specific image:
+
+```bash
+docker run --rm --entrypoint apk hendridm/image-mason:<tag> list --installed
+```
+
+| Package | License |
+|---|---|
+| alpine-baselayout, apk-tools, busybox, scanelf, ssl_client | GPL-2.0-only |
+| alpine-keys, alpine-release, brotli-libs, expat, giflib, lcms2, libeconf, libffi, musl | MIT |
+| musl-utils | MIT AND BSD-2-Clause AND GPL-2.0-or-later |
+| ca-certificates-bundle | MPL-2.0 AND MIT |
+| glib, libblkid, libintl, libmount | LGPL-2.1-or-later |
+| libexif | LGPL-2.0-or-later |
+| libgcc, libstdc++ | GPL-2.0-or-later AND LGPL-2.1-or-later, with the GCC Runtime Library Exception |
+| libcrypto3, libssl3 (OpenSSL), libhwy (Highway) | Apache-2.0 |
+| libjpeg-turbo | BSD-3-Clause AND IJG AND Zlib |
+| libpng | Libpng |
+| pcre2 | BSD-3-Clause |
+| libwebp, libwebp-tools, libwebpmux, libwebpdemux, libsharpyuv | BSD-3-Clause |
+| tzdata | Public domain |
+| zlib | Zlib |
+
+## Source Code for GPL and LGPL Components
+
+The corresponding source for every GPL- and LGPL-licensed component in the image is available at no
+charge:
+
+- **Built from source** (libvips): the exact upstream tag linked above. The build steps are in this
+  repository's `Dockerfile`.
+- **Alpine packages** (pngquant, busybox, glib and others): the package build recipe is in
+  [Alpine aports](https://gitlab.alpinelinux.org/alpine/aports), on the branch for the Alpine release
+  in the image (for example `3.24-stable`), under `main/<package>/` or `community/<package>/`. Each
+  `APKBUILD` names the upstream source archive and lists any patches Alpine applies.
+
+If a source link stops working, open an issue at <https://github.com/dmhendricks/image-mason/issues> and
+the source will be provided.

@@ -25,6 +25,8 @@ internal static class ApiEndpoints
 
         // Reads the header only: no tools run, so no job slot.
         api.MapPost("/info", InfoEndpoint.HandleAsync);
+
+        // Public: reports apiKeyRequired, so it can't require the key itself.
         api.MapGet("/limits", LimitsEndpoint.Handle);
     }
 }

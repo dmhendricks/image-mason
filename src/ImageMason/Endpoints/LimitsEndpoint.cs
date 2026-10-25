@@ -3,14 +3,14 @@ using ImageMason.Imaging;
 
 namespace ImageMason.Endpoints;
 
-/// <summary>GET /api/v1/limits: the formats, sizes, presets and timeouts this server is configured with.</summary>
+/// <summary>
+/// GET /api/v1/limits: the formats, sizes, presets and timeouts this server is configured with. Needs no API key,
+/// so clients (such as the web interface) can learn whether they need one before asking for it.
+/// </summary>
 internal static class LimitsEndpoint
 {
-    public static IResult Handle(HttpContext http, ImageMasonOptions options)
+    public static IResult Handle(ImageMasonOptions options)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         return Results.Ok(new LimitsResponse(
             Formats: [.. ImageFormatDetector.Supported.Select(f => new FormatLimits(f.Name(), f.ContentType(), f.Extension(), ImageOptimizer.MaxSide(f)))],
             MaxInputSize: options.MaxInputBytes,

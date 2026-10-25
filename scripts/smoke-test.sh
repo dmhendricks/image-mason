@@ -198,12 +198,10 @@ check "resize never enlarges unless upscale=true" [ "$(header resizenoupscale x-
 code=$(request resizebad "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/resize?width=200&fit=cover")
 check "fit=cover without a height is 400" [ "$code" = 400 ]
 
-code=$(request limits "${auth[@]}" "$api/limits")
-check "GET limits is 200" [ "$code" = 200 ]
+code=$(request limits "$api/limits")
+check "GET limits without the API key is 200" [ "$code" = 200 ]
 check "  lists four formats" [ "$(json limits '.formats | length')" = 4 ]
 check "  reports the API key" [ "$(json limits .apiKeyRequired)" = true ]
-code=$(request limitsnokey "$api/limits")
-check "  needs the API key" [ "$code" = 401 ]
 
 code=$(request info "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/info")
 check "info is 200" [ "$code" = 200 ]

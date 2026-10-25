@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format is based on
   overrides `preferJpeg`.
 - `optimize` accepts `resize`'s `width`, `height`, `fit`, `crop` and `upscale`, as an alternative to `maxWidth`.
 
+### Changed
+
+- `GET /api/v1/limits` no longer requires the API key, so clients can read `apiKeyRequired` before asking for
+  one.
+
 ## [0.1.0] - 2026-10-25
 
 ### Added

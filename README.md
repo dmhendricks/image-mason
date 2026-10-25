@@ -209,7 +209,8 @@ Errors are returned as [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc
 
 ## Endpoints
 
-When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api-Key` header.
+When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api-Key` header, except
+`GET /api/v1/limits`.
 
 | Endpoint | Description |
 |---|---|
@@ -357,7 +358,8 @@ When a JPEG, PNG or WebP carries EXIF, `exif` summarizes it. Fields the image do
 ### `GET /api/v1/limits`
 
 What this server accepts, so a client can check an image before sending it. The values come from the
-[configuration](#configuration).
+[configuration](#configuration). It needs no API key, so a client can read `apiKeyRequired` before asking
+for one.
 
 ```json
 {

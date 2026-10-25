@@ -24,7 +24,7 @@ settings, and returns the smallest result that meets the score, or the original 
 - **Hosting:** results can be stored and served from a URL for a limited time.
 
 The image is about 65 MB, runs as a non-root user with a read-only root filesystem, and is published for
-`linux/amd64`.
+`linux/amd64` and `linux/arm64`.
 
 ## Contents
 

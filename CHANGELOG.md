@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Images are published for `linux/arm64` as well as `linux/amd64`, built and smoke tested on native runners.
+
 ## [0.2.0] - 2026-10-25
 
 ### Added

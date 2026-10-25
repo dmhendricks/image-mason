@@ -1,9 +1,10 @@
 name: CI
 
-# Two jobs that run in parallel and never push anything:
+# Jobs that run in parallel and never push anything:
 #
 #   test   - unit tests and shell script lint.
-#   image  - builds the image and runs scripts/smoke-test.sh against it.
+#   image  - one per architecture, each on a native runner: builds the image and runs scripts/smoke-test.sh
+#            against it.
 
 on:
   push:
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -38,7 +39,15 @@ jobs:
         run: shellcheck scripts/*.sh
 
   image:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-26.04
+          - arch: arm64
+            runner: ubuntu-26.04-arm
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
@@ -47,16 +56,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # The tools stage compiles libjxl, mozjpeg and libvips; the GitHub Actions cache keeps it between runs.
+      # The tools stage compiles libjxl, mozjpeg, libvips and libavif; the GitHub Actions cache keeps it
+      # between runs, one scope per architecture (shared with the release workflow).
       - name: Build image
         uses: docker/build-push-action@v7
         with:
           context: .
+          platforms: linux/${{ matrix.arch }}
           load: true
           tags: image-mason:ci
           build-args: VERSION=0.0.0-ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 
       - name: Smoke test
         run: scripts/smoke-test.sh image-mason:ci 0.0.0-ci

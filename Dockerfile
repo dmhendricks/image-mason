@@ -15,7 +15,7 @@
 ARG ALPINE_VERSION=3.24
 ARG DOTNET_VERSION=10.0
 # Node LTS, for building the web interface only.
-ARG NODE_VERSION=24
+ARG NODE_VERSION=26
 
 # ---------------------------------------------------------------------------
 # 1. Native tools

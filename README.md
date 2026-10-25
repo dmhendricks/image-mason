@@ -503,7 +503,7 @@ To report a vulnerability, see [SECURITY.md](https://github.com/dmhendricks/imag
 ## Development
 
 Requires Docker. Running the unit tests outside Docker requires the [.NET 10 SDK](https://dotnet.microsoft.com/download),
-and working on the web interface requires [Node.js 24](https://nodejs.org/).
+and working on the web interface requires [Node.js 26](https://nodejs.org/).
 
 ```bash
 git clone https://github.com/dmhendricks/image-mason.git

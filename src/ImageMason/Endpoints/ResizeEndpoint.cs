@@ -22,6 +22,7 @@ internal static class ResizeEndpoint
         int? height,
         string? fit,
         string? crop,
+        string? rect,
         string? format,
         string? quality,
         double? minScore,
@@ -40,6 +41,9 @@ internal static class ResizeEndpoint
         if (!ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out var resizeError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
 
+        if (!RectParameter.TryParse(rect, out var area, out var rectError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
+
         ImageFormat? target = null;
         if (format is not null)
         {
@@ -49,6 +53,6 @@ internal static class ResizeEndpoint
         }
 
         return await OptimizeEndpoint.RunAsync(http, options, downloader, optimizer, store, logger,
-            target, resize, quality, minScore, maxWidth: null, output, outputFilename, url, preferJpeg: false, keepOriginal);
+            target, resize, area, quality, minScore, maxWidth: null, output, outputFilename, url, preferJpeg: false, keepOriginal);
     }
 }

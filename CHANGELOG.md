@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format is based on
 - `optimize` accepts an optional `format` (`jpeg`, `png`, `webp` or `avif`) to convert while optimizing; it
   overrides `preferJpeg`.
 - `optimize` accepts `resize`'s `width`, `height`, `fit`, `crop` and `upscale`, as an alternative to `maxWidth`.
+- `POST /api/v1/crop`: keeps an area given as `rect=left,top,width,height` in display pixels, then optimizes it
+  like `optimize`, optionally resizing or converting the cropped area. `optimize`, `convert` and `resize`
+  accept `rect` too.
 
 ### Changed
 

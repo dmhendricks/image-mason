@@ -21,11 +21,12 @@ public enum QualityPreset
 /// <param name="MinScore">Overrides the preset's minimum score. Ignored for lossless unless the result can't be lossless.</param>
 /// <param name="MaxWidth">Overrides the default max width. 0 disables resizing. Ignored when <paramref name="Resize"/> is set.</param>
 /// <param name="Format">Output format. Null keeps the input's format.</param>
-/// <param name="Resize">Resize to a box; see <see cref="ResizeRequest"/>.</param>
+/// <param name="Resize">Resize to a box; see <see cref="ResizeRequest"/>. Applies to the cropped area when <paramref name="Rect"/> is set.</param>
+/// <param name="Rect">The area to keep, cut out before any resize.</param>
 public sealed record OptimizeRequest(QualityPreset Quality, double? MinScore = null, int? MaxWidth = null, ImageFormat? Format = null,
-    ResizeRequest? Resize = null);
+    ResizeRequest? Resize = null, CropRect? Rect = null);
 
-/// <param name="Score">SSIMULACRA2 vs. the original, or vs. the resized original when the image was resized.</param>
+/// <param name="Score">SSIMULACRA2 vs. the original, or vs. the cropped or resized original when the image was changed.</param>
 /// <param name="MinScore">The floor the result had to meet; null for lossless.</param>
 public sealed record OptimizeResult(
     byte[] Data,
@@ -40,6 +41,8 @@ public sealed record OptimizeResult(
 public sealed class UnsupportedImageException(string message) : Exception(message);
 
 public sealed class ImageTooLargeException(string message) : Exception(message);
+
+public sealed class CropOutsideImageException(string message) : Exception(message);
 
 public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, ImageMasonOptions options, ILogger<ImageOptimizer> logger)
 {
@@ -63,9 +66,10 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     private sealed record Candidate(string Method, string Path, long Size, double? Score);
 
     /// <param name="Reference">The pixels results are encoded from and scored against: the source, or a normalized PNG.</param>
-    /// <param name="Resized">Resized; method names start with "resize+".</param>
+    /// <param name="Cropped">Cropped; method names start with "crop+".</param>
+    /// <param name="Resized">Resized; method names start with "resize+" (after "crop+").</param>
     /// <param name="Icc">The reference embeds an ICC profile, which the encoders copy.</param>
-    private sealed record Job(string Work, string Source, string Reference, ImageInfo Info, bool Resized, double? MinScore, bool Icc);
+    private sealed record Job(string Work, string Source, string Reference, ImageInfo Info, bool Cropped, bool Resized, double? MinScore, bool Icc);
 
     /// <summary>One encoder setting searched for the smallest result that meets the floor.</summary>
     /// <param name="Smaller">+1 when a higher value gives a smaller file (jpegli distance), -1 when lower does (quality).</param>
@@ -85,10 +89,19 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var target = request.Format ?? format;
         var converting = target != format;
         var lossless = request.Quality == QualityPreset.Lossless;
+        var rect = request.Rect;
+        if (rect is not null && !rect.FitsWithin(info.DisplayWidth, info.DisplayHeight))
+            throw new CropOutsideImageException(string.Create(CultureInfo.InvariantCulture,
+                $"rect {rect} reaches past the image, which is {info.DisplayWidth}x{info.DisplayHeight} as displayed."));
+
+        // Resizing applies to the cropped area.
+        var crop = rect is not null && !rect.Covers(info.DisplayWidth, info.DisplayHeight);
+        var (sourceWidth, sourceHeight) = crop ? (rect!.Width, rect.Height) : (info.DisplayWidth, info.DisplayHeight);
+
         var maxWidth = request.MaxWidth ?? (lossless ? 0 : options.DefaultMaxWidth);
         var sizing = request.Resize ?? (maxWidth > 0 ? new ResizeRequest(maxWidth, null) : null);
-        var (outputWidth, outputHeight) = sizing?.OutputSize(info.DisplayWidth, info.DisplayHeight) ?? (info.DisplayWidth, info.DisplayHeight);
-        var resize = (outputWidth, outputHeight) != (info.DisplayWidth, info.DisplayHeight);
+        var (outputWidth, outputHeight) = sizing?.OutputSize(sourceWidth, sourceHeight) ?? (sourceWidth, sourceHeight);
+        var resize = (outputWidth, outputHeight) != (sourceWidth, sourceHeight);
         CheckOutputSize(target, outputWidth, outputHeight);
 
         // Only a lossless JPEG-to-JPEG pass keeps the orientation tag; every re-encode starts from upright pixels.
@@ -104,9 +117,9 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                 _ => options.LowMinScore
             };
         }
-        else if (target == ImageFormat.Jpeg && (resize || converting))
+        else if (target == ImageFormat.Jpeg && (crop || resize || converting))
         {
-            // JPEG has no lossless mode: a resized or converted JPEG is re-encoded and held to a high floor.
+            // JPEG has no lossless mode: a cropped, resized or converted JPEG is re-encoded and held to a high floor.
             minScore = request.MinScore ?? options.NearLosslessMinScore;
         }
         else
@@ -128,10 +141,20 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             var normalize = resize || rotate
                 || format is ImageFormat.WebP or ImageFormat.Avif
                 || (target == ImageFormat.Png && format != ImageFormat.Png);
-            var reference = normalize
-                ? await NormalizeAsync(source, format, work.FullName,
-                    resize ? sizing!.VipsArguments() : ["--size", $"{info.DisplayWidth}x"], ct)
-                : source;
+            string reference;
+            if (crop)
+            {
+                reference = await CropAsync(source, format, info, rect!, work.FullName, ct);
+                if (resize)
+                    reference = await NormalizeAsync(reference, ImageFormat.Png, work.FullName, sizing!.VipsArguments(), ct);
+            }
+            else
+            {
+                reference = normalize
+                    ? await NormalizeAsync(source, format, work.FullName,
+                        resize ? sizing!.VipsArguments() : ["--size", $"{info.DisplayWidth}x"], ct)
+                    : source;
+            }
 
             var referenceFormat = reference == source ? format : ImageFormat.Png;
             var head = reference == source ? input : await ReadHeadAsync(reference, ct);
@@ -143,15 +166,15 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                 head = await ReadHeadAsync(reference, ct);
             }
 
-            var job = new Job(work.FullName, source, reference, info, resize, minScore, ImageHeader.HasIccProfile(head, referenceFormat));
+            var job = new Job(work.FullName, source, reference, info, crop, resize, minScore, ImageHeader.HasIccProfile(head, referenceFormat));
 
-            // Size guard: unless the image must be resized or converted, the original is a candidate and wins ties.
-            List<Candidate> candidates = resize || converting ? [] : [new(Original, source, input.Length, null)];
+            // Size guard: unless the image must be cropped, resized or converted, the original is a candidate and wins ties.
+            List<Candidate> candidates = crop || resize || converting ? [] : [new(Original, source, input.Length, null)];
 
             switch (target)
             {
                 case ImageFormat.Jpeg:
-                    await OptimizeJpegAsync(job, candidates, keepSource: format == ImageFormat.Jpeg && !resize, ct);
+                    await OptimizeJpegAsync(job, candidates, keepSource: format == ImageFormat.Jpeg && !crop && !resize, ct);
                     break;
                 case ImageFormat.Png:
                     await OptimizePngAsync(job, candidates, ct);
@@ -172,6 +195,10 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             {
                 if (converting)
                     throw new InvalidOperationException($"Could not encode the {format.Name()} image as {target.Name()}.");
+
+                // The original would ignore the requested area.
+                if (crop)
+                    throw new InvalidOperationException($"Could not encode the cropped {format.Name()} image.");
 
                 logger.LogWarning("No resized result was produced; returning the original");
                 best = new(Original, source, input.Length, null);
@@ -265,8 +292,9 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     /// AVIF is decoded by avifdec first; vipsthumbnail reads the other formats. Work PNGs are uncompressed:
     /// they are read on every attempt, and compressed ones made scoring a third slower.
     /// </summary>
+    /// <param name="name">The output file in <paramref name="work"/>.</param>
     private async Task<string> NormalizeAsync(string source, ImageFormat format, string work, IEnumerable<string> sizeArguments,
-        CancellationToken ct)
+        CancellationToken ct, string name = "reference.png")
     {
         var input = source;
         if (format == ImageFormat.Avif)
@@ -279,12 +307,34 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                 throw new UnsupportedImageException("Could not decode the AVIF image.");
         }
 
-        var output = Path.Combine(work, "reference.png");
+        var output = Path.Combine(work, name);
         var vips = await tools.RunAsync("vipsthumbnail",
             [input, .. sizeArguments, "-o", $"{output}[keep=icc,compression=0]"], ct);
 
         if (vips.ExitCode != 0 || !File.Exists(output))
             throw new InvalidOperationException($"vipsthumbnail exited {vips.ExitCode}: {vips.StdErr}");
+
+        return output;
+    }
+
+    /// <summary>
+    /// Cuts <paramref name="rect"/> out of the upright image as a lossless PNG, keeping only the ICC profile. The
+    /// vips CLI reads JPEG, PNG and WebP but doesn't apply the orientation tag, and the rectangle is in display
+    /// pixels, so an AVIF or a rotated image is made upright first.
+    /// </summary>
+    private async Task<string> CropAsync(string source, ImageFormat format, ImageInfo info, CropRect rect, string work,
+        CancellationToken ct)
+    {
+        var input = info.Orientation == 1 && format != ImageFormat.Avif
+            ? source
+            : await NormalizeAsync(source, format, work, ["--size", $"{info.DisplayWidth}x"], ct, "upright.png");
+
+        var output = Path.Combine(work, "cropped.png");
+        var vips = await tools.RunAsync("vips",
+            ["extract_area", input, $"{output}[keep=icc,compression=0]", .. rect.VipsArguments()], ct);
+
+        if (vips.ExitCode != 0 || !File.Exists(output))
+            throw new InvalidOperationException($"vips extract_area exited {vips.ExitCode}: {vips.StdErr}");
 
         return output;
     }
@@ -546,7 +596,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         return best;
     }
 
-    private static string MethodName(Job job, string method) => (job.Resized ? "resize+" : "") + method;
+    private static string MethodName(Job job, string method) => (job.Cropped ? "crop+" : "") + (job.Resized ? "resize+" : "") + method;
 
     private async Task OptimizePngAsync(Job job, List<Candidate> candidates, CancellationToken ct)
     {
@@ -555,7 +605,8 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         if (lossless is not null)
             candidates.Add(new(MethodName(job, "oxipng"), lossless, new FileInfo(lossless).Length, null));
         else if (job.Reference != job.Source)
-            candidates.Add(new(job.Resized ? "resize" : "decode", job.Reference, new FileInfo(job.Reference).Length, null));
+            candidates.Add(new(MethodName(job, "") is { Length: > 0 } changed ? changed.TrimEnd('+') : "decode",
+                job.Reference, new FileInfo(job.Reference).Length, null));
 
         if (job.MinScore is not { } minScore)
             return;

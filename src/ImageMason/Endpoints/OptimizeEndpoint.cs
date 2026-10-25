@@ -8,9 +8,9 @@ using ImageMason.Storage;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/optimize: returns a smaller image in the same format (or in format, when sent), optionally resized
-/// to maxWidth or to a width/height box like resize, with stats in X-Image-Mason-* headers, or with output=json
-/// stores it and returns its URL and the same stats.
+/// POST /api/v1/optimize: returns a smaller image in the same format (or in format, when sent), optionally cropped
+/// to rect and resized to maxWidth or to a width/height box like resize, with stats in X-Image-Mason-* headers, or
+/// with output=json stores it and returns its URL and the same stats.
 /// </summary>
 internal static class OptimizeEndpoint
 {
@@ -29,6 +29,7 @@ internal static class OptimizeEndpoint
         int? height,
         string? fit,
         string? crop,
+        string? rect,
         string? output,
         string? outputFilename,
         string? url,
@@ -38,6 +39,37 @@ internal static class OptimizeEndpoint
     {
         if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
             return ApiRequest.Unauthorized();
+
+        return await HandleAuthorizedAsync(http, options, downloader, optimizer, store, logger, format, quality, minScore,
+            maxWidth, width, height, fit, crop, rect, output, outputFilename, url, upscale, preferJpeg, keepOriginal);
+    }
+
+    /// <summary>Optimize's parameter checks and run, after the API key check. Also the crop endpoint's.</summary>
+    public static async Task<IResult> HandleAuthorizedAsync(
+        HttpContext http,
+        ImageMasonOptions options,
+        ImageDownloader downloader,
+        ImageOptimizer optimizer,
+        ImageStore store,
+        ILogger<ImageOptimizer> logger,
+        string? format,
+        string? quality,
+        double? minScore,
+        int? maxWidth,
+        int? width,
+        int? height,
+        string? fit,
+        string? crop,
+        string? rect,
+        string? output,
+        string? outputFilename,
+        string? url,
+        bool? upscale,
+        bool preferJpeg,
+        bool keepOriginal)
+    {
+        if (!RectParameter.TryParse(rect, out var area, out var rectError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
 
         if (!ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out var resizeError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
@@ -55,12 +87,13 @@ internal static class OptimizeEndpoint
         }
 
         return await RunAsync(http, options, downloader, optimizer, store, logger,
-            target, resize, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg, keepOriginal);
+            target, resize, area, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg, keepOriginal);
     }
 
-    /// <summary>Shared by optimize, convert and resize, after the API key check.</summary>
+    /// <summary>Shared by optimize, convert, resize and crop, after the API key check.</summary>
     /// <param name="target">The output format; null keeps the input's (or JPEG for a photo PNG with preferJpeg).</param>
     /// <param name="resize">The resize endpoint's box; null uses maxWidth.</param>
+    /// <param name="rect">The area to keep, cut out before resizing; null keeps the whole image.</param>
     public static async Task<IResult> RunAsync(
         HttpContext http,
         ImageMasonOptions options,
@@ -70,6 +103,7 @@ internal static class OptimizeEndpoint
         ILogger<ImageOptimizer> logger,
         ImageFormat? target,
         ResizeRequest? resize,
+        CropRect? rect,
         string? quality,
         double? minScore,
         int? maxWidth,
@@ -130,7 +164,7 @@ internal static class OptimizeEndpoint
                     return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {stored.Extension()}.");
             }
 
-            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, minScore, maxWidth, target, resize), timeout.Token);
+            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, minScore, maxWidth, target, resize, rect), timeout.Token);
             var elapsedMs = (long)stopwatch.Elapsed.TotalMilliseconds;
             var qualityName = preset.ToString().ToLowerInvariant();
             var score = result.Score?.ToString("F2", CultureInfo.InvariantCulture);
@@ -211,6 +245,10 @@ internal static class OptimizeEndpoint
         catch (UnsupportedImageException ex)
         {
             return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, ex.Message);
+        }
+        catch (CropOutsideImageException ex)
+        {
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, ex.Message);
         }
         catch (ImageTooLargeException ex)
         {

@@ -22,6 +22,7 @@ internal static class ConvertEndpoint
         string? quality,
         double? minScore,
         int? maxWidth,
+        string? rect,
         string? output,
         string? outputFilename,
         string? url,
@@ -33,7 +34,10 @@ internal static class ConvertEndpoint
         if (!ImageFormatDetector.TryParse(format, out var target))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp' or 'avif'.");
 
+        if (!RectParameter.TryParse(rect, out var area, out var rectError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
+
         return await OptimizeEndpoint.RunAsync(http, options, downloader, optimizer, store, logger,
-            target, null, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg: false, keepOriginal);
+            target, null, area, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg: false, keepOriginal);
     }
 }

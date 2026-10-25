@@ -21,6 +21,7 @@ internal static class ApiEndpoints
         api.MapPost("/optimize", OptimizeEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
         api.MapPost("/convert", ConvertEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
         api.MapPost("/resize", ResizeEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
+        api.MapPost("/crop", CropEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
         api.MapPost("/upload", UploadEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
 
         // Reads the header only: no tools run, so no job slot.

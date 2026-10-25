@@ -198,6 +198,32 @@ check "resize never enlarges unless upscale=true" [ "$(header resizenoupscale x-
 code=$(request resizebad "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/resize?width=200&fit=cover")
 check "fit=cover without a height is 400" [ "$code" = 400 ]
 
+code=$(request crop "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/crop?rect=100,50,300,200")
+check "crop is 200" [ "$code" = 200 ]
+check "  keeps the 300x200 area" [ "$(header crop x-image-mason-dimensions)" = 300x200 ]
+check "  method starts with crop+" starts_with "$(header crop x-image-mason-method)" crop+
+check "  scored at or above the floor" at_least "$(header crop x-image-mason-score)" "$(header crop x-image-mason-min-score)"
+
+code=$(request cropresize "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?rect=0,0,400,400&width=200&format=webp")
+check "optimize with rect and width, as WebP, is 200" [ "$code" = 200 ]
+check "  crops, then resizes to 200x200" [ "$(header cropresize x-image-mason-dimensions)" = 200x200 ]
+check "  method starts with crop+resize+" starts_with "$(header cropresize x-image-mason-method)" crop+resize+
+
+code=$(request cropavif "${auth[@]}" --data-binary @"$fixtures/photo.avif" "$api/crop?rect=20,20,100,100")
+check "crop an AVIF is 200" [ "$code" = 200 ]
+check "  keeps the 100x100 area" [ "$(header cropavif x-image-mason-dimensions)" = 100x100 ]
+
+code=$(request croppng "${auth[@]}" --data-binary @"$fixtures/graphic.png" "$api/crop?rect=40,40,400,240&quality=lossless")
+check "crop a PNG losslessly is 200" [ "$code" = 200 ]
+check "  uses oxipng" [ "$(header croppng x-image-mason-method)" = crop+oxipng ]
+
+code=$(request cropoutside "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/crop?rect=600,0,100,100")
+check "crop past the image's edge is 400" [ "$code" = 400 ]
+code=$(request cropnorect "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/crop")
+check "crop without rect is 400" [ "$code" = 400 ]
+code=$(request cropbadrect "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/crop?rect=1,2,3")
+check "crop with a malformed rect is 400" [ "$code" = 400 ]
+
 code=$(request limits "$api/limits")
 check "GET limits without the API key is 200" [ "$code" = 200 ]
 check "  lists four formats" [ "$(json limits '.formats | length')" = 4 ]

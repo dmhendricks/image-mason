@@ -1,7 +1,4 @@
-[![CI](https://github.com/dmhendricks/image-mason/actions/workflows/ci.yml/badge.svg)](https://github.com/dmhendricks/image-mason/actions/workflows/ci.yml)
-[![Docker Image Version](https://img.shields.io/docker/v/hendridm/image-mason?sort=semver&label=docker)](https://hub.docker.com/r/hendridm/image-mason)
-[![Docker Image Size](https://img.shields.io/docker/image-size/hendridm/image-mason?sort=semver)](https://hub.docker.com/r/hendridm/image-mason)
-[![License](https://img.shields.io/github/license/dmhendricks/image-mason)](https://github.com/dmhendricks/image-mason/blob/main/LICENSE)
+[![CI](https://github.com/dmhendricks/image-mason/actions/workflows/ci.yml/badge.svg)](https://github.com/dmhendricks/image-mason/actions/workflows/ci.yml) [![Docker Image Version](https://img.shields.io/docker/v/hendridm/image-mason?sort=semver&label=docker)](https://hub.docker.com/r/hendridm/image-mason) [![Docker Image Size](https://img.shields.io/docker/image-size/hendridm/image-mason?sort=semver)](https://hub.docker.com/r/hendridm/image-mason) [![License](https://img.shields.io/github/license/dmhendricks/image-mason)](https://github.com/dmhendricks/image-mason/blob/main/LICENSE)
 
 ![Image Mason](https://github.com/dmhendricks/image-mason/raw/main/assets/logo.png)
 
@@ -23,6 +20,7 @@ settings, and returns the smallest result that meets the score, or the original 
 - **Conversion:** any of the four formats to any other, with the same quality presets.
 - **Resizing:** fit into a box, fill it and crop (centered or on the most interesting area), or stretch, with
   libvips.
+- **Cropping:** keep an exact area, then resize or convert it in the same call.
 - **Hosting:** results can be stored and served from a URL for a limited time.
 
 The image is about 65 MB, runs as a non-root user with a read-only root filesystem, and is published for
@@ -136,6 +134,21 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o thumb.webp \
   "http://localhost:8080/api/v1/resize?width=400&height=400&fit=cover&crop=attention&format=webp"
 ```
 
+### Crop an Image
+
+`crop` keeps the area in `rect`, given as `left,top,width,height` in pixels, then optimizes it like
+`optimize`. Add `width`, `height` or `maxWidth` to resize the cropped area, and `format` to convert it:
+
+```bash
+# The 480x480 square starting 80 pixels from the left
+curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o square.jpg \
+  "http://localhost:8080/api/v1/crop?rect=80,0,480,480"
+
+# The same square as a 200x200 AVIF
+curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o square.avif \
+  "http://localhost:8080/api/v1/crop?rect=80,0,480,480&width=200&format=avif"
+```
+
 ### Quality Presets
 
 | Preset | Minimum score | Result |
@@ -217,6 +230,7 @@ When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api
 | `POST /api/v1/optimize` | Optimize an image, keeping its format unless `format` is sent |
 | `POST /api/v1/convert` | Convert an image to another format, optimized |
 | `POST /api/v1/resize` | Resize an image to a box, optimized |
+| `POST /api/v1/crop` | Crop an image to an area, optimized |
 | `POST /api/v1/upload` | Store an image unchanged |
 | `POST /api/v1/info` | Describe an image: format, dimensions, bit depth, alpha and more |
 | `GET /api/v1/limits` | The server's formats, size limits, presets and timeouts |
@@ -233,6 +247,7 @@ The image is the request body, or the file at `url`.
 |---|---|---|
 | `quality` | `high` | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
+| `rect` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
 | `maxWidth` | `0` | Downscale images wider than this, keeping the aspect ratio. `0` keeps the original size. Can't be combined with `width` or `height`. |
 | `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied) |
 | `height` | | Resize to a box this high, 1 to 65535. Send `width`, `height` or both; a missing side follows the aspect ratio. |
@@ -256,7 +271,7 @@ Response headers:
 | `X-Image-Mason-Reduction-Percent` | Percent smaller than the input; negative if larger |
 | `X-Image-Mason-Original-Dimensions` | Input width x height |
 | `X-Image-Mason-Dimensions` | Output width x height |
-| `X-Image-Mason-Method` | How the result was produced, such as `jpegtran`, `jpegli-d1.15`, `oxipng`, `pngquant+oxipng`, `cwebp-q93`, `cwebp-lossless`, `avifenc-q80` or `original`. Resized results start with `resize+`. |
+| `X-Image-Mason-Method` | How the result was produced, such as `jpegtran`, `jpegli-d1.15`, `oxipng`, `pngquant+oxipng`, `cwebp-q93`, `cwebp-lossless`, `avifenc-q80` or `original`. Cropped results start with `crop+` and resized ones with `resize+` (`crop+resize+` when both). |
 | `X-Image-Mason-Score` | SSIMULACRA2 score of a lossy result |
 | `X-Image-Mason-Min-Score` | The floor the result had to meet |
 | `X-Image-Mason-Is-Photo` | For PNG inputs: whether it looks like a photo with no transparency |
@@ -269,8 +284,8 @@ attempt against the input.
 
 - **JPEG:** `jpegtran` recompresses a JPEG without loss, keeping the ICC color profile (and the EXIF data,
   when the image relies on its orientation tag). Unless the preset is `lossless`, jpegli encodes it too.
-  JPEG has no lossless mode, so a JPEG produced by resizing or converting under `lossless` is held to a
-  score of 90 instead. Transparent images are placed on white.
+  JPEG has no lossless mode, so a JPEG produced by cropping, resizing or converting under `lossless` is held
+  to a score of 90 instead. Transparent images are placed on white.
 - **PNG:** `oxipng` recompresses without loss. Unless the preset is `lossless`, `pngquant` reduces the
   palette, and the result is kept only if it meets the floor.
 - **WebP:** `cwebp` encodes lossy, and also lossless when the input is a PNG graphic or the preset is
@@ -278,10 +293,10 @@ attempt against the input.
 - **AVIF:** `avifenc` encodes lossy, or lossless under the `lossless` preset.
 - **Orientation:** every re-encoded result is rotated upright, so it displays correctly without an
   orientation tag. Metadata other than the ICC color profile is removed.
-- **Resized images** start from the downscaled pixels.
+- **Cropped and resized images** start from the cut-out or downscaled pixels, and are scored against them.
 
 When the output format matches the input, the original is always a candidate, so the response is never
-larger than the input unless a resize asked for a different image. Animated WebP and AVIF are rejected.
+larger than the input unless a crop or resize asked for a different image. Animated WebP and AVIF are rejected.
 
 ### `POST /api/v1/convert`
 
@@ -296,6 +311,16 @@ are required, and `maxWidth` and `preferJpeg` don't apply.
 
 The result is optimized against the resized pixels, so its score compares it to the resized image, not the
 original. Results over `IMAGE_MASON_MAX_PIXELS`, and WebP results over 16383 pixels on a side, get 422.
+
+### `POST /api/v1/crop`
+
+The same parameters and response as [`optimize`](#post-apiv1optimize), except that `rect` is required. The
+area is in display pixels, so for a photo with an orientation tag it matches what a viewer shows, not the
+stored pixels. A `rect` that reaches past the image's edges gets 400, with the image's displayed size in the
+message.
+
+`width`, `height` and `maxWidth` resize the cropped area, and `X-Image-Mason-Original-Dimensions` still
+reports the whole input. The score compares the result with the cropped area.
 
 ### `POST /api/v1/upload`
 

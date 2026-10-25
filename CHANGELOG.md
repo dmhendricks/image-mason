@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-25
+
 ### Added
 
 - Images are published for `linux/arm64` as well as `linux/amd64`, built and smoke tested on native runners.
@@ -50,6 +52,7 @@ All notable changes to this project are documented here. The format is based on
   instead of running the container out of memory.
 - Errors returned as RFC 9457 Problem Details.
 
-[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/dmhendricks/image-mason/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/dmhendricks/image-mason/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dmhendricks/image-mason/releases/tag/v0.1.0

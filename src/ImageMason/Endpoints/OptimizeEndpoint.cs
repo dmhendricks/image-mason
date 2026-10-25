@@ -8,8 +8,9 @@ using ImageMason.Storage;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/optimize: returns a smaller image in the same format, with stats in X-Image-Mason-* headers, or
-/// with output=json stores it and returns its URL and the same stats.
+/// POST /api/v1/optimize: returns a smaller image in the same format (or in format, when sent), optionally resized
+/// to maxWidth or to a width/height box like resize, with stats in X-Image-Mason-* headers, or with output=json
+/// stores it and returns its URL and the same stats.
 /// </summary>
 internal static class OptimizeEndpoint
 {
@@ -20,20 +21,41 @@ internal static class OptimizeEndpoint
         ImageOptimizer optimizer,
         ImageStore store,
         ILogger<ImageOptimizer> logger,
+        string? format,
         string? quality,
         double? minScore,
         int? maxWidth,
+        int? width,
+        int? height,
+        string? fit,
+        string? crop,
         string? output,
         string? outputFilename,
         string? url,
+        bool? upscale,
         bool preferJpeg = false,
         bool keepOriginal = false)
     {
         if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
             return ApiRequest.Unauthorized();
 
+        if (!ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out var resizeError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
+
+        if (resize is not null && maxWidth is not null)
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send maxWidth or width/height, not both.");
+
+        // An explicit format wins over preferJpeg.
+        ImageFormat? target = null;
+        if (format is not null)
+        {
+            if (!ImageFormatDetector.TryParse(format, out var parsed))
+                return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp' or 'avif'.");
+            target = parsed;
+        }
+
         return await RunAsync(http, options, downloader, optimizer, store, logger,
-            null, null, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg, keepOriginal);
+            target, resize, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg, keepOriginal);
     }
 
     /// <summary>Shared by optimize, convert and resize, after the API key check.</summary>

@@ -218,14 +218,14 @@
           <tr><td><code>low</code></td><td>Barely visible difference side by side</td></tr>
         </tbody>
       </table>
-      <p class="note"><code>minScore</code> sets a custom quality floor (SSIMULACRA2, 0–100), <code>maxWidth</code> downscales wider images, and <code>preferJpeg=true</code> returns a JPEG when a PNG is really a photo.</p>
+      <p class="note"><code>minScore</code> sets a custom quality floor (SSIMULACRA2, 0–100), <code>maxWidth</code> downscales wider images (or <code>width</code>, <code>height</code> and <code>fit</code> resize to a box, as with <code>resize</code>), <code>format</code> converts while optimizing, and <code>preferJpeg=true</code> returns a JPEG when a PNG is really a photo.</p>
     </section>
 
     <section>
       <h2>Endpoints</h2>
       <table>
         <tbody>
-          <tr><td><code>POST /api/v1/optimize</code></td><td>Optimize an image, keeping its format</td></tr>
+          <tr><td><code>POST /api/v1/optimize</code></td><td>Optimize an image, keeping its format unless <code>format</code> is sent</td></tr>
           <tr><td><code>POST /api/v1/convert</code></td><td>Convert an image to another format</td></tr>
           <tr><td><code>POST /api/v1/resize</code></td><td>Resize an image to a box</td></tr>
           <tr><td><code>POST /api/v1/upload</code></td><td>Store an image unchanged</td></tr>

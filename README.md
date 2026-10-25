@@ -213,7 +213,7 @@ When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api
 
 | Endpoint | Description |
 |---|---|
-| `POST /api/v1/optimize` | Optimize an image, keeping its format |
+| `POST /api/v1/optimize` | Optimize an image, keeping its format unless `format` is sent |
 | `POST /api/v1/convert` | Convert an image to another format, optimized |
 | `POST /api/v1/resize` | Resize an image to a box, optimized |
 | `POST /api/v1/upload` | Store an image unchanged |
@@ -232,8 +232,14 @@ The image is the request body, or the file at `url`.
 |---|---|---|
 | `quality` | `high` | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
-| `maxWidth` | `0` | Downscale images wider than this, keeping the aspect ratio. `0` keeps the original size. |
-| `preferJpeg` | `false` | Return a JPEG when the input is a PNG photo with no transparency |
+| `maxWidth` | `0` | Downscale images wider than this, keeping the aspect ratio. `0` keeps the original size. Can't be combined with `width` or `height`. |
+| `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied) |
+| `height` | | Resize to a box this high, 1 to 65535. Send `width`, `height` or both; a missing side follows the aspect ratio. |
+| `fit` | `contain` | `contain`: fit inside the box, keeping the aspect ratio (either side may be left out). `cover`: fill the box and crop what overflows. `fill`: stretch to exactly the box. `cover` and `fill` need both sides. |
+| `crop` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
+| `upscale` | `false` | Enlarge images smaller than the box. Without it, `contain` leaves them as they are and `cover` only crops. `fill` always reaches the exact size. |
+| `format` | the input's | `jpeg` (or `jpg`), `png`, `webp` or `avif`, to convert while optimizing. Overrides `preferJpeg`. |
+| `preferJpeg` | `false` | Return a JPEG when the input is a PNG photo with no transparency. Ignored when `format` is sent. |
 | `url` | | Download the image from this URL instead of reading the body |
 | `output` | | `json` stores the result and returns its URL and statistics |
 | `outputFilename` | random | Stored file name, such as `banner.jpg`: letters, digits, `_` or `-`, then the output format's extension (`.jpg`, `.png`, `.webp` or `.avif`). Replaces an existing file with the same name. Requires `output=json`. |
@@ -278,23 +284,14 @@ larger than the input unless a resize asked for a different image. Animated WebP
 
 ### `POST /api/v1/convert`
 
-The same parameters and response as [`optimize`](#post-apiv1optimize), plus a required `format`: `jpeg`
-(or `jpg`), `png`, `webp` or `avif`. `preferJpeg` doesn't apply. Converting to JPEG or WebP reduces 16-bit
+The same parameters and response as [`optimize`](#post-apiv1optimize), except that `format` is required:
+`jpeg` (or `jpg`), `png`, `webp` or `avif`. `preferJpeg` doesn't apply. Converting to JPEG or WebP reduces 16-bit
 images to 8 bits per channel.
 
 ### `POST /api/v1/resize`
 
-The same parameters and response as [`optimize`](#post-apiv1optimize), with these instead of `maxWidth` and
-`preferJpeg`. Sizes are in display pixels, after the orientation is applied.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `width` | | Box width, 1 to 65535 |
-| `height` | | Box height, 1 to 65535. Send `width`, `height` or both. |
-| `fit` | `contain` | `contain`: fit inside the box, keeping the aspect ratio (either side may be left out). `cover`: fill the box and crop what overflows. `fill`: stretch to exactly the box. `cover` and `fill` need both sides. |
-| `crop` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
-| `upscale` | `false` | Enlarge images smaller than the box. Without it, `contain` leaves them as they are and `cover` only crops. `fill` always reaches the exact size. |
-| `format` | the input's | `jpeg`, `png`, `webp` or `avif`, to convert while resizing |
+The same parameters and response as [`optimize`](#post-apiv1optimize), except that `width`, `height` or both
+are required, and `maxWidth` and `preferJpeg` don't apply.
 
 The result is optimized against the resized pixels, so its score compares it to the resized image, not the
 original. Results over `IMAGE_MASON_MAX_PIXELS`, and WebP results over 16383 pixels on a side, get 422.

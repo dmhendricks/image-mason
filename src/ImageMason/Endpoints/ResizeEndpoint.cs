@@ -11,8 +11,6 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class ResizeEndpoint
 {
-    private const int MaxSide = 65535;
-
     public static async Task<IResult> HandleAsync(
         HttpContext http,
         ImageMasonOptions options,
@@ -30,29 +28,17 @@ internal static class ResizeEndpoint
         string? output,
         string? outputFilename,
         string? url,
-        bool upscale = false,
+        bool? upscale,
         bool keepOriginal = false)
     {
         if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
             return ApiRequest.Unauthorized();
 
-        if (width is < 1 or > MaxSide || height is < 1 or > MaxSide)
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"width and height must be between 1 and {MaxSide}.");
-
         if (width is null && height is null)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send width, height or both.");
 
-        if (!TryParseFit(fit, out var resizeFit))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "fit must be 'contain', 'cover' or 'fill'.");
-
-        if (resizeFit != ResizeFit.Contain && (width is null || height is null))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"fit={resizeFit.ToString().ToLowerInvariant()} needs both width and height.");
-
-        if (!TryParseCrop(crop, out var position))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "crop must be 'center', 'attention' or 'entropy'.");
-
-        if (crop is not null && resizeFit != ResizeFit.Cover)
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "crop is only used with fit=cover.");
+        if (!ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out var resizeError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
 
         ImageFormat? target = null;
         if (format is not null)
@@ -62,46 +48,7 @@ internal static class ResizeEndpoint
             target = parsed;
         }
 
-        var resize = new ResizeRequest(width, height, resizeFit, upscale, position);
         return await OptimizeEndpoint.RunAsync(http, options, downloader, optimizer, store, logger,
             target, resize, quality, minScore, maxWidth: null, output, outputFilename, url, preferJpeg: false, keepOriginal);
-    }
-
-    private static bool TryParseFit(string? value, out ResizeFit fit)
-    {
-        switch (value?.Trim().ToLowerInvariant())
-        {
-            case null or "" or "contain":
-                fit = ResizeFit.Contain;
-                return true;
-            case "cover":
-                fit = ResizeFit.Cover;
-                return true;
-            case "fill":
-                fit = ResizeFit.Fill;
-                return true;
-            default:
-                fit = default;
-                return false;
-        }
-    }
-
-    private static bool TryParseCrop(string? value, out CropPosition crop)
-    {
-        switch (value?.Trim().ToLowerInvariant())
-        {
-            case null or "" or "center" or "centre":
-                crop = CropPosition.Center;
-                return true;
-            case "attention":
-                crop = CropPosition.Attention;
-                return true;
-            case "entropy":
-                crop = CropPosition.Entropy;
-                return true;
-            default:
-                crop = default;
-                return false;
-        }
     }
 }

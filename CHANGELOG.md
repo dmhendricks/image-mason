@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- `optimize` accepts an optional `format` (`jpeg`, `png`, `webp` or `avif`) to convert while optimizing; it
+  overrides `preferJpeg`.
+- `optimize` accepts `resize`'s `width`, `height`, `fit`, `crop` and `upscale`, as an alternative to `maxWidth`.
+
 ## [0.1.0] - 2026-10-25
 
 ### Added

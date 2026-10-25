@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Mason</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.55 system-ui, sans-serif; }
+    body { margin: 0; padding: 48px 16px; }
+    main { max-width: 36rem; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    code { font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>The web interface isn't in this build</h1>
+    <p>The API works as usual, and its examples are at <a href="/docs">/docs</a>.</p>
+    <p>To include the interface, run <code>npm ci</code> and <code>npm run build</code> in <code>src/web</code>, then
+      build the server again. The Docker image always includes it.</p>
+  </main>
+</body>
+</html>

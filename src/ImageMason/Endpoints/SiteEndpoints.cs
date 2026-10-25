@@ -2,19 +2,68 @@ using System.Globalization;
 using System.Text.Encodings.Web;
 using ImageMason.Configuration;
 using ImageMason.Storage;
+using Microsoft.AspNetCore.StaticFiles;
 
 namespace ImageMason.Endpoints;
 
 internal static class SiteEndpoints
 {
-    /// <summary>Maps the landing page, the favicons and the stored images (GET, and DELETE with the API key).</summary>
+    private const string ResourcePrefix = "wwwroot/";
+
+    // The web interface runs scripts, so its page only allows this server's own files (images also from blob:
+    // and data: URLs, which the interface creates for results).
+    private const string WebInterfacePolicy =
+        "default-src 'self'; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
+    // Embedded files by their path under wwwroot, such as "docs.html" or "app/assets/index-1a2b3c.js". The web
+    // interface's build (src/web/dist) is embedded under app/ when it exists; see ImageMason.csproj.
+    private static readonly Dictionary<string, string> Files = typeof(SiteEndpoints).Assembly.GetManifestResourceNames()
+        .Select(name => (Name: name, Path: name.Replace('\\', '/')))
+        .Where(resource => resource.Path.StartsWith(ResourcePrefix, StringComparison.Ordinal))
+        .ToDictionary(resource => resource.Path[ResourcePrefix.Length..], resource => resource.Name, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Maps the web interface (/ and /assets), the usage examples (/docs), the favicons and the stored images (GET,
+    /// and DELETE with the API key).
+    /// </summary>
     public static void MapSite(this WebApplication app, ImageMasonOptions options)
     {
-        var landingPage = ReadText("index.html");
+        var webInterface = Files.ContainsKey("app/index.html") ? ReadBytes("app/index.html") : null;
+        var notBuiltPage = ReadBytes("no-app.html");
+        var docsPage = ReadText("docs.html").Replace("{{webInterfaceLink}}",
+            options.UiEnabled ? """<a href="/">Web interface</a>""" : "", StringComparison.Ordinal);
+        var contentTypes = new FileExtensionContentTypeProvider();
 
-        app.MapGet("/", (HttpRequest request) =>
+        app.MapGet("/", (HttpContext http) =>
         {
-            var html = landingPage
+            if (!options.UiEnabled)
+                return Results.Redirect("/docs");
+
+            http.Response.Headers.CacheControl = "no-cache";
+            if (webInterface is null)
+                return Results.Bytes(notBuiltPage, "text/html; charset=utf-8");
+
+            http.Response.Headers.ContentSecurityPolicy = WebInterfacePolicy;
+            return Results.Bytes(webInterface, "text/html; charset=utf-8");
+        });
+
+        // Vite's build files. Their names change with their contents, so browsers may keep them for good.
+        app.MapGet("/assets/{**path}", (HttpContext http, string path) =>
+        {
+            var file = "app/assets/" + path;
+            if (!options.UiEnabled || !Files.ContainsKey(file))
+                return Results.NotFound();
+
+            if (!contentTypes.TryGetContentType(path, out var contentType))
+                contentType = "application/octet-stream";
+
+            http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+            return Results.Stream(Open(file), contentType);
+        });
+
+        app.MapGet("/docs", (HttpRequest request) =>
+        {
+            var html = docsPage
                 .Replace("{{origin}}", HtmlEncoder.Default.Encode(ApiRequest.Origin(request, options.PublicBaseUrl)), StringComparison.Ordinal)
                 .Replace("{{version}}", HtmlEncoder.Default.Encode(AppInfo.Version), StringComparison.Ordinal)
                 .Replace("{{ttlMinutes}}", options.ImageTtlMinutes.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
@@ -59,22 +108,22 @@ internal static class SiteEndpoints
         });
     }
 
-    private static string ReadText(string name)
+    private static string ReadText(string path)
     {
-        using var reader = new StreamReader(Open(name));
+        using var reader = new StreamReader(Open(path));
         return reader.ReadToEnd();
     }
 
-    private static byte[] ReadBytes(string name)
+    private static byte[] ReadBytes(string path)
     {
-        using var stream = Open(name);
+        using var stream = Open(path);
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return buffer.ToArray();
     }
 
     // wwwroot files are embedded in the binary (see ImageMason.csproj), so the image needs no web root.
-    private static Stream Open(string name) =>
-        typeof(SiteEndpoints).Assembly.GetManifestResourceStream($"ImageMason.wwwroot.{name}")
-            ?? throw new InvalidOperationException($"Embedded resource wwwroot/{name} is missing.");
+    private static Stream Open(string path) =>
+        (Files.TryGetValue(path, out var name) ? typeof(SiteEndpoints).Assembly.GetManifestResourceStream(name) : null)
+            ?? throw new InvalidOperationException($"Embedded resource wwwroot/{path} is missing.");
 }

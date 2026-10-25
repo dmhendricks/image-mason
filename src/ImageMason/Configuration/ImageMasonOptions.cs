@@ -113,6 +113,9 @@ public sealed class ImageMasonOptions
     /// <summary>Extensions (without the dot) the url path must end in. Empty allows any.</summary>
     public IReadOnlyList<string> UrlAllowedExtensions { get; init; } = [];
 
+    /// <summary>False turns the web interface off: / redirects to the usage examples at /docs. The API is unaffected.</summary>
+    public bool UiEnabled { get; init; } = true;
+
     /// <summary>Minimum level for this service's own log messages.</summary>
     public LogLevel LogLevel { get; init; } = LogLevel.Information;
 
@@ -142,6 +145,7 @@ public sealed class ImageMasonOptions
             UrlFetchEnabled = settings.Bool("URL_FETCH_ENABLED", defaults.UrlFetchEnabled),
             UrlAllowedHosts = settings.Hosts("URL_ALLOWED_HOSTS"),
             UrlAllowedExtensions = settings.Extensions("URL_ALLOWED_EXTENSIONS"),
+            UiEnabled = settings.Bool("UI_ENABLED", defaults.UiEnabled),
             LogLevel = settings.Level("LOG_LEVEL", defaults.LogLevel),
         };
     }

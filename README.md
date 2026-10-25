@@ -237,7 +237,8 @@ When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api
 | `GET /images/{name}` | Fetch a stored image |
 | `DELETE /images/{name}` | Delete a stored image before it expires |
 | `GET /health` | Service status and build information |
-| `GET /` | Landing page with usage examples |
+| `GET /` | Web interface (turn off with `IMAGE_MASON_UI_ENABLED=false`) |
+| `GET /docs` | Usage examples |
 
 ### `POST /api/v1/optimize`
 
@@ -452,6 +453,7 @@ comments. An invalid value stops the container at startup with a message naming 
 | `IMAGE_MASON_URL_FETCH_ENABLED` | `true` | `false` accepts uploaded images only |
 | `IMAGE_MASON_URL_ALLOWED_HOSTS` | | Comma-separated hosts `url` may point to. `*.example.com` matches subdomains. Empty allows any host. |
 | `IMAGE_MASON_URL_ALLOWED_EXTENSIONS` | | Comma-separated extensions the `url` path must end in, such as `png,jpg,jpeg,webp,avif`. Empty allows any. |
+| `IMAGE_MASON_UI_ENABLED` | `true` | `false` turns the web interface off: `/` redirects to the usage examples at `/docs`. The API is unaffected. |
 | `IMAGE_MASON_LOG_LEVEL` | `Information` | `Trace`, `Debug`, `Information`, `Warning` or `Error` |
 | `TZ` | `UTC` | Timezone for logs and timestamps, such as `America/New_York` |
 
@@ -500,7 +502,8 @@ To report a vulnerability, see [SECURITY.md](https://github.com/dmhendricks/imag
 
 ## Development
 
-Requires Docker. Running the unit tests outside Docker requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+Requires Docker. Running the unit tests outside Docker requires the [.NET 10 SDK](https://dotnet.microsoft.com/download),
+and working on the web interface requires [Node.js 24](https://nodejs.org/).
 
 ```bash
 git clone https://github.com/dmhendricks/image-mason.git
@@ -520,6 +523,18 @@ scripts/optimize.sh photo.jpg medium                 # optimize one image and pr
 
 The first build compiles libjxl, mozjpeg, libvips, aom, dav1d and libavif from source and takes 10 minutes or
 more; later builds reuse the cached layers.
+
+The web interface is a Vue 3 app in `src/web`, built with Vite into static files that are embedded in the
+binary. To work on it with instant reloads, run the container as above, then:
+
+```bash
+cd src/web
+npm ci
+npm run dev        # http://localhost:5173; forwards /api and the rest to the container (PORT in .env)
+npm test           # unit tests
+npm run lint
+npm run build      # type check, then build into src/web/dist
+```
 
 See [CONTRIBUTING.md](https://github.com/dmhendricks/image-mason/blob/main/CONTRIBUTING.md) for how to
 submit changes.

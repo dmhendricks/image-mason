@@ -30,6 +30,7 @@ CI runs the same checks on every pull request:
 ```bash
 dotnet test --solution ImageMason.slnx -c Release
 shellcheck scripts/*.sh
+(cd src/web && npm ci && npm run lint && npm test && npm run build && npm run size)
 docker build -t image-mason:dev . && scripts/smoke-test.sh image-mason:dev
 ```
 
@@ -42,7 +43,8 @@ The build treats warnings as errors and enforces the code style in [.editorconfi
   the README.
 - Keep the image tools as separate programs, and add any new third-party component to
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) with its license in [licenses/](licenses/).
-- Pin new dependencies to their latest stable version.
+- Pin new dependencies to their latest stable version. Packages bundled into the web interface count as
+  third-party components too.
 
 ## Sign-Off
 

@@ -6,7 +6,8 @@ components only.
 
 The image tools (`cjpegli`, `ssimulacra2`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`,
 `oxipng`, `pngquant`) run as separate programs. None of them is linked into the Image Mason application. The application binary
-contains the .NET runtime and ASP.NET Core, compiled in ahead of time.
+contains the .NET runtime and ASP.NET Core, compiled in ahead of time, and the web interface's files (Vue and the
+Barlow fonts), embedded as resources.
 
 Full license texts are in the [`licenses/`](licenses/) directory. In the image, they are in
 `/usr/share/licenses/image-mason/`.
@@ -106,6 +107,23 @@ ASP.NET Core include further third-party components, listed in their own `THIRD-
 
 - <https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT>
 - <https://github.com/dotnet/aspnetcore/blob/main/THIRD-PARTY-NOTICES.txt>
+
+## Web Interface
+
+Bundled into the web interface's JavaScript, CSS and font files, which are embedded in the application binary.
+
+| Component | Version | License | Source |
+|---|---|---|---|
+| Vue (`@vue/runtime-dom`, `@vue/runtime-core`, `@vue/reactivity`, `@vue/shared`) | 3.5.44 | MIT | <https://github.com/vuejs/core> |
+| Barlow (font, from `@fontsource/barlow`) | 5.3.0 | OFL-1.1 | <https://github.com/jpt/barlow> |
+| Barlow Semi Condensed (font, from `@fontsource/barlow-semi-condensed`) | 5.3.0 | OFL-1.1 | <https://github.com/jpt/barlow> |
+
+Vue: Copyright (c) 2018-present, Yuxi (Evan) You. See
+[`licenses/vue-LICENSE.txt`](licenses/vue-LICENSE.txt).
+
+Barlow and Barlow Semi Condensed: Copyright 2017 The Barlow Project Authors. See
+[`licenses/barlow-OFL.txt`](licenses/barlow-OFL.txt) and
+[`licenses/barlow-semi-condensed-OFL.txt`](licenses/barlow-semi-condensed-OFL.txt).
 
 ## Base Image and Shared Libraries
 

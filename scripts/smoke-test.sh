@@ -77,9 +77,19 @@ if [[ -n "$expected_version" ]]; then
     check "  version is $expected_version" [ "$(json health .build.version)" = "$expected_version" ]
 fi
 
-code=$(request landing "$base/")
+code=$(request webui "$base/")
 check "GET / is 200" [ "$code" = 200 ]
-check "  serves the landing page" grep -q "<title>Image Mason</title>" "$work/landing.body"
+check "  serves the web interface" grep -q '<div id="app">' "$work/webui.body"
+check "  with a Content-Security-Policy" starts_with "$(header webui content-security-policy)" "default-src 'self'"
+script=$(grep -o '/assets/[^"]*\.js' "$work/webui.body" | head -1 || true)
+check "  references its script" [ -n "$script" ]
+code=$(request webuiscript "$base$script")
+check "  the script loads" [ "$code" = 200 ]
+check "  and is cached for good" [ "$(header webuiscript cache-control)" = "public, max-age=31536000, immutable" ]
+
+code=$(request docs "$base/docs")
+check "GET /docs is 200" [ "$code" = 200 ]
+check "  serves the usage examples" grep -q "api/v1/crop?rect=" "$work/docs.body"
 
 code=$(request favicon "$base/favicon.svg")
 check "GET /favicon.svg is 200" [ "$code" = 200 ]

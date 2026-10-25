@@ -9,6 +9,10 @@ publish/
 *.bak.*
 *.log
 
+# Web interface (src/web)
+node_modules/
+src/web/dist/
+
 # Local configuration
 .env
 .env.*

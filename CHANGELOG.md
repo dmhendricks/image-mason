@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- The groundwork for a web interface at `/`: a Vue 3 app, built into the image, that for now shows what the
+  server accepts. The image tools come next.
+- `IMAGE_MASON_UI_ENABLED`: `false` turns the web interface off, and `/` redirects to `/docs`.
+
+### Changed
+
+- The usage examples that were at `/` moved to `/docs`.
+
 ## [0.2.1] - 2026-10-25
 
 ### Added

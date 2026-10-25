@@ -3,15 +3,19 @@
 # Image Mason: JPEG, PNG, WebP and AVIF optimization API (oxipng, pngquant, mozjpeg, jpegli, cwebp, avifenc,
 # SSIMULACRA2).
 #
-# Three stages:
+# Four stages:
 #   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (cjpegli, ssimulacra2) and
 #                libavif (avifenc, avifdec), which Alpine doesn't package or packages at older versions. Uses
 #                the same Alpine release as the runtime (musl ABI).
-#   2. app     - Native AOT publish of the .NET minimal API, so the runtime needs no .NET installation.
-#   3. runtime - runtime-deps:alpine + oxipng, pngquant and cwebp from Alpine + the compiled tools.
+#   2. web     - builds the web interface (src/web, Vue + Vite) into static files. Node exists only here.
+#   3. app     - Native AOT publish of the .NET minimal API, with the web interface embedded, so the runtime
+#                needs no .NET installation and no web root.
+#   4. runtime - runtime-deps:alpine + oxipng, pngquant and cwebp from Alpine + the compiled tools.
 
 ARG ALPINE_VERSION=3.24
 ARG DOTNET_VERSION=10.0
+# Node LTS, for building the web interface only.
+ARG NODE_VERSION=24
 
 # ---------------------------------------------------------------------------
 # 1. Native tools
@@ -151,7 +155,19 @@ RUN git clone --depth 1 --branch ${LIBAVIF_VERSION} https://github.com/AOMediaCo
     && strip /out/lib/libavif.so.*.*
 
 # ---------------------------------------------------------------------------
-# 2. .NET app (Native AOT)
+# 2. Web interface
+# ---------------------------------------------------------------------------
+# The output is the same on every architecture, so it builds once, on the build machine's platform.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS web
+
+WORKDIR /src/web
+COPY src/web/package.json src/web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY src/web/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# 3. .NET app (Native AOT)
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine${ALPINE_VERSION}-aot AS app
 
@@ -165,13 +181,15 @@ RUN RID=linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARC
     && dotnet restore src/ImageMason/ImageMason.csproj -r "$RID"
 
 COPY src/ImageMason/ src/ImageMason/
+# ImageMason.csproj embeds ../web/dist as the web interface.
+COPY --from=web /src/web/dist/ src/web/dist/
 RUN RID=linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \
     && dotnet publish src/ImageMason/ImageMason.csproj -c Release -r "$RID" --no-restore \
         -p:Version="$VERSION" -o /app \
     && rm -f /app/*.dbg
 
 # ---------------------------------------------------------------------------
-# 3. Runtime
+# 4. Runtime
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}-alpine${ALPINE_VERSION}
 

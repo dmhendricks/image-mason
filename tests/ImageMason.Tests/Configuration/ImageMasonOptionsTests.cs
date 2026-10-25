@@ -25,6 +25,7 @@ public sealed class ImageMasonOptionsTests
         Assert.Null(options.MemoryLimitBytes);
         Assert.True(options.UrlFetchEnabled);
         Assert.Empty(options.UrlAllowedHosts);
+        Assert.True(options.UiEnabled);
         Assert.Equal(LogLevel.Information, options.LogLevel);
     }
 
@@ -48,6 +49,7 @@ public sealed class ImageMasonOptionsTests
             ("URL_FETCH_ENABLED", "false"),
             ("URL_ALLOWED_HOSTS", "CDN.example.com, *.example.org"),
             ("URL_ALLOWED_EXTENSIONS", ".PNG,*.jpg, jpeg"),
+            ("UI_ENABLED", "false"),
             ("LOG_LEVEL", "debug"));
 
         Assert.Equal("secret", options.ApiKey);
@@ -66,6 +68,7 @@ public sealed class ImageMasonOptionsTests
         Assert.False(options.UrlFetchEnabled);
         Assert.Equal(["cdn.example.com", "*.example.org"], options.UrlAllowedHosts);
         Assert.Equal(["png", "jpg", "jpeg"], options.UrlAllowedExtensions);
+        Assert.False(options.UiEnabled);
         Assert.Equal(LogLevel.Debug, options.LogLevel);
     }
 

@@ -3,6 +3,7 @@ name: CI
 # Jobs that run in parallel and never push anything:
 #
 #   test   - unit tests and shell script lint.
+#   web    - the web interface (src/web): lint, type check, unit tests, build and the JavaScript size budget.
 #   image  - one per architecture, each on a native runner: builds the image and runs scripts/smoke-test.sh
 #            against it.
 
@@ -37,6 +38,40 @@ jobs:
 
       - name: Lint shell scripts
         run: shellcheck scripts/*.sh
+
+  web:
+    runs-on: ubuntu-26.04
+
+    defaults:
+      run:
+        working-directory: src/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # Type checks first (npm run build runs vue-tsc, then vite build).
+      - name: Build
+        run: npm run build
+
+      - name: Size budget
+        run: npm run size
 
   image:
     strategy:

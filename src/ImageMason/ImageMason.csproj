@@ -16,14 +16,16 @@
     <InternalsVisibleTo Include="ImageMason.Tests" />
   </ItemGroup>
 
-  <!-- The landing page and favicons are embedded in the binary instead of published as a web root. -->
+  <!-- The pages, favicons and the web interface are embedded in the binary instead of published as a web root.
+       The web interface is src/web's Vite build (npm run build); without it, / serves wwwroot/no-app.html. -->
   <PropertyGroup>
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Remove="wwwroot/**" />
-    <EmbeddedResource Include="wwwroot/**" LogicalName="ImageMason.wwwroot.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="wwwroot/**" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../web/dist/**" LogicalName="wwwroot/app/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

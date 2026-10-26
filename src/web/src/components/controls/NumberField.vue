@@ -3,9 +3,12 @@ import { ref, watch } from 'vue'
 
 // A text field for whole (or, with decimal, fractional) numbers. Empty is null, and anything that isn't a number
 // is NaN, so the caller can say what's wrong instead of the browser silently dropping it (as type="number" does).
+// With unit, the field gets a suffix such as "px"; attributes (id, placeholder, aria-*) always go to the <input>.
+
+defineOptions({ inheritAttrs: false })
 
 const model = defineModel<number | null>({ required: true })
-const props = defineProps<{ decimal?: boolean }>()
+const props = defineProps<{ decimal?: boolean, unit?: string }>()
 
 const show = (value: number | null) => value === null || Number.isNaN(value) ? '' : String(value)
 
@@ -31,7 +34,22 @@ function onInput(event: Event) {
 </script>
 
 <template>
+  <div v-if="unit" class="field-group">
+    <input
+      v-bind="$attrs"
+      class="field"
+      type="text"
+      :value="text"
+      :inputmode="decimal ? 'decimal' : 'numeric'"
+      autocomplete="off"
+      spellcheck="false"
+      @input="onInput"
+    >
+    <span class="unit">{{ unit }}</span>
+  </div>
   <input
+    v-else
+    v-bind="$attrs"
     class="field"
     type="text"
     :value="text"

@@ -24,6 +24,7 @@ const serverDefault = computed(() =>
     <NumberField
       :id="id"
       v-model="settings.maxWidth"
+      unit="px"
       :placeholder="serverDefault > 0 ? `${serverDefault} (server default)` : 'No limit'"
       :aria-invalid="plan.errors.maxWidth ? 'true' : undefined"
       :aria-describedby="`${id}-hint`"

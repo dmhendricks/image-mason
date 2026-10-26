@@ -29,9 +29,11 @@ const keepLabel = computed(() => image.value ? `Keep (${formatName(image.value.f
 <template>
   <div class="prop">
     <label :for="id">Format</label>
-    <select :id="id" v-model="selected" class="field">
-      <option :value="null">{{ keepLabel }}</option>
-      <option v-for="format in formats" :key="format" :value="format">{{ formatName(format) }}</option>
-    </select>
+    <span class="select">
+      <select :id="id" v-model="selected" class="field">
+        <option :value="null">{{ keepLabel }}</option>
+        <option v-for="format in formats" :key="format" :value="format">{{ formatName(format) }}</option>
+      </select>
+    </span>
   </div>
 </template>

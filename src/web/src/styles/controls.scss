@@ -55,6 +55,63 @@
   &:disabled { opacity: 0.55; }
 }
 
+// A <select> wrapped in .select: the native arrow sits against the edge on macOS and ignores padding, so it's
+// replaced by a chevron in the theme's muted color.
+.select {
+  position: relative;
+  display: block;
+  min-width: 0;
+
+  select.field {
+    appearance: none;
+    padding-right: 24px;
+    cursor: pointer;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    width: 12px;
+    height: 12px;
+    margin-top: -6px;
+    background: var(--muted);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    pointer-events: none;
+  }
+
+  &:has(select:disabled)::after { opacity: 0.55; }
+}
+
+// A field with its unit attached on the right, like "px".
+.field-group {
+  display: flex;
+  min-width: 0;
+
+  .field {
+    flex: 1;
+    min-width: 0;
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+  }
+
+  .unit {
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    border: 1px solid var(--rule);
+    border-left: 0;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--app);
+    color: var(--muted);
+    font-size: 13px;
+    user-select: none;
+  }
+
+  &:has(.field:disabled) .unit { opacity: 0.55; }
+}
+
 .seg {
   display: grid;
   grid-auto-flow: column;
@@ -72,7 +129,7 @@
     cursor: pointer;
 
     &:last-child { border-right: 0; }
-    &:hover:not(:disabled) { background: var(--panel-2); }
+    &:hover:not(:disabled, [aria-pressed="true"]) { background: var(--panel-2); }
     &[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
     &:disabled { color: var(--muted); cursor: default; }
     &:disabled[aria-pressed="true"] { background: var(--panel-2); color: var(--muted); }

@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
-- A web interface at `/`. Open, drop or paste an image, then optimize, resize, crop or convert it with the
+- Added a web interface. Open, drop or paste an image, then optimize, resize, crop or convert it with the
   API's options, compare the result with the original, and download it. Settings are checked against the
   server's limits before anything is sent. The interface asks for the API key on servers that need one,
   retries while the server is busy, and can cancel a running job. It's a Vue 3 app built into the image.

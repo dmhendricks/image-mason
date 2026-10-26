@@ -31,7 +31,7 @@ internal static class SiteEndpoints
         var webInterface = Files.ContainsKey("app/index.html") ? ReadBytes("app/index.html") : null;
         var notBuiltPage = ReadBytes("no-app.html");
         var docsPage = ReadText("docs.html")
-            .Replace("{{webInterfaceLink}}", options.UiEnabled ? """<a href="/">Web interface</a>""" : "", StringComparison.Ordinal)
+            .Replace("{{webInterfaceLink}}", options.UiEnabled ? """<a href="/">Home</a>""" : "", StringComparison.Ordinal)
             .Replace("{{fontFaces}}", options.UiEnabled ? FontFaces() : "", StringComparison.Ordinal);
         var contentTypes = new FileExtensionContentTypeProvider();
 

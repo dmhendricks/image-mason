@@ -29,6 +29,7 @@ internal static class ResizeEndpoint
         string? output,
         string? outputFilename,
         string? url,
+        string? source,
         bool? upscale,
         bool keepOriginal = false)
     {
@@ -50,6 +51,6 @@ internal static class ResizeEndpoint
         }
 
         return await OptimizeEndpoint.RunAsync(http, options, downloader, optimizer, store, logger,
-            target, resize, area, quality, minScore, maxWidth: null, output, outputFilename, url, preferJpeg: false, keepOriginal);
+            target, resize, area, quality, minScore, maxWidth: null, output, outputFilename, url, source, preferJpeg: false, keepOriginal);
     }
 }

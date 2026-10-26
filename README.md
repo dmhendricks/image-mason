@@ -197,8 +197,9 @@ Errors are returned as [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc
 
 | Status | Cause |
 |---|---|
-| 400 | Invalid parameter, empty body, both a body and `url`, or a `url` that isn't allowed |
+| 400 | Invalid parameter, empty body, more than one of a body, `url` and `source`, or a `url` that isn't allowed |
 | 401 | Missing or wrong `X-Api-Key` |
+| 404 | No stored image has the `source` name (it expired or was deleted) |
 | 413 | Image larger than `IMAGE_MASON_MAX_INPUT_SIZE` |
 | 415 | Not a JPEG, PNG, WebP, AVIF or JPEG XL, or an animated image (only `upload` accepts those) |
 | 422 | Too many pixels, more memory needed than the service has, or an image too damaged to decode |
@@ -227,7 +228,7 @@ When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api
 
 ### `POST /api/v1/optimize`
 
-The image is the request body, or the file at `url`.
+The image is the request body, the file at `url`, or a stored image named by `source`.
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -243,9 +244,10 @@ The image is the request body, or the file at `url`.
 | `format` | the input's | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl`, to convert while optimizing. Overrides `preferJpeg`. |
 | `preferJpeg` | `false` | Return a JPEG when the input is a PNG photo with no transparency. Ignored when `format` is sent. |
 | `url` | | Download the image from this URL instead of reading the body |
+| `source` | | Use a stored image instead of reading the body: the name from `upload` (the last part of its `output` URL), such as `3f2a….jpg`. Send it once with `upload`, then run several jobs on it without sending it again. 404 once it has expired. |
 | `output` | | `json` stores the result and returns its URL and statistics |
 | `outputFilename` | random | Stored file name, such as `banner.jpg`: letters, digits, `_` or `-`, then the output format's extension (`.jpg`, `.png`, `.webp`, `.avif` or `.jxl`). Replaces an existing file with the same name. Requires `output=json`. |
-| `keepOriginal` | `false` | Also store the input, returned as `input`. Requires `output=json`. |
+| `keepOriginal` | `false` | Also store the input, returned as `input`. Requires `output=json`. With `source`, `input` is the stored image's own URL. |
 
 Response headers:
 
@@ -295,11 +297,11 @@ The same parameters and response as [`optimize`](#post-apiv1optimize), except th
 
 ### `POST /api/v1/upload`
 
-Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `optimize?output=json`. Accepts the image as the body or `url`, and `outputFilename`.
+Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `optimize?output=json`. Accepts the image as the body or `url`, and `outputFilename`. The name in `output` can then be passed as `source` to the other endpoints.
 
 ### `POST /api/v1/info`
 
-Reads the image's headers without decoding it, so it's fast and doesn't wait for a job slot. Accepts the image as the body or `url`.
+Reads the image's headers without decoding it, so it's fast and doesn't wait for a job slot. Accepts the image as the body, `url` or `source`.
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg http://localhost:8080/api/v1/info
@@ -354,11 +356,11 @@ What this server accepts, so a client can check an image before sending it. The 
 ```json
 {
   "formats": [
-    { "name": "jpeg", "mimeType": "image/jpeg", "extension": ".jpg", "maxSide": 65535 },
-    { "name": "png", "mimeType": "image/png", "extension": ".png" },
-    { "name": "webp", "mimeType": "image/webp", "extension": ".webp", "maxSide": 16383 },
-    { "name": "avif", "mimeType": "image/avif", "extension": ".avif" },
-    { "name": "jxl", "mimeType": "image/jxl", "extension": ".jxl" }
+    { "name": "png", "mimeType": "image/png", "extension": ".png", "bytesPerPixel": 48 },
+    { "name": "webp", "mimeType": "image/webp", "extension": ".webp", "maxSide": 16383, "bytesPerPixel": 32 },
+    { "name": "jpeg", "mimeType": "image/jpeg", "extension": ".jpg", "maxSide": 65535, "bytesPerPixel": 16 },
+    { "name": "jxl", "mimeType": "image/jxl", "extension": ".jxl", "bytesPerPixel": 32 },
+    { "name": "avif", "mimeType": "image/avif", "extension": ".avif", "bytesPerPixel": 40 }
   ],
   "maxInputSize": 26214400,
   "maxPixels": 50000000,
@@ -368,11 +370,14 @@ What this server accepts, so a client can check an image before sending it. The 
   "imageTtlMinutes": 60,
   "timeoutSeconds": 120,
   "urlFetch": true,
-  "apiKeyRequired": true
+  "apiKeyRequired": true,
+  "jobMemory": { "budget": 4026531840, "overhead": 67108864, "scoringBytesPerPixel": 150 }
 }
 ```
 
 `maxSide` is the largest width or height a format can store; without it, only `maxPixels` applies. `presets` gives each preset's minimum score.
+
+`jobMemory` tells a client whether the server has the memory for a job before it sends the image (see [Memory](#memory)). A job needs `overhead`, plus the larger of the input's and the result's pixel counts times the larger of the two formats' `bytesPerPixel`, plus the result's pixels times `scoringBytesPerPixel` when it's held to a score (every preset but `lossless`, and `lossless` to JPEG when the image is cropped, resized or converted). A job that needs more than `budget` gets 422.
 
 ### `GET /images/{name}`
 

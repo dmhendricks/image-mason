@@ -6,9 +6,11 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Added
 
-- Added a web interface. Open, drop or paste an image, then optimize, resize, crop or convert it with the API's options, compare the result with the original, and download it. Settings are checked against the server's limits before anything is sent. The interface asks for the API key on servers that need one, retries while the server is busy, and can cancel a running job. It's a Vue 3 app built into the image.
+- Added a web interface. Open, drop or paste an image, then optimize, resize, crop or convert it with the API's options, compare the result with the original, and download it. Settings are checked against the server's limits before anything is sent. The interface asks for the API key on servers that need one, retries while the server is busy, and can cancel a running job. Each image is sent once: the first job stores it with `upload` (for `IMAGE_MASON_IMAGE_TTL_MINUTES`, like any stored image), later jobs name it as `source`, and opening another image deletes it. An image opened by web address is downloaded by the server again rather than uploaded. It's a Vue 3 app built into the image.
 - `IMAGE_MASON_UI_ENABLED`: `false` turns the web interface off, and `/` redirects to `/docs`.
 - `IMAGE_MASON_DEFAULT_QUALITY`: the preset (`high`, `medium` or `low`) for requests that don't send `quality`, also the web interface's starting choice. `GET /api/v1/limits` reports it as `defaultQuality`.
+- `GET /api/v1/limits` reports the memory a job needs (`jobMemory`, and `bytesPerPixel` for each format), so a client can tell whether the server can process an image before sending it. The web interface uses it to disable Run, and says what fits: "with a quality floor, about 19.9–23.8 megapixels" in a 4 GB container. It also preloads the four fonts its first screen uses.
+- `source` on `optimize`, `convert`, `resize`, `crop` and `info`: the name of an image stored with `upload`, used instead of a body or `url`, so several jobs on one image send it only once. 404 when it has expired. With `keepOriginal`, `input` is the stored image's URL rather than a second copy.
 - JPEG XL, as input and output (`format=jxl`): lossy and lossless encoding with `cjxl`, and lossless recompression of JPEGs (`cjxl-jpeg`), typically 20% smaller with the same pixels. libjxl is now built as a shared library, so its four tools share one copy of the codec; the image grows by about 1 MB.
 
 ### Changed

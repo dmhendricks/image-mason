@@ -30,6 +30,7 @@ internal static class CropEndpoint
         string? output,
         string? outputFilename,
         string? url,
+        string? source,
         bool? upscale,
         bool preferJpeg = false,
         bool keepOriginal = false)
@@ -38,6 +39,6 @@ internal static class CropEndpoint
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send rect as left,top,width,height, such as 80,0,480,480.");
 
         return await OptimizeEndpoint.HandleAsync(http, options, downloader, optimizer, store, logger, format, quality,
-            minScore, maxWidth, width, height, fit, crop, rect, output, outputFilename, url, upscale, preferJpeg, keepOriginal);
+            minScore, maxWidth, width, height, fit, crop, rect, output, outputFilename, url, source, upscale, preferJpeg, keepOriginal);
     }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Limits } from './api/types'
 import { wholeImage } from './geometry'
-import { type SourceImage, planJob } from './jobs'
+import { type SourceImage, planJob, scoredPixelRange } from './jobs'
 import { type Settings, defaultSettings } from './settings'
 
 const limits: Limits = {
@@ -168,5 +168,50 @@ describe('planJob', () => {
     expect(plan.path).toBe('/api/v1/resize?quality=medium&width=300')
     expect(plan.output).toBeNull()
     expect(plan.action).toBe('Resize')
+  })
+})
+
+describe('memory', () => {
+  // A 4 GB container: 3.75 GiB for jobs, as GET /api/v1/limits reports it.
+  const memoryLimits: Limits = {
+    ...limits,
+    formats: limits.formats.map(f => ({ ...f, bytesPerPixel: { jpeg: 16, png: 48, webp: 32, avif: 40 }[f.name] })),
+    jobMemory: { budget: 4026531840, overhead: 67108864, scoringBytesPerPixel: 150 },
+  }
+  const big: SourceImage = { width: 6000, height: 4000, format: 'jpeg' }
+
+  it('blocks a lossy job the server would reject for memory, before anything is sent', () => {
+    const plan = planJob('optimize', settings(), big, null, memoryLimits)
+
+    expect(plan.errors.output).toBe('This needs about 3.77 GB of memory, but this server has 3.75 GB for jobs. A smaller size, or Lossless, needs less.')
+  })
+
+  it('allows the same image losslessly, or resized to fit', () => {
+    expect(planJob('optimize', settings({ lossless: true }), big, null, memoryLimits).errors).toEqual({})
+    expect(planJob('optimize', settings({ maxWidth: 4000 }), big, null, memoryLimits).errors).toEqual({})
+  })
+
+  it('counts the larger format\'s cost when converting', () => {
+    const photo20: SourceImage = { width: 5000, height: 4000, format: 'jpeg' }
+
+    expect(planJob('convert', settings({ convertTo: 'jpeg' }), photo20, null, memoryLimits).errors).toEqual({})
+    expect(planJob('convert', settings({ convertTo: 'png' }), photo20, null, memoryLimits).errors.output).toMatch(/memory/)
+  })
+
+  it('holds lossless to JPEG to a score once the pixels change', () => {
+    const png: SourceImage = { width: 6000, height: 4000, format: 'png' }
+
+    expect(planJob('convert', settings({ lossless: true, convertTo: 'jpeg' }), png, null, memoryLimits).errors.output)
+      .toMatch(/A smaller size needs less\.$/)
+  })
+
+  it('skips the check on servers that don\'t report memory', () => {
+    expect(planJob('optimize', settings(), big, null, limits).errors).toEqual({})
+  })
+
+  it('reports what a lossy job can take at full size', () => {
+    expect(scoredPixelRange(memoryLimits)).toEqual([19997085, 23851945])
+    expect(scoredPixelRange(limits)).toBeNull()
+    expect(scoredPixelRange({ ...memoryLimits, maxPixels: 10_000_000 })).toBeNull()
   })
 })

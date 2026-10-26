@@ -73,11 +73,12 @@ export interface ImageResponse {
 
 /**
  * POSTs an image as the raw request body, as the API expects, and returns the image it sends back. Uses
- * XMLHttpRequest rather than fetch, for upload progress.
+ * XMLHttpRequest rather than fetch, for upload progress. A null body sends nothing, for a path that names the image
+ * (source or url); onUploaded is then called right away.
  * @throws {ApiError} The server couldn't be reached or answered with an error.
  * @throws {DOMException} The request was aborted through options.signal ("AbortError").
  */
-export function postImage(path: string, body: Blob, options: PostImageOptions = {}): Promise<ImageResponse> {
+export function postImage(path: string, body: Blob | null, options: PostImageOptions = {}): Promise<ImageResponse> {
   return new Promise((resolve, reject) => {
     const aborted = () => new DOMException('The request was cancelled.', 'AbortError')
     if (options.signal?.aborted) {
@@ -90,7 +91,7 @@ export function postImage(path: string, body: Blob, options: PostImageOptions = 
     xhr.responseType = 'blob'
     for (const [name, value] of Object.entries(options.headers ?? {}))
       xhr.setRequestHeader(name, value)
-    if (body.type)
+    if (body?.type)
       xhr.setRequestHeader('Content-Type', body.type)
 
     const onAbort = () => xhr.abort()
@@ -123,7 +124,37 @@ export function postImage(path: string, body: Blob, options: PostImageOptions = 
     }
 
     xhr.send(body)
+    if (!body)
+      options.onUploaded?.()
   })
+}
+
+/**
+ * Stores an image on the server (POST /api/v1/upload) and returns its name, which the job endpoints take as source.
+ * A null body with ?url= in the path has the server download it instead.
+ * @throws {ApiError} The server couldn't be reached or answered with an error.
+ * @throws {DOMException} The request was aborted through options.signal ("AbortError").
+ */
+export async function uploadImage(path: string, body: Blob | null, options: PostImageOptions = {}): Promise<string> {
+  const response = await postImage(path, body, options)
+  let output: unknown
+  try {
+    output = (JSON.parse(await response.blob.text()) as { output?: unknown }).output
+  } catch {
+    output = null
+  }
+  if (typeof output !== 'string' || !output.includes('/images/'))
+    throw new ApiError('The server stored the image but didn\'t say where.', 500)
+  return output.slice(output.lastIndexOf('/') + 1)
+}
+
+/** Deletes a stored image (DELETE /images/{name}). Best effort: it expires on its own if this fails. */
+export async function deleteStoredImage(name: string, headers: Record<string, string>): Promise<void> {
+  try {
+    await fetch(`/images/${encodeURIComponent(name)}`, { method: 'DELETE', headers })
+  } catch {
+    // Unreachable: the image expires on its own.
+  }
 }
 
 /** Retry-After in seconds, from either form it takes: a number of seconds or an HTTP date. */

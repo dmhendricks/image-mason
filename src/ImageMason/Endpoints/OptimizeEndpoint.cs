@@ -34,6 +34,7 @@ internal static class OptimizeEndpoint
         string? output,
         string? outputFilename,
         string? url,
+        string? source,
         bool? upscale,
         bool preferJpeg = false,
         bool keepOriginal = false)
@@ -57,7 +58,7 @@ internal static class OptimizeEndpoint
         }
 
         return await RunAsync(http, options, downloader, optimizer, store, logger,
-            target, resize, area, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg, keepOriginal);
+            target, resize, area, quality, minScore, maxWidth, output, outputFilename, url, source, preferJpeg, keepOriginal);
     }
 
     /// <summary>Shared by optimize, convert, resize and crop, after their parameter checks.</summary>
@@ -80,6 +81,7 @@ internal static class OptimizeEndpoint
         string? output,
         string? outputFilename,
         string? url,
+        string? source,
         bool preferJpeg,
         bool keepOriginal)
     {
@@ -121,7 +123,7 @@ internal static class OptimizeEndpoint
         byte[] input = [];
         try
         {
-            input = await ApiRequest.ReadImageAsync(http.Request, downloader, url, timeout.Token);
+            input = await ApiRequest.ReadImageAsync(http.Request, downloader, store, url, source, timeout.Token);
 
             var detected = ImageFormatDetector.Detect(input);
             bool? isPhoto = detected == ImageFormat.Png ? PngPhoto.IsPhoto(input, options.MaxPixels, timeout.Token) : null;
@@ -172,7 +174,12 @@ internal static class OptimizeEndpoint
 
             var origin = ApiRequest.Origin(http.Request, options.PublicBaseUrl);
             string? inputUrl = null;
-            if (keepOriginal)
+            if (keepOriginal && !string.IsNullOrWhiteSpace(source))
+            {
+                // Already stored: name the stored copy rather than storing it twice.
+                inputUrl = $"{origin}/images/{source.Trim()}";
+            }
+            else if (keepOriginal)
             {
                 var savedInput = await store.SaveAsync(input, detected, null, timeout.Token);
                 inputUrl = $"{origin}/images/{savedInput.Name}";

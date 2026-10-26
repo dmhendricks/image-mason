@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useImage } from '../../composables/useImage'
 import { useServer } from '../../composables/useServer'
 import { formatBytes, formatMegapixels, formatName } from '../../format'
+import { scoredPixelRange } from '../../jobs'
 
 // Before an image is open: the drop target, and what this server accepts.
 
@@ -16,6 +17,18 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const formats = computed(() => {
   const names = (limits.value?.formats ?? []).map(f => formatName(f.name))
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names.join('')
+})
+
+// What a lossy job can take at full size, when memory, not the pixel limit, is what stops it.
+const largest = computed(() => {
+  if (!limits.value)
+    return ''
+  const all = formatMegapixels(limits.value.maxPixels)
+  const range = scoredPixelRange(limits.value)
+  if (!range)
+    return all
+  const [low, high] = range.map(pixels => Math.floor(pixels / 100_000) / 10)
+  return `${all}; with a quality floor, about ${low === high ? low : `${low}–${high}`} megapixels, depending on format`
 })
 
 const floors = computed(() =>
@@ -48,7 +61,7 @@ const floors = computed(() =>
       <dl v-else-if="limits" class="facts">
         <dt>Formats</dt><dd>{{ formats }}</dd>
         <dt>Largest file</dt><dd>{{ formatBytes(limits.maxInputSize) }}</dd>
-        <dt>Largest image</dt><dd>{{ formatMegapixels(limits.maxPixels) }}</dd>
+        <dt>Largest image</dt><dd>{{ largest }}</dd>
         <dt>Quality floors</dt><dd>{{ floors }}</dd>
         <dt>Shared links</dt><dd>Expire after {{ limits.imageTtlMinutes }} minutes</dd>
         <dt>API key</dt><dd>{{ limits.apiKeyRequired ? 'Required' : 'Not needed' }}</dd>

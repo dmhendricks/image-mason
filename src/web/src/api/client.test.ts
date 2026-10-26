@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getJson, parseRetryAfter, postImage } from './client'
+import { ApiError, getJson, parseRetryAfter, postImage, uploadImage } from './client'
 import { readStats } from './types'
 
 function respond(body: string, status = 200, statusText = 'OK') {
@@ -60,6 +60,7 @@ class FakeXhr {
   status = 0
   statusText = ''
   response: Blob | null = null
+  sent: Blob | null | undefined = undefined
   onload?: () => void
   onerror?: () => void
   onabort?: () => void
@@ -74,7 +75,8 @@ class FakeXhr {
 
   abort() { this.onabort?.() }
 
-  send(body: Blob) {
+  send(body: Blob | null) {
+    this.sent = body
     const next = FakeXhr.next
     if (next.hang)
       return
@@ -83,8 +85,11 @@ class FakeXhr {
         this.onerror?.()
         return
       }
-      this.upload.onprogress?.({ lengthComputable: true, loaded: body.size, total: body.size } as ProgressEvent)
-      this.upload.onload?.()
+      // Like browsers, no upload events without a body.
+      if (body) {
+        this.upload.onprogress?.({ lengthComputable: true, loaded: body.size, total: body.size } as ProgressEvent)
+        this.upload.onload?.()
+      }
       this.status = next.status
       this.statusText = next.statusText ?? ''
       this.response = new Blob([next.body ?? ''], { type: this.getResponseHeader('Content-Type') ?? '' })
@@ -114,6 +119,18 @@ describe('postImage', () => {
     expect(response.blob.type).toBe('image/webp')
     expect(response.header('x-image-mason-method')).toBe('cwebp-q79')
     expect(progress).toEqual([1])
+    expect(uploaded).toHaveBeenCalledOnce()
+  })
+
+  it('sends no body for a path that names the image, and reports it sent', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr)
+    FakeXhr.next = { status: 200, headers: { 'Content-Type': 'image/jpeg' }, body: 'jpeg' }
+    const uploaded = vi.fn()
+
+    await postImage('/api/v1/optimize?source=abc.jpg', null, { headers: { 'X-Api-Key': 'secret' }, onUploaded: uploaded })
+
+    expect(FakeXhr.last.sent).toBeNull()
+    expect(FakeXhr.last.requestHeaders).toEqual({ 'X-Api-Key': 'secret' })
     expect(uploaded).toHaveBeenCalledOnce()
   })
 
@@ -149,6 +166,25 @@ describe('postImage', () => {
     controller.abort()
 
     await expect(postImage('/api/v1/optimize', image, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+describe('uploadImage', () => {
+  const image = new Blob([new Uint8Array([0xFF, 0xD8, 0xFF])], { type: 'image/jpeg' })
+
+  it('returns the stored name from the output URL', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr)
+    FakeXhr.next = { status: 200, headers: { 'Content-Type': 'application/json' }, body: '{"output":"https://images.example.com/images/0a1b2c.jpg"}' }
+
+    await expect(uploadImage('/api/v1/upload', image)).resolves.toBe('0a1b2c.jpg')
+    expect(FakeXhr.last.url).toBe('/api/v1/upload')
+  })
+
+  it('throws when the answer has no stored URL', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr)
+    FakeXhr.next = { status: 200, body: 'not json' }
+
+    await expect(uploadImage('/api/v1/upload', image)).rejects.toMatchObject({ name: 'ApiError', status: 500 })
   })
 })
 

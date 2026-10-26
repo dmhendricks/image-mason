@@ -1,5 +1,5 @@
 import { computed, reactive, readonly, ref, shallowRef } from 'vue'
-import { ApiError, postForBlob, postImage } from '../api/client'
+import { ApiError, type PostImageOptions, deleteStoredImage, postForBlob, postImage, uploadImage } from '../api/client'
 import { type ResultStats, readStats } from '../api/types'
 import { fileNameFromUrl, formatFromContentType, isHeif, resultFileName, sniffFormat } from '../files'
 import { formatBytes, formatMegapixels, formatSize } from '../format'
@@ -18,6 +18,8 @@ export interface OpenedImage extends SourceImage {
   size: number
   /** Object URL for <img>; revoked when the image is replaced. */
   url: string
+  /** The web address it was opened from, so the server can download it again instead of the browser uploading it. */
+  address?: string
 }
 
 export interface Result {
@@ -75,6 +77,10 @@ const opening = shallowRef<Opening | null>(null)
 const rect = reactive<Rect>({ left: 0, top: 0, width: 0, height: 0 })
 
 let controller: AbortController | null = null
+/** The current image's copy on the server (POST /api/v1/upload), which jobs name as source instead of sending it. */
+let stored: { image: OpenedImage, name: string } | null = null
+/** An image the server couldn't store: each job sends it, as before stored copies. */
+let unstorable: OpenedImage | null = null
 /** The open in progress. A newer open aborts it, so only the last image chosen is opened. */
 let openController: AbortController | null = null
 let nextId = 1
@@ -123,7 +129,7 @@ export function useImage() {
         openError.value = failure instanceof Error ? failure.message : 'The image could not be downloaded.'
         return false
       }
-      return await load(file, name, current.signal, confirmDiscard)
+      return await load(file, name, current.signal, confirmDiscard, address)
     } finally {
       endOpen(current)
     }
@@ -153,7 +159,8 @@ export function useImage() {
     }
   }
 
-  async function load(file: Blob, name: string, signal: AbortSignal, confirmDiscard?: () => boolean): Promise<boolean> {
+  async function load(file: Blob, name: string, signal: AbortSignal, confirmDiscard?: () => boolean,
+    address?: string): Promise<boolean> {
     const checked = await check(file, name)
     const superseded = signal.aborted
     if (typeof checked === 'string') {
@@ -170,7 +177,7 @@ export function useImage() {
 
     cancel()
     release()
-    image.value = { ...checked, name, blob: file, size: file.size }
+    image.value = { ...checked, name, blob: file, size: file.size, address }
     Object.assign(rect, wholeImage(checked))
     error.value = null
     return true
@@ -212,7 +219,11 @@ export function useImage() {
     return { format, width, height, url }
   }
 
-  /** Sends the current image as planned, retrying while the server is busy, and adds the result. */
+  /**
+   * Sends the current image as planned, retrying while the server is busy, and adds the result. The first job stores
+   * the image on the server; later ones name the stored copy instead of uploading it again, and upload it again if
+   * that copy has expired.
+   */
   async function run(plan: JobPlan): Promise<void> {
     const source = image.value
     if (!source || job.value)
@@ -221,19 +232,30 @@ export function useImage() {
     const current = new AbortController()
     controller = current
     error.value = null
-    const start = (attempt: number): Job =>
-      ({ working: plan.working, phase: 'uploading', progress: 0, since: Date.now(), retryAt: null, attempt })
+    const start = (attempt: number): Job => ({
+      working: plan.working,
+      phase: stored?.image === source ? 'processing' : 'uploading',
+      progress: 0,
+      since: Date.now(),
+      retryAt: null,
+      attempt,
+    })
     job.value = start(1)
+    const options: PostImageOptions = {
+      headers: apiKey.headers(),
+      signal: current.signal,
+      onUploadProgress: fraction => { if (job.value) job.value.progress = fraction },
+      onUploaded: () => { if (job.value) Object.assign(job.value, { phase: 'processing', progress: 1, since: Date.now() }) },
+    }
+    let uploadedAgain = false
 
     try {
       for (let attempt = 1; ; attempt++) {
         try {
-          const response = await postImage(plan.path, source.blob, {
-            headers: apiKey.headers(),
-            signal: current.signal,
-            onUploadProgress: fraction => { if (job.value) job.value.progress = fraction },
-            onUploaded: () => { if (job.value) Object.assign(job.value, { phase: 'processing', progress: 1, since: Date.now() }) },
-          })
+          const name = await storedName(source, options)
+          const response = name
+            ? await postImage(withSource(plan.path, name), null, options)
+            : await postImage(plan.path, source.blob, options)
           if (image.value !== source)
             return
 
@@ -261,6 +283,13 @@ export function useImage() {
           }
           return
         } catch (failure) {
+          // The stored copy expired or was deleted: upload it again, once, without counting an attempt.
+          if (failure instanceof ApiError && failure.status === 404 && stored?.image === source && !uploadedAgain) {
+            stored = null
+            uploadedAgain = true
+            job.value = start(attempt--)
+            continue
+          }
           if (!(failure instanceof ApiError && failure.status === 503 && attempt < maxAttempts))
             throw failure
           const seconds = Math.min(failure.retryAfter ?? 2 ** attempt, 60)
@@ -281,6 +310,43 @@ export function useImage() {
         job.value = null
       }
     }
+  }
+
+  /**
+   * The current image's name on the server, storing it the first time. An image opened by web address is downloaded
+   * by the server again rather than uploaded, falling back to uploading it. Null when the server can't store it, so
+   * each job sends the image instead.
+   */
+  async function storedName(source: OpenedImage, options: PostImageOptions): Promise<string | null> {
+    if (stored?.image === source)
+      return stored.name
+    if (unstorable === source)
+      return null
+
+    let name: string | null = null
+    if (source.address) {
+      try {
+        name = await uploadImage(`/api/v1/upload?url=${encodeURIComponent(source.address)}`, null, options)
+      } catch (failure) {
+        if (!canSendInstead(failure))
+          throw failure
+      }
+    }
+    try {
+      name ??= await uploadImage('/api/v1/upload', source.blob, options)
+    } catch (failure) {
+      if (!canSendInstead(failure))
+        throw failure
+      unstorable = source
+      return null
+    }
+
+    if (image.value !== source) {
+      void deleteStoredImage(name, apiKey.headers())
+      throw new DOMException('Another image was opened.', 'AbortError')
+    }
+    stored = { image: source, name }
+    return name
   }
 
   function describe(failure: unknown): JobError {
@@ -328,8 +394,13 @@ export function useImage() {
     openError.value = null
   }
 
-  /** Revokes the object URLs of the current image and its results. */
+  /** Revokes the object URLs of the current image and its results, and deletes its stored copy. */
   function release() {
+    if (stored) {
+      void deleteStoredImage(stored.name, apiKey.headers())
+      stored = null
+    }
+    unstorable = null
     if (image.value)
       URL.revokeObjectURL(image.value.url)
     for (const result of results.value)
@@ -355,6 +426,19 @@ export function useImage() {
     markDownloaded,
     dismissError,
   }
+}
+
+/** The job's path with source naming the stored image. */
+function withSource(path: string, name: string): string {
+  return `${path}${path.includes('?') ? '&' : '?'}source=${encodeURIComponent(name)}`
+}
+
+/**
+ * Whether a failed upload can be worked around by sending the image with the job instead. Not when the server is
+ * unreachable, busy or rejects the key, or when the image itself was refused, since the job would fail the same way.
+ */
+function canSendInstead(failure: unknown): boolean {
+  return failure instanceof ApiError && ![0, 401, 413, 415, 422, 503].includes(failure.status)
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

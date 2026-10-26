@@ -1,6 +1,7 @@
 using ImageMason.Configuration;
 using ImageMason.Http;
 using ImageMason.Imaging;
+using ImageMason.Storage;
 
 namespace ImageMason.Endpoints;
 
@@ -11,15 +12,17 @@ internal static class InfoEndpoint
         HttpContext http,
         ImageMasonOptions options,
         ImageDownloader downloader,
+        ImageStore store,
         ILogger<ImageDownloader> logger,
-        string? url)
+        string? url,
+        string? source)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
 
         try
         {
-            var input = await ApiRequest.ReadImageAsync(http.Request, downloader, url, timeout.Token);
+            var input = await ApiRequest.ReadImageAsync(http.Request, downloader, store, url, source, timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
                 return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");

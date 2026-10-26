@@ -14,6 +14,8 @@ export interface Limits {
   timeoutSeconds: number
   urlFetch: boolean
   apiKeyRequired: boolean
+  /** The memory jobs share and what one needs (see JobMemoryLimits); absent from older servers. */
+  jobMemory?: JobMemoryLimits
 }
 
 export interface FormatLimits {
@@ -22,6 +24,18 @@ export interface FormatLimits {
   extension: string
   /** Largest width or height the format can store; absent when only the pixel limit applies. */
   maxSide?: number
+  /** Memory a lossless pass in this format needs per pixel. */
+  bytesPerPixel?: number
+}
+
+/**
+ * A job needs overhead, plus the larger of the input's and the result's pixels times the larger of the two formats'
+ * bytesPerPixel, plus the result's pixels times scoringBytesPerPixel when it's held to a score. Over budget is a 422.
+ */
+export interface JobMemoryLimits {
+  budget: number
+  overhead: number
+  scoringBytesPerPixel: number
 }
 
 /** The X-Image-Mason-* headers on an optimize, resize, crop or convert response. */

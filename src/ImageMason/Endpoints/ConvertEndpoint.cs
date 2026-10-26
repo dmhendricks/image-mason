@@ -26,6 +26,7 @@ internal static class ConvertEndpoint
         string? output,
         string? outputFilename,
         string? url,
+        string? source,
         bool keepOriginal = false)
     {
         if (!ImageFormatDetector.TryParse(format, out var target))
@@ -35,6 +36,6 @@ internal static class ConvertEndpoint
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
 
         return await OptimizeEndpoint.RunAsync(http, options, downloader, optimizer, store, logger,
-            target, null, area, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg: false, keepOriginal);
+            target, null, area, quality, minScore, maxWidth, output, outputFilename, url, source, preferJpeg: false, keepOriginal);
     }
 }

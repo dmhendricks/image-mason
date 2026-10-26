@@ -1,9 +1,9 @@
 // Turns the current tool, settings and image into a request, the size it should produce, and anything the server
 // would reject, in plain words. The rules mirror ResizeParameters, RectParameter, OptimizeEndpoint and
-// ImageOptimizer.CheckOutputSize, so a request the interface allows never comes back as a 400 or 422.
+// ImageOptimizer.CheckOutputSize and EstimateMemory, so a request the interface allows never comes back as a 400 or 422.
 
 import type { Limits } from './api/types'
-import { formatMegapixels, formatName, formatSize } from './format'
+import { formatBytes, formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
 import { type ImageFormat, type Settings, type Tool, chosenFormat, effectiveQuality } from './settings'
 
@@ -103,14 +103,17 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
 
   // Crop's area, checked against the image as displayed.
   let source: Size | null = image
+  let cropped = false
   if (tool === 'crop' && image && rect) {
     const whole = [rect.left, rect.top, rect.width, rect.height].every(Number.isInteger)
     if (!whole || !rectFits(rect, image))
       errors.rect = `The area must lie inside the image, which is ${formatSize(image.width, image.height)}.`
     else {
       query.set('rect', rectParameter(rect))
-      if (!rectCovers(rect, image))
+      if (!rectCovers(rect, image)) {
         source = { width: rect.width, height: rect.height }
+        cropped = true
+      }
     }
   }
 
@@ -118,7 +121,14 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
   let output: Size | null = null
   if (source && Object.keys(errors).length === 0) {
     output = sizing ? resizeOutput(sizing, source) : { width: source.width, height: source.height }
-    const problem = outputProblem(output, resultFormat, limits)
+    let problem = outputProblem(output, resultFormat, limits)
+    if (!problem && image) {
+      // As in ImageOptimizer: lossy presets are scored, and so is lossless to JPEG once the pixels change.
+      const target = resultFormat ?? image.format
+      const changed = cropped || output.width !== source.width || output.height !== source.height || target !== image.format
+      const scored = !lossless || (target === 'jpeg' && changed)
+      problem = memoryProblem(image, output, target, scored, lossless, limits)
+    }
     if (problem)
       errors.output = problem
   }
@@ -155,6 +165,46 @@ function outputProblem(output: Size, format: ImageFormat | null, limits: Limits 
       + `the result would be ${formatSize(output.width, output.height)}.`
   }
   return null
+}
+
+/** The server's ImageOptimizer.EstimateMemory against its job budget, in the interface's words. */
+function memoryProblem(image: SourceImage, output: Size, target: ImageFormat, scored: boolean, lossless: boolean,
+  limits: Limits | null): string | null {
+  const memory = limits?.jobMemory
+  if (!memory)
+    return null
+
+  const perPixel = (format: ImageFormat) => limits.formats.find(f => f.name === format)?.bytesPerPixel ?? 0
+  const outputPixels = output.width * output.height
+  const needed = memory.overhead
+    + Math.max(image.width * image.height, outputPixels) * Math.max(perPixel(image.format), perPixel(target))
+    + (scored ? outputPixels * memory.scoringBytesPerPixel : 0)
+  if (needed <= memory.budget)
+    return null
+
+  // Two decimals when one would make the two look the same ("3.8 GB of 3.8 GB").
+  let [need, have] = [formatBytes(needed), formatBytes(memory.budget)]
+  if (need === have)
+    [need, have] = [needed, memory.budget].map(bytes => `${(bytes / 1024 ** 3).toFixed(2)} GB`) as [string, string]
+  return `This needs about ${need} of memory, but this server has ${have} for jobs. `
+    + (scored && !lossless ? 'A smaller size, or Lossless, needs less.' : 'A smaller size needs less.')
+}
+
+/**
+ * The largest image, in pixels, a lossy job can take at its original size: the smallest and largest across formats
+ * (each kept in its own format). Null when the server doesn't say or the pixel limit is lower anyway.
+ */
+export function scoredPixelRange(limits: Limits | null): [number, number] | null {
+  const memory = limits?.jobMemory
+  if (!memory)
+    return null
+
+  const fits = limits.formats
+    .filter(f => f.bytesPerPixel !== undefined)
+    .map(f => Math.min(limits.maxPixels, Math.floor((memory.budget - memory.overhead) / (f.bytesPerPixel! + memory.scoringBytesPerPixel))))
+  if (fits.length === 0 || Math.min(...fits) >= limits.maxPixels)
+    return null
+  return [Math.max(0, Math.min(...fits)), Math.max(0, Math.max(...fits))]
 }
 
 function actionName(tool: Tool, output: Size | null, settings: Settings): string {

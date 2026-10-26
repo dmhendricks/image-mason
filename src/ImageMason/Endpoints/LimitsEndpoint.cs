@@ -9,10 +9,11 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class LimitsEndpoint
 {
-    public static IResult Handle(ImageMasonOptions options)
+    public static IResult Handle(ImageMasonOptions options, JobMemoryGate jobMemory)
     {
         return Results.Ok(new LimitsResponse(
-            Formats: [.. ImageFormatDetector.Supported.Select(f => new FormatLimits(f.Name(), f.ContentType(), f.Extension(), ImageOptimizer.MaxSide(f)))],
+            Formats: [.. ImageFormatDetector.Supported.Select(f => new FormatLimits(f.Name(), f.ContentType(), f.Extension(), ImageOptimizer.MaxSide(f),
+                ImageOptimizer.LosslessBytesPerPixel(f)))],
             MaxInputSize: options.MaxInputBytes,
             MaxPixels: options.MaxPixels,
             Presets: new Dictionary<string, double?>
@@ -27,6 +28,7 @@ internal static class LimitsEndpoint
             ImageTtlMinutes: options.ImageTtlMinutes,
             TimeoutSeconds: options.TimeoutSeconds,
             UrlFetch: options.UrlFetchEnabled,
-            ApiKeyRequired: !string.IsNullOrEmpty(options.ApiKey)));
+            ApiKeyRequired: !string.IsNullOrEmpty(options.ApiKey),
+            JobMemory: new JobMemoryLimits(jobMemory.BudgetBytes, ImageOptimizer.JobOverheadBytes, ImageOptimizer.ScoringBytesPerPixel)));
     }
 }

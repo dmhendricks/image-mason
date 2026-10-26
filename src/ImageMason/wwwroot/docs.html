@@ -323,7 +323,7 @@
       <h2>Store</h2>
       <pre>curl -sS --data-binary @photo.jpg \
   "{{origin}}/api/v1/optimize?output=json"</pre>
-      <p class="note"><code>output=json</code> stores the result and returns its URL and statistics as JSON. <code>POST /api/v1/upload</code> stores an image unchanged. Stored images are served for {{ttlMinutes}} minutes; anyone with the URL can fetch them until then.</p>
+      <p class="note"><code>output=json</code> stores the result and returns its URL and statistics as JSON. <code>POST /api/v1/upload</code> stores an image unchanged; pass the name at the end of its URL as <code>source</code> to run more jobs on it without sending it again. Stored images are served for {{ttlMinutes}} minutes; anyone with the URL can fetch them until then.</p>
     </section>
 
     <section>

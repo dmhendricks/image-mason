@@ -90,6 +90,8 @@ public sealed class ImageInfoResponse
 /// <param name="TimeoutSeconds">How long a request may take before 504.</param>
 /// <param name="UrlFetch">Whether images can be fetched with the url parameter.</param>
 /// <param name="ApiKeyRequired">Whether /api requests need the X-Api-Key header.</param>
+/// <param name="JobMemory">The memory jobs share, and how much one needs, so a client can tell before sending an
+/// image whether the server can process it (422 otherwise).</param>
 public sealed record LimitsResponse(
     IReadOnlyList<FormatLimits> Formats,
     long MaxInputSize,
@@ -100,11 +102,21 @@ public sealed record LimitsResponse(
     int ImageTtlMinutes,
     int TimeoutSeconds,
     bool UrlFetch,
-    bool ApiKeyRequired);
+    bool ApiKeyRequired,
+    JobMemoryLimits JobMemory);
 
 /// <param name="Name">The value for convert and resize's format parameter.</param>
 /// <param name="MaxSide">Largest width or height the format can store; null when only the pixel limit applies.</param>
-public sealed record FormatLimits(string Name, string MimeType, string Extension, int? MaxSide);
+/// <param name="BytesPerPixel">Memory a lossless pass in this format needs per pixel; see <see cref="JobMemoryLimits"/>.</param>
+public sealed record FormatLimits(string Name, string MimeType, string Extension, int? MaxSide, long BytesPerPixel);
+
+/// <summary>
+/// A job needs Overhead, plus the larger of the input's and the result's pixel counts times the larger of the two
+/// formats' BytesPerPixel, plus the result's pixels times ScoringBytesPerPixel when it's held to a score (any lossy
+/// preset, or lossless to JPEG when the image is cropped, resized or converted). A job over Budget gets 422.
+/// </summary>
+/// <param name="Budget">Bytes all running jobs share (the memory limit minus what the service itself keeps).</param>
+public sealed record JobMemoryLimits(long Budget, long Overhead, long ScoringBytesPerPixel);
 
 public sealed record HealthResponse(string Status, string Uptime, string Timestamp, BuildInfo Build);
 

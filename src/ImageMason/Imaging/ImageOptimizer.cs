@@ -267,7 +267,8 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         return JobOverheadBytes + lossless + (scored ? outputPixels * ScoringBytesPerPixel : 0);
     }
 
-    private static long LosslessBytesPerPixel(ImageFormat format) => format switch
+    /// <summary>Peak bytes per pixel of a lossless pass in <paramref name="format"/>; see <see cref="EstimateMemory"/>.</summary>
+    internal static long LosslessBytesPerPixel(ImageFormat format) => format switch
     {
         ImageFormat.Png => PngLosslessBytesPerPixel,
         ImageFormat.WebP => WebPLosslessBytesPerPixel,

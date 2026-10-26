@@ -31,7 +31,7 @@ internal static class UploadEndpoint
         byte[] input = [];
         try
         {
-            input = await ApiRequest.ReadImageAsync(http.Request, downloader, url, timeout.Token);
+            input = await ApiRequest.ReadImageAsync(http.Request, downloader, store: null, url, source: null, timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
                 return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");

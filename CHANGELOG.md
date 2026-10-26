@@ -26,6 +26,12 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Fixed
 
+- `upload`, `info` and `fetch` no longer run without a limit (or, for `upload`, wait behind optimization jobs): they share their own, sized so the images they hold fit in the memory the service keeps back from jobs (5 at once with the default 25 MB input limit). Request and download bodies with a known length are read into one buffer instead of being grown and copied.
+- A download that broke off partway (`url`) returned 500; it now gets 502.
+- A crafted JPEG could be measured as smaller than the tools decode it, getting past `IMAGE_MASON_MAX_PIXELS` and the memory check: markers that carry no length (TEM, RST) were read as if they had one. JPEG headers are now read the way libjpeg reads them, in one place instead of four. A PNG whose first chunk isn't its header is no longer measured from whatever is there.
+- A cancelled or timed-out job could leave its files in `/tmp` (which is memory in the compose files): the work folder was deleted before the killed tool had exited. The tool is now waited for first. Tool output kept for the log is capped at 64 KB.
+- A stored image whose save failed left a partial file behind until cleanup, and a relative `IMAGE_MASON_STORE_PATH` made `GET /images/{name}` return 404. Saves no longer list the whole store each time to check its size.
+- `IMAGE_MASON_TIMEOUT_SECONDS` above about 4.3 million made every request fail, and a very large `IMAGE_MASON_IMAGE_TTL_MINUTES` broke cleanup. They're now limited to a day (`86400`) and a year (`525600`), and larger values stop the service at startup with a message.
 - A damaged JPEG, PNG or WebP that had to be converted, resized or cropped returned 500. It now gets 422 with a plain message, and the tool's output goes to the log only. Damaged AVIF and JPEG XL images get 422 too (they got 415, which means an unsupported format).
 - An EXIF block with an out-of-range offset could make `info`, `upload` and `optimize` fail with 500.
 - The check for PNG photos (`preferJpeg`, and `isPhoto` from `info`) ran before the pixel limit and ignored the request timeout. It now skips images over `IMAGE_MASON_MAX_PIXELS`, stops at the timeout, and runs once per request instead of up to twice.

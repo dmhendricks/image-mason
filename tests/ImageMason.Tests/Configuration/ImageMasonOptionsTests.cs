@@ -81,6 +81,8 @@ public sealed class ImageMasonOptionsTests
     [InlineData("MAX_PIXELS", "lots")]
     [InlineData("MAX_PIXELS", "0")]
     [InlineData("MAX_CONCURRENT_JOBS", "-1")]
+    [InlineData("TIMEOUT_SECONDS", "86401")]
+    [InlineData("IMAGE_TTL_MINUTES", "525601")]
     [InlineData("MAX_INPUT_SIZE", "0")]
     [InlineData("MEMORY_LIMIT", "0")]
     [InlineData("MEMORY_LIMIT", "plenty")]
@@ -99,5 +101,20 @@ public sealed class ImageMasonOptionsTests
         var error = Assert.Throws<InvalidSettingException>(() => Load((name, value)));
 
         Assert.StartsWith(ImageMasonOptions.Prefix + name, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Load_MakesARelativeStorePathAbsolute()
+    {
+        Assert.Equal(Path.GetFullPath("store"), Load(("STORE_PATH", "store")).StorePath);
+    }
+
+    [Theory]
+    [InlineData(25L * 1024 * 1024, 5)]
+    [InlineData(100L * 1024 * 1024, 2)]
+    [InlineData(1024 * 1024, 16)]
+    public void MaxConcurrentTransfers_FitsHalfTheServiceReserve(long maxInputBytes, int expected)
+    {
+        Assert.Equal(expected, new ImageMasonOptions { MaxInputBytes = maxInputBytes }.MaxConcurrentTransfers);
     }
 }

@@ -152,9 +152,9 @@ public readonly record struct ImageInfo(int Width, int Height, int Orientation, 
         _ => default
     };
 
-    // IHDR is always the first chunk: 8-byte signature, 4-byte length, "IHDR", width, height.
+    // IHDR must be the first chunk: 8-byte signature, 4-byte length, "IHDR", width, height.
     private static ImageInfo ReadPng(ReadOnlySpan<byte> png) =>
-        png.Length < 24
+        png.Length < 24 || !png[12..16].SequenceEqual("IHDR"u8)
             ? default
             : new((int)BinaryPrimitives.ReadUInt32BigEndian(png[16..]), (int)BinaryPrimitives.ReadUInt32BigEndian(png[20..]), 1);
 
@@ -162,39 +162,18 @@ public readonly record struct ImageInfo(int Width, int Height, int Orientation, 
     {
         int width = 0, height = 0, orientation = 1;
 
-        var i = 2;
-        while (i + 4 <= jpeg.Length && jpeg[i] == 0xFF)
+        var segments = new JpegSegments(jpeg);
+        while (segments.MoveNext())
         {
-            var marker = jpeg[i + 1];
+            if (segments.Marker == 0xE1 && segments.Data.StartsWith("Exif\0\0"u8))
+                orientation = ExifOrientation.ReadTiff(segments.Data[6..]);
 
-            // Fill byte before a marker
-            if (marker == 0xFF)
+            // The first frame header; libjpeg rejects a second.
+            if (segments.IsStartOfFrame && width == 0 && segments.Data.Length >= 5)
             {
-                i++;
-                continue;
+                height = BinaryPrimitives.ReadUInt16BigEndian(segments.Data[1..]);
+                width = BinaryPrimitives.ReadUInt16BigEndian(segments.Data[3..]);
             }
-
-            // Start of scan / end of image: no more header segments
-            if (marker is 0xDA or 0xD9)
-                break;
-
-            var length = BinaryPrimitives.ReadUInt16BigEndian(jpeg[(i + 2)..]);
-            if (length < 2 || i + 2 + length > jpeg.Length)
-                break;
-
-            var segment = jpeg.Slice(i + 4, length - 2);
-
-            if (marker == 0xE1 && segment.StartsWith("Exif\0\0"u8))
-                orientation = ExifOrientation.ReadTiff(segment[6..]);
-
-            // SOF0-SOF15, excluding DHT (C4), JPG (C8) and DAC (CC): precision, height, width
-            if (marker is >= 0xC0 and <= 0xCF and not 0xC4 and not 0xC8 and not 0xCC && segment.Length >= 5)
-            {
-                height = BinaryPrimitives.ReadUInt16BigEndian(segment[1..]);
-                width = BinaryPrimitives.ReadUInt16BigEndian(segment[3..]);
-            }
-
-            i += 2 + length;
         }
 
         return new(width, height, orientation);
@@ -267,27 +246,11 @@ public static class ImageHeader
     // Sample precision from the start-of-frame segment: 8, or 12 for the rare 12-bit JPEG.
     private static int JpegPrecision(ReadOnlySpan<byte> jpeg)
     {
-        var i = 2;
-        while (i + 4 <= jpeg.Length && jpeg[i] == 0xFF)
+        var segments = new JpegSegments(jpeg);
+        while (segments.MoveNext())
         {
-            var marker = jpeg[i + 1];
-            if (marker == 0xFF)
-            {
-                i++;
-                continue;
-            }
-
-            if (marker is 0xDA or 0xD9)
-                break;
-
-            var length = BinaryPrimitives.ReadUInt16BigEndian(jpeg[(i + 2)..]);
-            if (length < 2 || i + 2 + length > jpeg.Length)
-                break;
-
-            if (marker is >= 0xC0 and <= 0xCF and not 0xC4 and not 0xC8 and not 0xCC && length > 2)
-                return jpeg[i + 4];
-
-            i += 2 + length;
+            if (segments.IsStartOfFrame && segments.Data.Length > 0)
+                return segments.Data[0];
         }
 
         return 8;
@@ -295,27 +258,11 @@ public static class ImageHeader
 
     private static bool JpegHasIcc(ReadOnlySpan<byte> jpeg)
     {
-        var i = 2;
-        while (i + 4 <= jpeg.Length && jpeg[i] == 0xFF)
+        var segments = new JpegSegments(jpeg);
+        while (segments.MoveNext())
         {
-            var marker = jpeg[i + 1];
-            if (marker == 0xFF)
-            {
-                i++;
-                continue;
-            }
-
-            if (marker is 0xDA or 0xD9)
-                break;
-
-            var length = BinaryPrimitives.ReadUInt16BigEndian(jpeg[(i + 2)..]);
-            if (length < 2 || i + 2 + length > jpeg.Length)
-                break;
-
-            if (marker == 0xE2 && jpeg.Slice(i + 4, length - 2).StartsWith("ICC_PROFILE\0"u8))
+            if (segments.Marker == 0xE2 && segments.Data.StartsWith("ICC_PROFILE\0"u8))
                 return true;
-
-            i += 2 + length;
         }
 
         return false;

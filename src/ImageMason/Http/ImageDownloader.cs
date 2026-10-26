@@ -79,10 +79,33 @@ public sealed class ImageDownloader : IDisposable
 
     private async Task<byte[]> ReadBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        if (response.Content.Headers.ContentLength > _maxBytes)
+        var length = response.Content.Headers.ContentLength;
+        if (length > _maxBytes)
             throw TooLarge();
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+            // A declared length sizes the buffer exactly: one allocation, no copy.
+            if (length > 0)
+            {
+                var data = new byte[length.Value];
+                await stream.ReadExactlyAsync(data, cancellationToken);
+                return data;
+            }
+
+            return await ReadUnsizedAsync(stream, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or HttpRequestException)
+        {
+            // The connection dropped, or the body ended before its declared length.
+            throw new ImageDownloadException("Could not download the image.", StatusCodes.Status502BadGateway);
+        }
+    }
+
+    private async Task<byte[]> ReadUnsizedAsync(Stream stream, CancellationToken cancellationToken)
+    {
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         while (true)

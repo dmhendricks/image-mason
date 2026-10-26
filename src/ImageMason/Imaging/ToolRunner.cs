@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 namespace ImageMason.Imaging;
 
@@ -25,6 +26,13 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
 
     private static readonly bool CanAdjustOomScore = OperatingSystem.IsLinux() && File.Exists("/proc/self/oom_score_adj");
 
+    // Kept of each output stream; the rest is read and dropped so the tool never blocks on a full pipe. The tools
+    // print a score, stats or error messages, far less than this.
+    internal const int MaxOutputChars = 64 * 1024;
+
+    // How long to wait for a killed tool to exit, so its files are closed before the job deletes its work folder.
+    private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(5);
+
     /// <exception cref="ToolKilledException">The tool was killed from outside the service.</exception>
     public async Task<ToolResult> RunAsync(string tool, IEnumerable<string> args, CancellationToken ct)
     {
@@ -47,8 +55,8 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
         var stopwatch = Stopwatch.StartNew();
         using var process = Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {tool}");
 
-        var stdOut = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        var stdErr = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        var stdOut = ReadCappedAsync(process.StandardOutput);
+        var stdErr = ReadCappedAsync(process.StandardError);
 
         try
         {
@@ -64,6 +72,16 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
             {
                 // Already exited
             }
+
+            using var wait = new CancellationTokenSource(KillWait);
+            try
+            {
+                await process.WaitForExitAsync(wait.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogWarning("{Tool} did not exit within {Seconds} s of being killed", tool, KillWait.TotalSeconds);
+            }
             throw;
         }
 
@@ -77,5 +95,21 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
             throw new ToolKilledException(tool);
 
         return result;
+    }
+
+    private static async Task<string> ReadCappedAsync(StreamReader reader)
+    {
+        var kept = new StringBuilder();
+        var buffer = new char[8192];
+        var truncated = false;
+        int read;
+        while ((read = await reader.ReadAsync(buffer, CancellationToken.None)) > 0)
+        {
+            var keep = Math.Min(read, MaxOutputChars - kept.Length);
+            kept.Append(buffer, 0, keep);
+            truncated |= keep < read;
+        }
+
+        return truncated ? kept.Append(" [truncated]").ToString() : kept.ToString();
     }
 }

@@ -118,28 +118,11 @@ public static class ExifReader
 
     private static ReadOnlySpan<byte> JpegExif(ReadOnlySpan<byte> jpeg)
     {
-        var i = 2;
-        while (i + 4 <= jpeg.Length && jpeg[i] == 0xFF)
+        var segments = new JpegSegments(jpeg);
+        while (segments.MoveNext())
         {
-            var marker = jpeg[i + 1];
-            if (marker == 0xFF)
-            {
-                i++;
-                continue;
-            }
-
-            if (marker is 0xDA or 0xD9)
-                break;
-
-            var length = BinaryPrimitives.ReadUInt16BigEndian(jpeg[(i + 2)..]);
-            if (length < 2 || i + 2 + length > jpeg.Length)
-                break;
-
-            var segment = jpeg.Slice(i + 4, length - 2);
-            if (marker == 0xE1 && segment.StartsWith("Exif\0\0"u8))
-                return segment[6..];
-
-            i += 2 + length;
+            if (segments.Marker == 0xE1 && segments.Data.StartsWith("Exif\0\0"u8))
+                return segments.Data[6..];
         }
 
         return default;

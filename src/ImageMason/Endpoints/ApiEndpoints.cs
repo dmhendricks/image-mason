@@ -7,6 +7,10 @@ internal static class ApiEndpoints
     /// <summary>Rate-limiter policy for CPU-heavy jobs, configured in Program.cs.</summary>
     public const string JobsPolicy = "jobs";
 
+    /// <summary>Rate-limiter policy for requests that only move an image (no tools), so they hold one in memory at most
+    /// MaxConcurrentTransfers times; configured in Program.cs.</summary>
+    public const string TransfersPolicy = "transfers";
+
     /// <summary>Maps the versioned API under /api/v1 (URL segment versioning; /api/v1.0 is the same version).</summary>
     public static void MapApi(this WebApplication app)
     {
@@ -23,13 +27,10 @@ internal static class ApiEndpoints
         api.MapPost("/convert", ConvertEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
         api.MapPost("/resize", ResizeEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
         api.MapPost("/crop", CropEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
-        api.MapPost("/upload", UploadEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
-
-        // Reads the header only: no tools run, so no job slot.
-        api.MapPost("/info", InfoEndpoint.HandleAsync);
-
-        // Downloads only, within the URL fetch limits: no tools run, so no job slot.
-        api.MapPost("/fetch", FetchEndpoint.HandleAsync);
+        // No tools run, so these don't wait behind jobs; each still holds the image in memory, so they have their own limit.
+        api.MapPost("/upload", UploadEndpoint.HandleAsync).RequireRateLimiting(TransfersPolicy);
+        api.MapPost("/info", InfoEndpoint.HandleAsync).RequireRateLimiting(TransfersPolicy);
+        api.MapPost("/fetch", FetchEndpoint.HandleAsync).RequireRateLimiting(TransfersPolicy);
 
         // Public: reports apiKeyRequired, so it can't require the key itself.
         api.MapGet("/limits", LimitsEndpoint.Handle).AllowWithoutApiKey();

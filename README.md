@@ -297,7 +297,7 @@ The same parameters and response as [`optimize`](#post-apiv1optimize), except th
 
 ### `POST /api/v1/upload`
 
-Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `optimize?output=json`. Accepts the image as the body or `url`, and `outputFilename`. The name in `output` can then be passed as `source` to the other endpoints.
+Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `optimize?output=json`. It doesn't wait for a job slot. Accepts the image as the body or `url`, and `outputFilename`. The name in `output` can then be passed as `source` to the other endpoints.
 
 ### `POST /api/v1/info`
 
@@ -407,14 +407,14 @@ All settings are environment variables, and all are optional. Sizes are in bytes
 | `IMAGE_MASON_MAX_PIXELS` | `50000000` | Largest accepted image in pixels, checked before decoding |
 | `IMAGE_MASON_MAX_CONCURRENT_JOBS` | CPU count | Requests processed at once. Large images also wait for memory; see [Memory](#memory). |
 | `IMAGE_MASON_MAX_QUEUED_JOBS` | `16` | Requests that wait for a slot before getting 503 |
-| `IMAGE_MASON_TIMEOUT_SECONDS` | `120` | Time before a request stops with 504 |
+| `IMAGE_MASON_TIMEOUT_SECONDS` | `120` | Time before a request stops with 504; at most `86400` (a day) |
 | `IMAGE_MASON_MEMORY_LIMIT` | container limit | Memory the service may use. See [Memory](#memory). |
 | `IMAGE_MASON_DEFAULT_MAX_WIDTH` | `0` | `maxWidth` for requests that don't send one. `0` keeps the original size. |
 | `IMAGE_MASON_DEFAULT_QUALITY` | `medium` | `quality` for requests that don't send one, and the web interface's starting choice: `high`, `medium` or `low` |
 | `IMAGE_MASON_HIGH_MIN_SCORE` | `85` | Floor for `high` |
 | `IMAGE_MASON_MEDIUM_MIN_SCORE` | `80` | Floor for `medium` |
 | `IMAGE_MASON_LOW_MIN_SCORE` | `70` | Floor for `low` |
-| `IMAGE_MASON_IMAGE_TTL_MINUTES` | `60` | How long stored images are served |
+| `IMAGE_MASON_IMAGE_TTL_MINUTES` | `60` | How long stored images are served; at most `525600` (a year) |
 | `IMAGE_MASON_MAX_STORE_SIZE` | `10g` | Total stored size; past it, the oldest images are deleted. `0` turns the cap off. |
 | `IMAGE_MASON_URL_FETCH_ENABLED` | `true` | `false` accepts uploaded images only |
 | `IMAGE_MASON_URL_ALLOWED_HOSTS` | | Comma-separated hosts `url` may point to. `*.example.com` matches subdomains. Empty allows any host. |

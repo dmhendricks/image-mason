@@ -43,6 +43,13 @@ public sealed class ImageMasonOptions
     public const long ServiceReserveBytes = 256L * 1024 * 1024;
 
     /// <summary>
+    /// Requests that move an image without running tools (info, fetch, upload) at once. Each holds up to one input in
+    /// memory outside the job budget, so together they get half of <see cref="ServiceReserveBytes"/>: 5 with the
+    /// default 25 MB input limit, between 2 and 16 otherwise.
+    /// </summary>
+    public int MaxConcurrentTransfers => (int)Math.Clamp(ServiceReserveBytes / 2 / Math.Max(1, MaxInputBytes), 2, 16);
+
+    /// <summary>
     /// Images displayed wider than this are downscaled. 0 turns default resizing off. The lossless preset only
     /// resizes when a request passes maxWidth.
     /// </summary>
@@ -147,15 +154,15 @@ public sealed class ImageMasonOptions
             MaxPixels = settings.Long("MAX_PIXELS", defaults.MaxPixels, min: 1),
             MaxConcurrentJobs = settings.Int("MAX_CONCURRENT_JOBS", defaults.MaxConcurrentJobs, min: 1),
             MaxQueuedJobs = settings.Int("MAX_QUEUED_JOBS", defaults.MaxQueuedJobs, min: 0),
-            TimeoutSeconds = settings.Int("TIMEOUT_SECONDS", defaults.TimeoutSeconds, min: 1),
+            TimeoutSeconds = settings.Int("TIMEOUT_SECONDS", defaults.TimeoutSeconds, min: 1, max: 86_400),
             MemoryLimitBytes = settings.String("MEMORY_LIMIT") is null ? null : settings.Size("MEMORY_LIMIT", 0, allowZero: false),
             DefaultMaxWidth = settings.Int("DEFAULT_MAX_WIDTH", defaults.DefaultMaxWidth, min: 0),
             DefaultQuality = settings.Quality("DEFAULT_QUALITY", defaults.DefaultQuality),
             HighMinScore = settings.Score("HIGH_MIN_SCORE", defaults.HighMinScore),
             MediumMinScore = settings.Score("MEDIUM_MIN_SCORE", defaults.MediumMinScore),
             LowMinScore = settings.Score("LOW_MIN_SCORE", defaults.LowMinScore),
-            StorePath = settings.String("STORE_PATH") ?? defaults.StorePath,
-            ImageTtlMinutes = settings.Int("IMAGE_TTL_MINUTES", defaults.ImageTtlMinutes, min: 1),
+            StorePath = Path.GetFullPath(settings.String("STORE_PATH") ?? defaults.StorePath),
+            ImageTtlMinutes = settings.Int("IMAGE_TTL_MINUTES", defaults.ImageTtlMinutes, min: 1, max: 525_600),
             MaxStoreBytes = settings.Size("MAX_STORE_SIZE", defaults.MaxStoreBytes, allowZero: true),
             UrlFetchEnabled = settings.Bool("URL_FETCH_ENABLED", defaults.UrlFetchEnabled),
             UrlAllowedHosts = settings.Hosts("URL_ALLOWED_HOSTS"),
@@ -173,8 +180,8 @@ public sealed class ImageMasonOptions
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
-        public int Int(string name, int fallback, int min) =>
-            (int)Long(name, fallback, min, int.MaxValue);
+        public int Int(string name, int fallback, int min, int max = int.MaxValue) =>
+            (int)Long(name, fallback, min, max);
 
         public long Long(string name, long fallback, long min, long max = long.MaxValue)
         {
@@ -182,7 +189,9 @@ public sealed class ImageMasonOptions
                 return fallback;
 
             if (!long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var value) || value < min || value > max)
-                throw Invalid(name, text, $"a whole number of at least {min}");
+                throw Invalid(name, text, max is int.MaxValue or long.MaxValue
+                    ? $"a whole number of at least {min}"
+                    : $"a whole number from {min} to {max}");
 
             return value;
         }

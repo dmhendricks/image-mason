@@ -12,6 +12,10 @@ public sealed class ImageStore
     private readonly ILogger<ImageStore> _logger;
     private readonly object _gate = new();
 
+    // Bytes in the directory, so a save under the cap doesn't stat every file. Counted on the first save that needs
+    // it, kept up to date by saves and deletes, and counted again after cleanup or an expired read (under _gate).
+    private long? _usedBytes;
+
     public ImageStore(ImageMasonOptions options, ILogger<ImageStore> logger)
     {
         _directory = options.StorePath;
@@ -34,13 +38,22 @@ public sealed class ImageStore
         // Unique partial so two saves of the same filename do not share a temp file.
         var partialPath = finalPath + "." + Guid.NewGuid().ToString("N") + ".partial";
 
-        await File.WriteAllBytesAsync(partialPath, data, cancellationToken);
-
-        lock (_gate)
+        try
         {
-            var replaced = File.Exists(finalPath) ? new FileInfo(finalPath).Length : 0;
-            MakeRoom(partialPath, data.LongLength - replaced);
-            File.Move(partialPath, finalPath, overwrite: true);
+            await File.WriteAllBytesAsync(partialPath, data, cancellationToken);
+
+            lock (_gate)
+            {
+                var replaced = File.Exists(finalPath) ? new FileInfo(finalPath).Length : 0;
+                MakeRoom(data.LongLength - replaced);
+                File.Move(partialPath, finalPath, overwrite: true);
+                _usedBytes += data.LongLength - replaced;
+            }
+        }
+        finally
+        {
+            // Left only when the write or move failed.
+            TryDelete(partialPath);
         }
 
         var expiresAt = File.GetLastWriteTimeUtc(finalPath) + _ttl;
@@ -61,7 +74,11 @@ public sealed class ImageStore
         var remaining = written + _ttl - DateTime.UtcNow;
         if (remaining <= TimeSpan.Zero)
         {
-            TryDelete(path);
+            lock (_gate)
+            {
+                TryDelete(path);
+                _usedBytes = null;
+            }
             return false;
         }
 
@@ -82,8 +99,14 @@ public sealed class ImageStore
             if (!File.Exists(path))
                 return false;
 
-            var expired = File.GetLastWriteTimeUtc(path) + _ttl <= DateTime.UtcNow;
-            return TryDelete(path) && !expired;
+            var file = new FileInfo(path);
+            var expired = file.LastWriteTimeUtc + _ttl <= DateTime.UtcNow;
+            var length = file.Length;
+            if (!TryDelete(path))
+                return false;
+
+            _usedBytes -= length;
+            return !expired;
         }
     }
 
@@ -105,6 +128,12 @@ public sealed class ImageStore
                 deleted++;
         }
 
+        if (deleted > 0)
+        {
+            lock (_gate)
+                _usedBytes = null;
+        }
+
         return deleted;
     }
 
@@ -112,37 +141,18 @@ public sealed class ImageStore
     /// Deletes the oldest stored files until <paramref name="incomingBytes"/> fits under the cap.
     /// The new file is still written when it alone is larger than the cap.
     /// </summary>
-    private void MakeRoom(string incomingPath, long incomingBytes)
+    private void MakeRoom(long incomingBytes)
     {
-        if (_maxBytes <= 0 || !Directory.Exists(_directory))
+        if (_maxBytes <= 0)
             return;
 
-        var files = new List<StoredEntry>();
-        long used = 0;
-        foreach (var path in Directory.EnumerateFiles(_directory))
-        {
-            if (string.Equals(path, incomingPath, StringComparison.Ordinal))
-                continue;
-
-            var name = Path.GetFileName(path);
-            long length;
-            try
-            {
-                length = new FileInfo(path).Length;
-            }
-            catch (IOException)
-            {
-                continue;
-            }
-
-            used += length;
-            if (IsStoredName(name))
-                files.Add(new StoredEntry(path, length, File.GetLastWriteTimeUtc(path)));
-        }
-
-        if (used + incomingBytes <= _maxBytes)
+        _usedBytes ??= Measure().Sum(static file => file.Length);
+        if (_usedBytes + incomingBytes <= _maxBytes)
             return;
 
+        // Over the cap: count again, since files may have changed outside the service, then delete the oldest.
+        var files = Measure();
+        var used = files.Sum(static file => file.Length);
         files.Sort(static (a, b) => a.WrittenUtc.CompareTo(b.WrittenUtc));
 
         var deleted = 0;
@@ -151,13 +161,15 @@ public sealed class ImageStore
         {
             if (used + incomingBytes <= _maxBytes)
                 break;
-            if (!TryDelete(file.Path))
+            if (!file.Stored || !TryDelete(file.Path))
                 continue;
 
             used -= file.Length;
             freed += file.Length;
             deleted++;
         }
+
+        _usedBytes = used;
 
         if (deleted > 0)
             _logger.LogInformation("Deleted {Count} oldest stored image(s) ({Freed} bytes) to stay under {Cap} bytes",
@@ -166,6 +178,36 @@ public sealed class ImageStore
         if (used + incomingBytes > _maxBytes)
             _logger.LogWarning("Store is {Used} bytes with a {Incoming} byte file incoming; cap is {Cap} bytes",
                 used, incomingBytes, _maxBytes);
+    }
+
+    /// <summary>
+    /// Every file in the directory except partial ones, which are counted once they're moved into place. Only stored
+    /// images may be deleted to make room; anything else just counts.
+    /// </summary>
+    private List<StoredEntry> Measure()
+    {
+        var files = new List<StoredEntry>();
+        if (!Directory.Exists(_directory))
+            return files;
+
+        foreach (var path in Directory.EnumerateFiles(_directory))
+        {
+            var name = Path.GetFileName(path);
+            if (IsPartialName(name))
+                continue;
+
+            try
+            {
+                var info = new FileInfo(path);
+                files.Add(new StoredEntry(path, info.Length, info.LastWriteTimeUtc, IsStoredName(name)));
+            }
+            catch (IOException)
+            {
+                // Deleted while listing.
+            }
+        }
+
+        return files;
     }
 
     private static bool TryDelete(string path)
@@ -214,11 +256,8 @@ public sealed class ImageStore
         if (!name.EndsWith(suffix, StringComparison.Ordinal))
             return false;
 
-        var stem = name[..^suffix.Length];
-        if (IsStoredName(stem))
-            return true;
-
         // {storedName}.{32 hex}.partial, the temp file written before the final move.
+        var stem = name[..^suffix.Length];
         var dot = stem.LastIndexOf('.');
         if (dot <= 0 || stem.Length - dot != 33)
             return false;
@@ -233,7 +272,7 @@ public sealed class ImageStore
         return IsStoredName(stem[..dot]);
     }
 
-    private readonly record struct StoredEntry(string Path, long Length, DateTime WrittenUtc);
+    private readonly record struct StoredEntry(string Path, long Length, DateTime WrittenUtc, bool Stored);
 }
 
 public readonly record struct StoredFile(string Path, string ContentType, int MaxAgeSeconds);

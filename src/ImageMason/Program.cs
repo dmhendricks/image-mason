@@ -68,6 +68,12 @@ builder.Services.AddRateLimiter(limiter =>
         concurrency.QueueLimit = options.MaxQueuedJobs;
         concurrency.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
     });
+    limiter.AddConcurrencyLimiter(ApiEndpoints.TransfersPolicy, concurrency =>
+    {
+        concurrency.PermitLimit = options.MaxConcurrentTransfers;
+        concurrency.QueueLimit = options.MaxQueuedJobs;
+        concurrency.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
 });
 
 var app = builder.Build();

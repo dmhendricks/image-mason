@@ -33,4 +33,15 @@ public sealed class ToolRunnerTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _tools.RunAsync("sleep", ["10"], timeout.Token));
     }
+
+    [Fact]
+    public async Task Output_IsCapped_ButFullyRead()
+    {
+        var result = await _tools.RunAsync("sh", ["-c", "head -c 200000 /dev/zero | tr '\\0' a; echo done >&2"],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(new string('a', ToolRunner.MaxOutputChars) + " [truncated]", result.StdOut);
+        Assert.Equal("done", result.StdErr.Trim());
+    }
 }

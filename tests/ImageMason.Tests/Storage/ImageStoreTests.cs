@@ -64,6 +64,19 @@ public sealed class ImageStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Save_ThatFails_LeavesNoPartialFile()
+    {
+        var store = CreateStore();
+        // A folder where the image should go makes the final move fail.
+        Directory.CreateDirectory(Path.Combine(_directory.FullName, "photo.jpg"));
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            store.SaveAsync([1, 2, 3], ImageFormat.Jpeg, "photo.jpg", TestContext.Current.CancellationToken));
+
+        Assert.Empty(_directory.GetFiles());
+    }
+
+    [Fact]
     public async Task Save_OverTheCap_DeletesTheOldestFiles()
     {
         var store = CreateStore(maxStoreBytes: 250);

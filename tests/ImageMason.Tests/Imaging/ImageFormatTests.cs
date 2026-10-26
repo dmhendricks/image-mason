@@ -191,6 +191,30 @@ public sealed class ImageFormatTests
     }
 
     [Theory]
+    [InlineData("ff01")] // TEM
+    [InlineData("ffd3")] // RST3
+    [InlineData("0000")] // stray bytes
+    [InlineData("ff00")] // a stuffed zero
+    public void ReadJpeg_SkipsWhatLibjpegSkips(string hex)
+    {
+        // These carry no length; reading one would take the next marker's bytes as a length and miss the frame header.
+        var header = TestImages.JpegHeader(4032, 3024, orientation: 6, icc: true);
+        byte[] jpeg = [.. header[..2], .. Convert.FromHexString(hex), .. header[2..]];
+
+        Assert.Equal(new ImageInfo(4032, 3024, 6), ImageInfo.Read(jpeg, ImageFormat.Jpeg));
+        Assert.True(ImageHeader.HasIccProfile(jpeg, ImageFormat.Jpeg));
+    }
+
+    [Fact]
+    public void ReadPng_WithoutIhdrFirst_HasNoSize()
+    {
+        var png = TestImages.NoisyPng(37, 21);
+        "IHDX"u8.CopyTo(png.AsSpan(12));
+
+        Assert.Equal(default, ImageInfo.Read(png, ImageFormat.Png));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void ReadJpeg_ReadsExifOrientationInEitherByteOrder(bool bigEndian)

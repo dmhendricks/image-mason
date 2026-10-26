@@ -249,7 +249,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             {
                 work.Delete(recursive: true);
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 logger.LogWarning(ex, "Failed to delete work directory {Path}", work.FullName);
             }

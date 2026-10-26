@@ -54,6 +54,16 @@ internal static class ApiRequest
         if (hasUrl)
             return await downloader.DownloadAsync(url!.Trim(), cancellationToken);
 
+        // A declared length within Kestrel's body limit sizes the buffer exactly: one allocation, no copy. A longer one
+        // is left to the copy below, where Kestrel rejects it with 413 before reading much.
+        var maxBytes = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>()?.MaxRequestBodySize;
+        if (request.ContentLength is long length and > 0 && length <= maxBytes)
+        {
+            var data = new byte[length];
+            await request.Body.ReadExactlyAsync(data, cancellationToken);
+            return data;
+        }
+
         using var buffer = new MemoryStream();
         await request.Body.CopyToAsync(buffer, cancellationToken);
         if (buffer.Length == 0)

@@ -19,12 +19,14 @@ fixtures="$(cd "$(dirname "$0")/../tests/fixtures" && pwd)"
 work=$(mktemp -d)
 failures=0
 
+# Prints the container's logs after a failed check or an early exit. -v also removes its anonymous /data volume.
 cleanup() {
-    if [[ $failures -gt 0 ]]; then
+    local status=$?
+    if [[ $status -ne 0 || $failures -gt 0 ]]; then
         echo "--- container logs"
         docker logs "$name" 2>&1 | tail -50 || true
     fi
-    docker rm -f "$name" >/dev/null 2>&1 || true
+    docker rm -fv "$name" >/dev/null 2>&1 || true
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -41,11 +43,15 @@ check() {
     fi
 }
 
-# request <name> <curl args...>: saves the response to $work/<name>.body and .headers; prints the status code.
+# request <name> <curl args...>: saves the response to $work/<name>.body and .headers; prints the status code,
+# or 000 when there's no response (curl's error goes to stderr). Never fails, so the next check reports it.
+# --max-time is above the server's own 120 s limit, so a hung request fails instead of stalling the run.
 request() {
     local name=$1
     shift
-    curl -s -o "$work/$name.body" -D "$work/$name.headers" -w '%{http_code}' "$@"
+    : > "$work/$name.body"
+    : > "$work/$name.headers"
+    curl -sS --max-time 180 -o "$work/$name.body" -D "$work/$name.headers" -w '%{http_code}' "$@" || true
 }
 
 header() { grep -i "^$2:" "$work/$1.headers" | head -1 | cut -d' ' -f2- | tr -d '\r'; }
@@ -62,10 +68,20 @@ docker run -d --name "$name" -p "127.0.0.1:${port}:8080" \
     -e IMAGE_MASON_URL_ALLOWED_HOSTS=images.example.com \
     "$image" >/dev/null
 
+# Up to 30 s for the server to answer, stopping early if the container exits.
+ready=false
 for _ in $(seq 1 60); do
-    curl -sf -o /dev/null "$base/health" && break
+    if curl -sf --max-time 2 -o /dev/null "$base/health"; then
+        ready=true
+        break
+    fi
+    [[ $(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null) == true ]] || break
     sleep 0.5
 done
+if ! $ready; then
+    echo "FAIL  $image didn't answer at $base/health"
+    exit 1
+fi
 
 echo "Smoke testing $image"
 auth=(-H "X-Api-Key: $key")

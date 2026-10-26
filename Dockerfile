@@ -231,6 +231,14 @@ COPY src/ImageMason/ImageMason.csproj src/ImageMason/
 RUN RID=linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \
     && dotnet restore src/ImageMason/ImageMason.csproj -r "$RID"
 
+# The third-party notices of the .NET runtime and ASP.NET Core, which are compiled into the binary, from the
+# packages restore just downloaded, so they match the version in use.
+RUN mkdir -p /notices \
+    && cp /root/.nuget/packages/microsoft.netcore.app.runtime.nativeaot.linux-musl-*/*/THIRD-PARTY-NOTICES.TXT \
+        /notices/dotnet-runtime-THIRD-PARTY-NOTICES.txt \
+    && cp /root/.nuget/packages/microsoft.aspnetcore.app.runtime.linux-musl-*/*/THIRD-PARTY-NOTICES.TXT \
+        /notices/aspnetcore-THIRD-PARTY-NOTICES.txt
+
 COPY src/ImageMason/ src/ImageMason/
 # ImageMason.csproj embeds ../web/dist as the web interface.
 COPY --from=web /src/web/dist/ src/web/dist/
@@ -264,6 +272,7 @@ COPY --from=tools /out/lib/ /usr/local/lib/
 COPY --from=app /app/ /app/
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/licenses/image-mason/
 COPY licenses/ /usr/share/licenses/image-mason/licenses/
+COPY --from=app /notices/ /usr/share/licenses/image-mason/licenses/
 
 # Fail the build if any tool is missing a shared library.
 RUN cjpegli --version >/dev/null 2>&1 || cjpegli --help >/dev/null \

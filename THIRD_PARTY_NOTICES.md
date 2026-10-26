@@ -4,7 +4,7 @@ Image Mason is licensed under the [Apache License 2.0](LICENSE). The Docker imag
 
 The image tools (`cjpegli`, `ssimulacra2`, `cjxl`, `djxl`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`, `oxipng`, `pngquant`) run as separate programs. None of them is linked into the Image Mason application. The application binary contains the .NET runtime and ASP.NET Core, compiled in ahead of time, and the web interface's files (Vue and the Barlow fonts), embedded as resources.
 
-Full license texts are in the [`licenses/`](licenses/) directory. In the image, they are in `/usr/share/licenses/image-mason/`.
+Full license texts are in the [`licenses/`](licenses/) directory. In the image, they are in `/usr/share/licenses/image-mason/`, together with the .NET runtime's and ASP.NET Core's third-party notices, which the build copies from the .NET packages it compiles in.
 
 ## Image Tools
 
@@ -49,6 +49,12 @@ Copyright 2019 Joe Drago. All rights reserved. See [`licenses/libavif-LICENSE.tx
 
 Copyright (c) 2016, Alliance for Open Media. All rights reserved. See [`licenses/aom-LICENSE.txt`](licenses/aom-LICENSE.txt) and [`licenses/aom-PATENTS.txt`](licenses/aom-PATENTS.txt) (Alliance for Open Media Patent License 1.0).
 
+The encoder includes code from three projects aom bundles, each under its own license:
+
+- FAST corner detection, Copyright (c) 2006, 2008 Edward Rosten (BSD-3-Clause). See [`licenses/aom-fastfeat-LICENSE.txt`](licenses/aom-fastfeat-LICENSE.txt).
+- vector, Copyright (c) 2016 Peter Goldsborough (MIT). See [`licenses/aom-vector-LICENSE.txt`](licenses/aom-vector-LICENSE.txt).
+- x86inc, Copyright (C) 2005-2012 x264 project (ISC), in the amd64 image only. See [`licenses/aom-x86inc-LICENSE.txt`](licenses/aom-x86inc-LICENSE.txt).
+
 ### dav1d
 
 Copyright © 2018-2025, VideoLAN and dav1d authors. All rights reserved. See [`licenses/dav1d-COPYING.txt`](licenses/dav1d-COPYING.txt).
@@ -81,7 +87,7 @@ pngquant © 2009-2018 by Kornel Lesiński. Licensed under the GNU General Public
 | ASP.NET Core | MIT | <https://github.com/dotnet/aspnetcore> |
 | Asp.Versioning.Http | MIT | <https://github.com/dotnet/aspnet-api-versioning> |
 
-Copyright (c) .NET Foundation and Contributors. See [`licenses/dotnet-LICENSE.txt`](licenses/dotnet-LICENSE.txt) and [`licenses/asp-versioning-LICENSE.txt`](licenses/asp-versioning-LICENSE.txt). The .NET runtime and ASP.NET Core include further third-party components, listed in their own `THIRD-PARTY-NOTICES.TXT` files:
+Copyright (c) .NET Foundation and Contributors. See [`licenses/dotnet-LICENSE.txt`](licenses/dotnet-LICENSE.txt) and [`licenses/asp-versioning-LICENSE.txt`](licenses/asp-versioning-LICENSE.txt). The .NET runtime and ASP.NET Core include further third-party components, listed in their own third-party notices. The image has the notices for the exact version it contains, as `dotnet-runtime-THIRD-PARTY-NOTICES.txt` and `aspnetcore-THIRD-PARTY-NOTICES.txt` in `/usr/share/licenses/image-mason/licenses/`. The current versions are also online:
 
 - <https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT>
 - <https://github.com/dotnet/aspnetcore/blob/main/THIRD-PARTY-NOTICES.txt>
@@ -108,22 +114,30 @@ The image is built on `mcr.microsoft.com/dotnet/runtime-deps` (Alpine Linux 3.24
 docker run --rm --entrypoint apk hendridm/image-mason:<tag> list --installed
 ```
 
-| Package | License |
-|---|---|
-| alpine-baselayout, apk-tools, busybox, scanelf, ssl_client | GPL-2.0-only |
-| alpine-keys, alpine-release, brotli-libs, expat, giflib, lcms2, libeconf, libffi, musl | MIT |
-| musl-utils | MIT AND BSD-2-Clause AND GPL-2.0-or-later |
-| ca-certificates-bundle | MPL-2.0 AND MIT |
-| glib, libblkid, libintl, libmount | LGPL-2.1-or-later |
-| libexif | LGPL-2.0-or-later |
-| libgcc, libstdc++ | GPL-2.0-or-later AND LGPL-2.1-or-later, with the GCC Runtime Library Exception |
-| libcrypto3, libssl3 (OpenSSL), libhwy (Highway) | Apache-2.0 |
-| libjpeg-turbo | BSD-3-Clause AND IJG AND Zlib |
-| libpng | Libpng |
-| pcre2 | BSD-3-Clause |
-| libwebp, libwebp-tools, libwebpmux, libwebpdemux, libsharpyuv | BSD-3-Clause |
-| tzdata | Public domain |
-| zlib | Zlib |
+The license texts are in [`licenses/`](licenses/), taken from each project at the version Alpine 3.24 packages. Licenses shared by several packages (GPL, LGPL, Apache, MPL) are included once, named by license.
+
+| Package | License | License text |
+|---|---|---|
+| alpine-baselayout, apk-tools, busybox, scanelf, ssl_client | GPL-2.0-only | [`GPL-2.0.txt`](licenses/GPL-2.0.txt) |
+| musl, musl-utils | MIT (musl-utils also BSD-2-Clause and GPL-2.0-or-later) | [`musl-COPYRIGHT.txt`](licenses/musl-COPYRIGHT.txt), [`GPL-2.0.txt`](licenses/GPL-2.0.txt) |
+| brotli-libs | MIT | [`brotli-LICENSE.txt`](licenses/brotli-LICENSE.txt) |
+| expat, libexpat | MIT | [`expat-COPYING.txt`](licenses/expat-COPYING.txt) |
+| giflib | MIT | [`giflib-COPYING.txt`](licenses/giflib-COPYING.txt) |
+| lcms2 | MIT | [`lcms2-LICENSE.txt`](licenses/lcms2-LICENSE.txt) |
+| libeconf | MIT | [`libeconf-LICENSE.txt`](licenses/libeconf-LICENSE.txt) |
+| libffi | MIT | [`libffi-LICENSE.txt`](licenses/libffi-LICENSE.txt) |
+| alpine-keys, alpine-release | MIT | Alpine's signing keys and release files; the Alpine project publishes no license text for them |
+| ca-certificates-bundle | MPL-2.0 AND MIT | [`MPL-2.0.txt`](licenses/MPL-2.0.txt) (the certificates come from Mozilla's list; the MIT part is Alpine's update script, which isn't installed) |
+| glib, libblkid, libmount (util-linux), libintl (gettext) | LGPL-2.1-or-later | [`LGPL-2.1.txt`](licenses/LGPL-2.1.txt) |
+| libexif | LGPL-2.0-or-later | [`LGPL-2.1.txt`](licenses/LGPL-2.1.txt) |
+| libgcc, libstdc++ | GPL-3.0-or-later with the GCC Runtime Library Exception 3.1 | [`GPL-3.0.txt`](licenses/GPL-3.0.txt), [`GCC-exception-3.1.txt`](licenses/GCC-exception-3.1.txt) |
+| libcrypto3, libssl3 (OpenSSL), libhwy (Highway) | Apache-2.0 | [`Apache-2.0.txt`](licenses/Apache-2.0.txt) |
+| libjpeg-turbo | BSD-3-Clause AND IJG AND Zlib | [`libjpeg-turbo-LICENSE.md`](licenses/libjpeg-turbo-LICENSE.md), [`libjpeg-turbo-README.ijg.txt`](licenses/libjpeg-turbo-README.ijg.txt) |
+| libpng | Libpng | [`libpng-LICENSE.txt`](licenses/libpng-LICENSE.txt) |
+| pcre2 | BSD-3-Clause | [`pcre2-LICENCE.md`](licenses/pcre2-LICENCE.md) |
+| libwebp, libwebp-tools, libwebpmux, libwebpdemux, libsharpyuv | BSD-3-Clause | [`libwebp-COPYING.txt`](licenses/libwebp-COPYING.txt), [`libwebp-PATENTS.txt`](licenses/libwebp-PATENTS.txt) |
+| tzdata | Public domain | [`tzdata-LICENSE.txt`](licenses/tzdata-LICENSE.txt) |
+| zlib | Zlib | [`zlib-LICENSE.txt`](licenses/zlib-LICENSE.txt) |
 
 ## Source Code for GPL and LGPL Components
 

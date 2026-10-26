@@ -29,6 +29,7 @@ All notable changes to this project are documented here. The format is based on 
 - The check for PNG photos (`preferJpeg`, and `isPhoto` from `info`) ran before the pixel limit and ignored the request timeout. It now skips images over `IMAGE_MASON_MAX_PIXELS`, stops at the timeout, and runs once per request instead of up to twice.
 - Requests without the API key waited for a job slot before getting 401, so they could fill the queue and make requests with the key get 503. The key is now checked first.
 - The 503 sent when the job queue is full now has `Retry-After`, like the one sent when an image tool runs out of memory.
+- The image was missing the license texts of its Alpine packages (musl, busybox, OpenSSL, zlib and others), the third-party notices of the .NET runtime and ASP.NET Core compiled into the binary, and the licenses of three small libraries the aom encoder includes. They're now in `/usr/share/licenses/image-mason/licenses/`, listed in `THIRD_PARTY_NOTICES.md`.
 
 ## [0.2.1] - 2026-10-25
 

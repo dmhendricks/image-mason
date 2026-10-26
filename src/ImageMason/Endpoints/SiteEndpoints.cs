@@ -30,8 +30,9 @@ internal static class SiteEndpoints
     {
         var webInterface = Files.ContainsKey("app/index.html") ? ReadBytes("app/index.html") : null;
         var notBuiltPage = ReadBytes("no-app.html");
-        var docsPage = ReadText("docs.html").Replace("{{webInterfaceLink}}",
-            options.UiEnabled ? """<a href="/">Web interface</a>""" : "", StringComparison.Ordinal);
+        var docsPage = ReadText("docs.html")
+            .Replace("{{webInterfaceLink}}", options.UiEnabled ? """<a href="/">Web interface</a>""" : "", StringComparison.Ordinal)
+            .Replace("{{fontFaces}}", options.UiEnabled ? FontFaces() : "", StringComparison.Ordinal);
         var contentTypes = new FileExtensionContentTypeProvider();
 
         app.MapGet("/", (HttpContext http) =>
@@ -106,6 +107,28 @@ internal static class SiteEndpoints
             http.Response.Headers.CacheControl = "public, max-age=86400";
             return Results.Bytes(bytes, contentType);
         });
+    }
+
+    // @font-face rules for the web interface's Barlow fonts (Latin only), so /docs can match it. Vite names the files
+    // by their contents, so each is found by its prefix. Missing files are skipped and the page falls back to the
+    // system font.
+    private static string FontFaces()
+    {
+        (string Family, string File, int Weight)[] faces =
+        [
+            ("Barlow", "barlow", 400),
+            ("Barlow", "barlow", 500),
+            ("Barlow", "barlow", 600),
+            ("Barlow Semi Condensed", "barlow-semi-condensed", 600),
+            ("Barlow Semi Condensed", "barlow-semi-condensed", 700),
+        ];
+
+        return string.Join("\n    ", faces
+            .Select(face => (face, Path: Files.Keys.FirstOrDefault(path =>
+                path.StartsWith($"app/assets/{face.File}-latin-{face.Weight}-normal-", StringComparison.Ordinal)
+                && path.EndsWith(".woff2", StringComparison.Ordinal))))
+            .Where(found => found.Path is not null)
+            .Select(found => $$"""@font-face { font-family: "{{found.face.Family}}"; font-weight: {{found.face.Weight}}; font-display: swap; src: url("/{{found.Path!["app/".Length..]}}") format("woff2"); }"""));
     }
 
     private static string ReadText(string path)

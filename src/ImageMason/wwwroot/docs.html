@@ -8,42 +8,74 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    // The theme chosen in the web interface (same origin, same storage key as useTheme.ts).
+    try {
+      const theme = localStorage.getItem('image-mason.theme')
+      if (theme === 'light' || theme === 'dark')
+        document.documentElement.dataset.theme = theme
+    } catch {
+      // Storage blocked: follow the system.
+    }
+  </script>
   <style>
+    /* The web interface's Barlow fonts, when it's served (filled in by SiteEndpoints). */
+    {{fontFaces}}
+
+    /* The web interface's colors (src/web/src/styles/global.scss). */
     :root {
-      color-scheme: light dark;
-      --bg: #f6f3ee;
-      --paper: #fbf9f6;
-      --ink: #1f1b18;
-      --muted: #6b635c;
-      --line: #e3dcd2;
-      --accent: #b5432a;
-      --code-bg: #24201d;
-      --code-ink: #f4efe8;
-      --inline-code: #ebe4da;
+      color-scheme: light;
+      --app: #eceef1;
+      --panel: #ffffff;
+      --panel-2: #f4f5f7;
+      --ink: #15181c;
+      --muted: #5f6670;
+      --rule: #dde1e6;
+      --flag: #d1236b;
+      --code-bg: #1a1d21;
+      --code-ink: #e3e6ea;
+      --font: "Barlow", system-ui, sans-serif;
+      --font-cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --radius: 4px;
     }
 
     @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #171513;
-        --paper: #1f1c19;
-        --ink: #ece6de;
-        --muted: #a39a90;
-        --line: #332e29;
-        --accent: #e0714f;
-        --code-bg: #0f0d0c;
-        --code-ink: #ece6de;
-        --inline-code: #2b2723;
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --app: #121417;
+        --panel: #1a1d21;
+        --panel-2: #22262b;
+        --ink: #e3e6ea;
+        --muted: #8f98a3;
+        --rule: #2c3137;
+        --flag: #ff5c9a;
+        --code-bg: #0e1012;
       }
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --app: #121417;
+      --panel: #1a1d21;
+      --panel-2: #22262b;
+      --ink: #e3e6ea;
+      --muted: #8f98a3;
+      --rule: #2c3137;
+      --flag: #ff5c9a;
+      --code-bg: #0e1012;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      background: var(--bg);
+      background: var(--app);
       color: var(--ink);
-      font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font: 400 16px/1.6 var(--font);
     }
+
+    :focus-visible { outline: 2px solid var(--flag); outline-offset: 1px; }
 
     main {
       width: min(42rem, calc(100% - 2rem));
@@ -64,14 +96,12 @@
 
     h1 {
       margin: 0;
-      font-size: clamp(2rem, 6vw, 2.6rem);
-      font-weight: 650;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
+      font: 700 clamp(2rem, 6vw, 2.6rem)/1.1 var(--font-cond);
     }
 
     .version {
       color: var(--muted);
+      font-weight: 500;
       font-size: 0.9rem;
     }
 
@@ -86,9 +116,8 @@
     h2 {
       margin: 0 0 0.8rem;
       color: var(--muted);
-      font-size: 0.75rem;
-      font-weight: 650;
-      letter-spacing: 0.12em;
+      font: 600 0.8rem var(--font-cond);
+      letter-spacing: 0.1em;
       text-transform: uppercase;
     }
 
@@ -100,21 +129,24 @@
       overflow-x: auto;
       background: var(--code-bg);
       color: var(--code-ink);
-      border-radius: 10px;
-      font: 0.86rem/1.55 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--flag);
+      border-radius: var(--radius);
+      font: 0.86rem/1.55 var(--mono);
     }
 
     pre + pre { margin-top: 0.65rem; }
 
     code {
-      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-family: var(--mono);
       font-size: 0.9em;
     }
 
     p code, td code {
       padding: 0.05rem 0.3rem;
-      background: var(--inline-code);
-      border-radius: 4px;
+      background: var(--panel-2);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
     }
 
     .note {
@@ -124,10 +156,11 @@
 
     table {
       width: 100%;
-      border-collapse: collapse;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 10px;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--panel);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
       overflow: hidden;
     }
 
@@ -135,16 +168,16 @@
       padding: 0.6rem 0.9rem;
       text-align: left;
       vertical-align: top;
-      border-bottom: 1px solid var(--line);
+      border-bottom: 1px solid var(--rule);
     }
 
     tr:last-child td { border-bottom: 0; }
 
     th {
+      background: var(--panel-2);
       color: var(--muted);
-      font-size: 0.75rem;
-      font-weight: 650;
-      letter-spacing: 0.04em;
+      font: 600 0.8rem var(--font-cond);
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
 
@@ -154,13 +187,13 @@
       gap: 1.25rem;
       margin-top: 2.75rem;
       padding-top: 1.1rem;
-      border-top: 1px solid var(--line);
+      border-top: 1px solid var(--rule);
       color: var(--muted);
       font-size: 0.92rem;
     }
 
-    a { color: var(--ink); }
-    a:hover { color: var(--accent); }
+    a { color: var(--ink); text-decoration-color: var(--rule); text-underline-offset: 3px; }
+    a:hover { color: var(--flag); text-decoration-color: currentColor; }
   </style>
 </head>
 <body>

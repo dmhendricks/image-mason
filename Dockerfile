@@ -20,6 +20,8 @@ ARG NODE_VERSION=26
 # ---------------------------------------------------------------------------
 # 1. Native tools
 # ---------------------------------------------------------------------------
+# Each step deletes its source and build trees, so its layer holds only what it installs: CI keeps this stage's
+# layers in the GitHub Actions cache (see ci.yml), which has a 10 GB limit.
 FROM alpine:${ALPINE_VERSION} AS tools
 
 ARG LIBJXL_VERSION=v0.12.0
@@ -66,7 +68,8 @@ RUN git clone --depth 1 --branch ${LIBVIPS_VERSION} https://github.com/libvips/l
         -Dradiance=false \
     && meson compile -C /build/libvips tools/vipsthumbnail tools/vips \
     && install -D -s /build/libvips/tools/vipsthumbnail /out/bin/vipsthumbnail \
-    && install -D -s /build/libvips/tools/vips /out/bin/vips
+    && install -D -s /build/libvips/tools/vips /out/bin/vips \
+    && rm -rf /src/libvips /build/libvips
 
 # mozjpeg: only jpegtran is used (the lossless JPEG step). Static libjpeg, so it never collides with
 # the system libjpeg-turbo that libjxl links against.
@@ -79,7 +82,8 @@ RUN git clone --depth 1 --branch ${MOZJPEG_VERSION} https://github.com/mozilla/m
         -DWITH_TURBOJPEG=OFF \
         -DPNG_SUPPORTED=OFF \
     && cmake --build /build/mozjpeg --target jpegtran-static \
-    && install -D -s /build/mozjpeg/jpegtran-static /out/bin/jpegtran
+    && install -D -s /build/mozjpeg/jpegtran-static /out/bin/jpegtran \
+    && rm -rf /src/mozjpeg /build/mozjpeg
 
 # libjxl: builds only ssimulacra2, cjxl (JPEG XL encoder) and djxl (decoder). libjxl is shared, so the three
 # tools share one copy of the codec. Third-party libraries come from Alpine packages.
@@ -107,7 +111,8 @@ RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/lib
     && for tool in ssimulacra2 cjxl djxl; do install -D -s /build/libjxl/tools/$tool /out/bin/$tool; done \
     && mkdir -p /out/lib && cp -P /build/libjxl/lib/libjxl.so* /build/libjxl/lib/libjxl_cms.so* \
         /build/libjxl/lib/libjxl_threads.so* /out/lib/ \
-    && strip /out/lib/libjxl*.so.*.*
+    && strip /out/lib/libjxl*.so.*.* \
+    && rm -rf /src/libjxl /build/libjxl
 
 # jpegli: cjpegli, with jpegli linked in statically. Third-party libraries come from Alpine packages; the
 # libjpeg-turbo submodule is needed only for jpegli's API headers. Fetched by commit, since there are no tags.
@@ -131,7 +136,8 @@ RUN git init -q /src/jpegli \
         -DJPEGLI_ENABLE_OPENEXR=OFF \
         -DJPEGLI_ENABLE_DOXYGEN=OFF \
     && cmake --build /build/jpegli --target cjpegli \
-    && install -D -s /build/jpegli/tools/cjpegli /out/bin/cjpegli
+    && install -D -s /build/jpegli/tools/cjpegli /out/bin/cjpegli \
+    && rm -rf /src/jpegli /build/jpegli
 
 # oxipng: the release's static musl binary for this architecture, verified before it's unpacked.
 RUN case "$TARGETARCH" in \
@@ -157,7 +163,8 @@ RUN git clone --depth 1 --branch ${DAV1D_VERSION} https://code.videolan.org/vide
         --libdir=lib \
         -Denable_tools=false \
         -Denable_tests=false \
-    && meson install -C /build/dav1d
+    && meson install -C /build/dav1d \
+    && rm -rf /src/dav1d /build/dav1d
 
 # _GNU_SOURCE: aom's apps call fseeko/ftello, which musl declares only with it.
 RUN git clone --depth 1 --branch ${AOM_VERSION} https://aomedia.googlesource.com/aom /src/aom \
@@ -174,7 +181,8 @@ RUN git clone --depth 1 --branch ${AOM_VERSION} https://aomedia.googlesource.com
         -DENABLE_TESTS=OFF \
         -DENABLE_TOOLS=OFF \
     && cmake --build /build/aom \
-    && cmake --install /build/aom
+    && cmake --install /build/aom \
+    && rm -rf /src/aom /build/aom
 
 RUN git clone --depth 1 --branch ${LIBAVIF_VERSION} https://github.com/AOMediaCodec/libavif.git /src/libavif \
     && PKG_CONFIG_PATH=/opt/av1/lib/pkgconfig cmake -S /src/libavif -B /build/libavif -G Ninja \
@@ -194,7 +202,8 @@ RUN git clone --depth 1 --branch ${LIBAVIF_VERSION} https://github.com/AOMediaCo
     && install -D -s /build/libavif/avifenc /out/bin/avifenc \
     && install -D -s /build/libavif/avifdec /out/bin/avifdec \
     && mkdir -p /out/lib && cp -P /build/libavif/libavif.so* /out/lib/ \
-    && strip /out/lib/libavif.so.*.*
+    && strip /out/lib/libavif.so.*.* \
+    && rm -rf /src/libavif /build/libavif /opt/av1
 
 # ---------------------------------------------------------------------------
 # 2. Web interface

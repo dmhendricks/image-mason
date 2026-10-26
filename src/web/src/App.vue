@@ -33,18 +33,11 @@ function chooseFile() {
   fileInput.value?.click()
 }
 
-const confirmReplace = () =>
-  !hasUnsavedResults.value || window.confirm('Open another image? Results you haven\'t downloaded will be lost.')
+// Asked only when there are results not yet downloaded, once the new image is ready to replace them.
+const confirmDiscard = () => window.confirm('Open another image? Results you haven\'t downloaded will be lost.')
 
-async function openFile(file: Blob, name: string) {
-  if (confirmReplace())
-    await open(file, name)
-}
-
-async function openLink(address: string) {
-  if (confirmReplace())
-    await openUrl(address)
-}
+const openFile = (file: Blob, name: string) => open(file, name, confirmDiscard)
+const openLink = (address: string) => openUrl(address, confirmDiscard)
 
 function onFileChosen(event: Event) {
   const input = event.target as HTMLInputElement

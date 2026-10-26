@@ -106,8 +106,8 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
 
-      # The tools stage compiles libjxl, mozjpeg, libvips and libavif; the GitHub Actions cache keeps it
-      # between runs, one scope per architecture (shared with CI).
+      # The compiled tools come from the cache CI writes on main (see ci.yml). A tag can read main's cache, but
+      # what it writes only it could read, so it writes nothing.
       - name: Build image
         uses: docker/build-push-action@v7
         with:
@@ -117,8 +117,7 @@ jobs:
           tags: image-mason:release
           build-args: VERSION=${{ env.VERSION }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.arch }}
-          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+          cache-from: type=gha,scope=tools-${{ matrix.arch }}
 
       - name: Smoke test
         run: scripts/smoke-test.sh image-mason:release "$VERSION"
@@ -140,7 +139,7 @@ jobs:
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           build-args: VERSION=${{ env.VERSION }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-from: type=gha,scope=tools-${{ matrix.arch }}
           provenance: mode=max
           sbom: true
 

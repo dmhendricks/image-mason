@@ -54,6 +54,14 @@ export interface JobError {
   canRetry: boolean
 }
 
+/** An image being read, or downloaded by the server first. */
+export interface Opening {
+  /** The file name, or the one taken from the web address. */
+  name: string
+  /** Whether the server is downloading it (openUrl), which can take a while and be cancelled. */
+  fromUrl: boolean
+}
+
 /** Tries for a busy server (503) before giving up. */
 export const maxAttempts = 3
 
@@ -62,11 +70,13 @@ const results = ref<Result[]>([])
 const job = ref<Job | null>(null)
 const error = ref<JobError | null>(null)
 const openError = ref<string | null>(null)
-const opening = ref(false)
+const opening = shallowRef<Opening | null>(null)
 /** Crop's area, in display pixels; NaN while a field is empty or not a number. */
 const rect = reactive<Rect>({ left: 0, top: 0, width: 0, height: 0 })
 
 let controller: AbortController | null = null
+/** The open in progress. A newer open aborts it, so only the last image chosen is opened. */
+let openController: AbortController | null = null
 let nextId = 1
 
 export function useImage() {
@@ -75,25 +85,16 @@ export function useImage() {
 
   const hasUnsavedResults = computed(() => results.value.some(result => !result.downloaded))
 
-  /** Checks a file and makes it the current image, replacing the last one and its results. */
-  async function open(file: Blob, name: string): Promise<boolean> {
-    opening.value = true
-    openError.value = null
+  /**
+   * Checks a file and makes it the current image, replacing the last one and its results. When results haven't been
+   * downloaded, confirmDiscard is asked first; false keeps them and the current image.
+   */
+  async function open(file: Blob, name: string, confirmDiscard?: () => boolean): Promise<boolean> {
+    const current = beginOpen({ name, fromUrl: false })
     try {
-      const problem = await check(file, name)
-      if (typeof problem === 'string') {
-        openError.value = problem
-        return false
-      }
-
-      cancel()
-      release()
-      image.value = { ...problem, name, blob: file, size: file.size }
-      Object.assign(rect, wholeImage(problem))
-      error.value = null
-      return true
+      return await load(file, name, current.signal, confirmDiscard)
     } finally {
-      opening.value = false
+      endOpen(current)
     }
   }
 
@@ -101,25 +102,78 @@ export function useImage() {
    * Opens the image at a web address. The server downloads it (POST /api/v1/fetch), since browsers keep pages from
    * reading most other sites' images, so its URL fetch settings decide which addresses work.
    */
-  async function openUrl(address: string): Promise<boolean> {
+  async function openUrl(address: string, confirmDiscard?: () => boolean): Promise<boolean> {
     if (limits.value && !limits.value.urlFetch) {
       openError.value = 'This server doesn\'t fetch images by URL. Save the image, then open the file.'
       return false
     }
 
-    opening.value = true
-    openError.value = null
-    let file: Blob
+    const name = fileNameFromUrl(address)
+    const current = beginOpen({ name, fromUrl: true })
     try {
-      file = await postForBlob(`/api/v1/fetch?url=${encodeURIComponent(address)}`, { headers: apiKey.headers() })
-    } catch (failure) {
-      opening.value = false
-      if (failure instanceof ApiError && failure.status === 401)
-        apiKey.reject()
-      openError.value = failure instanceof Error ? failure.message : 'The image could not be downloaded.'
+      let file: Blob
+      try {
+        file = await postForBlob(`/api/v1/fetch?url=${encodeURIComponent(address)}`,
+          { headers: apiKey.headers(), signal: current.signal })
+      } catch (failure) {
+        if (current.signal.aborted)
+          return false
+        if (failure instanceof ApiError && failure.status === 401)
+          apiKey.reject()
+        openError.value = failure instanceof Error ? failure.message : 'The image could not be downloaded.'
+        return false
+      }
+      return await load(file, name, current.signal, confirmDiscard)
+    } finally {
+      endOpen(current)
+    }
+  }
+
+  /** Stops the open in progress, such as a download that's taking too long. */
+  function cancelOpen() {
+    openController?.abort()
+    openController = null
+    opening.value = null
+  }
+
+  /** Starts an open, stopping any still in progress: the last image chosen wins. */
+  function beginOpen(next: Opening): AbortController {
+    openController?.abort()
+    const current = new AbortController()
+    openController = current
+    opening.value = next
+    openError.value = null
+    return current
+  }
+
+  function endOpen(current: AbortController) {
+    if (openController === current) {
+      openController = null
+      opening.value = null
+    }
+  }
+
+  async function load(file: Blob, name: string, signal: AbortSignal, confirmDiscard?: () => boolean): Promise<boolean> {
+    const checked = await check(file, name)
+    const superseded = signal.aborted
+    if (typeof checked === 'string') {
+      if (!superseded)
+        openError.value = checked
       return false
     }
-    return await open(file, fileNameFromUrl(address))
+
+    // Asked here rather than when the open started: a result can arrive while a download or a large image is read.
+    if (superseded || (hasUnsavedResults.value && confirmDiscard && !confirmDiscard())) {
+      URL.revokeObjectURL(checked.url)
+      return false
+    }
+
+    cancel()
+    release()
+    image.value = { ...checked, name, blob: file, size: file.size }
+    Object.assign(rect, wholeImage(checked))
+    error.value = null
+    return true
   }
 
   /** The image's format and size, or why it can't be used. */
@@ -184,7 +238,7 @@ export function useImage() {
             return
 
           const format = formatFromContentType(response.blob.type || response.header('Content-Type')) ?? plan.format ?? source.format
-          results.value.push({
+          const result: Result = {
             id: nextId++,
             path: plan.path,
             label: plan.label,
@@ -194,7 +248,17 @@ export function useImage() {
             fileName: resultFileName(source.name, plan.label, format),
             stats: readStats(response.header),
             downloaded: false,
-          })
+          }
+
+          // The same settings give the same path, and only the newest result for a path is shown, so it replaces the
+          // older one rather than leaving a hidden result that counts as not downloaded.
+          const index = results.value.findIndex(r => r.path === plan.path)
+          if (index === -1) {
+            results.value.push(result)
+          } else {
+            URL.revokeObjectURL(results.value[index]!.url)
+            results.value[index] = result
+          }
           return
         } catch (failure) {
           if (!(failure instanceof ApiError && failure.status === 503 && attempt < maxAttempts))
@@ -285,6 +349,7 @@ export function useImage() {
     hasUnsavedResults,
     open,
     openUrl,
+    cancelOpen,
     run,
     cancel,
     markDownloaded,

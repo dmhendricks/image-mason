@@ -16,7 +16,7 @@ import EmptyCanvas from './EmptyCanvas.vue'
 defineProps<{ fileOver: boolean }>()
 const emit = defineEmits<{ open: [] }>()
 
-const { image, rect, openError, dismissError } = useImage()
+const { image, rect, opening, openError, cancelOpen, dismissError } = useImage()
 const { plan, result } = usePlan()
 const { settings } = useSettings()
 
@@ -210,7 +210,12 @@ function onDividerKey(event: KeyboardEvent) {
 
 <template>
   <main class="canvas" aria-label="Image">
-    <div v-if="openError" class="notice" role="alert">
+    <div v-if="opening?.fromUrl" class="notice" role="status">
+      <p>Downloading “{{ opening.name }}”…</p>
+      <button class="button" type="button" @click="cancelOpen">Cancel</button>
+    </div>
+
+    <div v-else-if="openError" class="notice" role="alert">
       <p>{{ openError }}</p>
       <button class="button" type="button" @click="dismissError">Dismiss</button>
     </div>

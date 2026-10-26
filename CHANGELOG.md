@@ -1,18 +1,18 @@
 # Changelog
 
-All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
+
+## [0.3.0] - 2026-10-26
 
 ### Added
 
 - Added a web interface. Open, drop or paste an image, then optimize, resize, crop or convert it with the API's options, compare the result with the original, and download it. Settings are checked against the server's limits before anything is sent. The interface asks for the API key on servers that need one, retries while the server is busy, and can cancel a running job. Each image is sent once: the first job stores it with `upload` (for `IMAGE_MASON_IMAGE_TTL_MINUTES`, like any stored image), later jobs name it as `source`, and opening another image deletes it. An image opened by web address is downloaded by the server again rather than uploaded. It's a Vue 3 app built into the image.
 - JPEG XL, as input and output (`format=jxl`): lossy and lossless encoding with `cjxl`, and lossless recompression of JPEGs (`cjxl-jpeg`), typically 20% smaller with the same pixels. libjxl is now built as a shared library, so its four tools share one copy of the codec; the image grows by about 1 MB.
-send `quality`, also the web interface's starting choice. `GET /api/v1/limits` reports it as `defaultQuality`.
 - `GET /api/v1/limits` reports the memory a job needs (`jobMemory`, and `bytesPerPixel` for each format), so a client can tell whether the server can process an image before sending it. The web interface uses it to disable Run, and says what fits: "with a quality floor, about 19.9–23.8 megapixels" in a 4 GB container. It also preloads the four fonts its first screen uses.
 - `source` on `optimize`, `convert`, `resize`, `crop` and `info`: the name of an image stored with `upload`, used instead of a body or `url`, so several jobs on one image send it only once. 404 when it has expired. With `keepOriginal`, `input` is the stored image's URL rather than a second copy.
 - `IMAGE_MASON_UI_ENABLED`: `false` turns the web interface off, and `/` redirects to `/docs`.
-- `IMAGE_MASON_DEFAULT_QUALITY`: the preset (`high`, `medium` or `low`) for requests that don't - `IMAGE_MASON_URL_ALLOW_PRIVATE`: `false` refuses `url` downloads from loopback, private, link-local (including cloud metadata) and other non-public addresses, checked against the address each connection actually goes to, so redirects and names that resolve to private addresses are refused too. On by default, as before.
+- `IMAGE_MASON_DEFAULT_QUALITY`: the preset (`high`, `medium` or `low`) for requests that don't send `quality`, also the web interface's starting choice. `GET /api/v1/limits` reports it as `defaultQuality`.
+- `IMAGE_MASON_URL_ALLOW_PRIVATE`: `false` refuses `url` downloads from loopback, private, link-local (including cloud metadata) and other non-public addresses, checked against the address each connection actually goes to, so redirects and names that resolve to private addresses are refused too. On by default, as before.
 
 ### Changed
 
@@ -80,7 +80,8 @@ send `quality`, also the web interface's starting choice. `GET /api/v1/limits` r
 - Memory admission control that sizes each job before it starts, so large images wait or are rejected instead of running the container out of memory.
 - Errors returned as RFC 9457 Problem Details.
 
-[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/dmhendricks/image-mason/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dmhendricks/image-mason/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/dmhendricks/image-mason/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dmhendricks/image-mason/releases/tag/v0.1.0

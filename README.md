@@ -63,8 +63,8 @@ The sample Compose file runs the container read-only with a 4 GB memory limit an
 | Tag | Meaning |
 |---|---|
 | `latest` | The newest release |
-| `0.1` | The newest `0.1.x` release |
-| `0.1.0` | An exact release |
+| `0.3` | The newest `0.3.x` release |
+| `0.3.0` | An exact release |
 
 ## Usage
 

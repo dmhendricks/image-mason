@@ -4,6 +4,7 @@ import { usePlan } from '../../composables/usePlan'
 import { useServer } from '../../composables/useServer'
 import { useSettings } from '../../composables/useSettings'
 import type { Quality } from '../../settings'
+import HelpTip from '../controls/HelpTip.vue'
 import NumberField from '../controls/NumberField.vue'
 import SegmentedControl from '../controls/SegmentedControl.vue'
 
@@ -86,10 +87,16 @@ const minScore = computed({
       <input v-model="settings.lossless" type="checkbox">
       <span>
         Lossless
-        <small>
-          Identical pixels; only the encoding is redone. A crop, resize or new format still re-encodes, held to a
-          high score.
-        </small>
+        <HelpTip label="What does Lossless keep?">
+          <p>
+            Keeps the pixels exactly as they are and only redoes the file's encoding. Expect smaller savings than
+            High, Medium or Low: often a few percent for JPEG, more for PNG.
+          </p>
+          <p>
+            JPEG has no lossless mode, so a JPEG that's cropped, resized or converted from another format is
+            re-encoded and held to a high score instead.
+          </p>
+        </HelpTip>
       </span>
     </label>
   </div>

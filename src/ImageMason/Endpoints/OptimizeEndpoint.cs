@@ -16,86 +16,49 @@ internal static class OptimizeEndpoint
 {
     /// <summary>Optimize's parameter checks and run. Also the crop endpoint's, after it checks rect.</summary>
     public static async Task<IResult> HandleAsync(
-        HttpContext http,
-        ImageMasonOptions options,
-        ImageDownloader downloader,
-        ImageOptimizer optimizer,
-        ImageStore store,
-        ILogger<ImageOptimizer> logger,
-        string? format,
-        string? quality,
-        double? minScore,
+        [AsParameters] ApiServices api,
+        [AsParameters] JobParameters job,
+        [AsParameters] ResizeParameters box,
         int? maxWidth,
-        int? width,
-        int? height,
-        string? fit,
-        string? crop,
-        string? rect,
-        string? output,
-        string? outputFilename,
-        string? url,
-        string? source,
-        bool? upscale,
-        bool preferJpeg = false,
-        bool keepOriginal = false)
+        bool preferJpeg = false)
     {
-        if (!RectParameter.TryParse(rect, out var area, out var rectError))
+        if (!RectParameter.TryParse(job.Rect, out var area, out var rectError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
 
-        if (!ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out var resizeError))
+        if (!box.TryParse(out var resize, out var resizeError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
 
         if (resize is not null && maxWidth is not null)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send maxWidth or width/height, not both.");
 
         // An explicit format wins over preferJpeg.
-        ImageFormat? target = null;
-        if (format is not null)
-        {
-            if (!ImageFormatDetector.TryParse(format, out var parsed))
-                return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp', 'avif' or 'jxl'.");
-            target = parsed;
-        }
+        if (!ApiRequest.TryParseFormat(job.Format, required: false, out var target, out var formatError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, formatError!);
 
-        return await RunAsync(http, options, downloader, optimizer, store, logger,
-            target, resize, area, quality, minScore, maxWidth, output, outputFilename, url, source, preferJpeg, keepOriginal);
+        return await RunAsync(api, job, target, resize, area, maxWidth, preferJpeg);
     }
 
     /// <summary>Shared by optimize, convert, resize and crop, after their parameter checks.</summary>
     /// <param name="target">The output format; null keeps the input's (or JPEG for a photo PNG with preferJpeg).</param>
     /// <param name="resize">The resize endpoint's box; null uses maxWidth.</param>
     /// <param name="rect">The area to keep, cut out before resizing; null keeps the whole image.</param>
-    public static async Task<IResult> RunAsync(
-        HttpContext http,
-        ImageMasonOptions options,
-        ImageDownloader downloader,
-        ImageOptimizer optimizer,
-        ImageStore store,
-        ILogger<ImageOptimizer> logger,
-        ImageFormat? target,
-        ResizeRequest? resize,
-        CropRect? rect,
-        string? quality,
-        double? minScore,
-        int? maxWidth,
-        string? output,
-        string? outputFilename,
-        string? url,
-        string? source,
-        bool preferJpeg,
-        bool keepOriginal)
+    public static async Task<IResult> RunAsync(ApiServices api, JobParameters job, ImageFormat? target, ResizeRequest? resize,
+        CropRect? rect, int? maxWidth, bool preferJpeg)
     {
-        if (!TryParseQuality(quality, options.DefaultQuality, out var preset))
+        var (http, options, downloader, optimizer, store, logger) = api;
+
+        var preset = options.DefaultQuality;
+        if (!string.IsNullOrEmpty(job.Quality) && !QualityPresets.TryParse(job.Quality, out preset))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "quality must be 'lossless', 'high', 'medium' or 'low'.");
 
-        if (minScore is < 0 or > 100)
+        if (job.MinScore is < 0 or > 100)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "minScore must be between 0 and 100.");
 
         if (maxWidth is < 0)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "maxWidth must be 0 (no resize) or a positive width.");
 
         bool asJson;
-        switch (output?.ToLowerInvariant())
+        switch (job.Output?.ToLowerInvariant())
         {
             case null or "":
                 asJson = false;
@@ -107,23 +70,22 @@ internal static class OptimizeEndpoint
                 return ApiRequest.Problem(StatusCodes.Status400BadRequest, "output must be 'json'.");
         }
 
-        if (!ApiRequest.TryParseOutputFilename(outputFilename, out var storedName, out var nameError))
+        if (!ApiRequest.TryParseOutputFilename(job.OutputFilename, out var storedName, out var nameError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, nameError!);
 
         if (storedName is not null && !asJson)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "outputFilename is only used with output=json.");
 
-        if (keepOriginal && !asJson)
+        if (job.KeepOriginal is true && !asJson)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "keepOriginal is only used with output=json.");
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
-        timeout.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        using var timeout = api.StartTimeout();
 
         var stopwatch = Stopwatch.StartNew();
         byte[] input = [];
         try
         {
-            input = await ApiRequest.ReadImageAsync(http.Request, downloader, store, url, source, timeout.Token);
+            input = await ApiRequest.ReadImageAsync(http.Request, downloader, store, job.Url, job.Source, timeout.Token);
 
             var detected = ImageFormatDetector.Detect(input);
             bool? isPhoto = detected == ImageFormat.Png ? PngPhoto.IsPhoto(input, options.MaxPixels, timeout.Token) : null;
@@ -136,7 +98,7 @@ internal static class OptimizeEndpoint
                     return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {stored.Extension()}.");
             }
 
-            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, minScore, maxWidth, target, resize, rect, isPhoto), timeout.Token);
+            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, job.MinScore, maxWidth, target, resize, rect, isPhoto), timeout.Token);
             var elapsedMs = (long)stopwatch.Elapsed.TotalMilliseconds;
             var qualityName = preset.ToString().ToLowerInvariant();
             var score = result.Score?.ToString("F2", CultureInfo.InvariantCulture);
@@ -174,12 +136,12 @@ internal static class OptimizeEndpoint
 
             var origin = ApiRequest.Origin(http.Request, options.PublicBaseUrl);
             string? inputUrl = null;
-            if (keepOriginal && !string.IsNullOrWhiteSpace(source))
+            if (job.KeepOriginal is true && !string.IsNullOrWhiteSpace(job.Source))
             {
                 // Already stored: name the stored copy rather than storing it twice.
-                inputUrl = $"{origin}/images/{source.Trim()}";
+                inputUrl = $"{origin}/images/{job.Source.Trim()}";
             }
-            else if (keepOriginal)
+            else if (job.KeepOriginal is true)
             {
                 var savedInput = await store.SaveAsync(input, detected, null, timeout.Token);
                 inputUrl = $"{origin}/images/{savedInput.Name}";
@@ -211,74 +173,9 @@ internal static class OptimizeEndpoint
                 DurationMs = elapsedMs,
             });
         }
-        catch (BadHttpRequestException ex)
+        catch (Exception ex) when (ApiRequest.IsExpected(ex, http))
         {
-            return ApiRequest.Problem(ex.StatusCode, ex.Message);
-        }
-        catch (ImageDownloadException ex)
-        {
-            logger.LogWarning("Image download failed: {Message}", ex.Message);
-            return ApiRequest.Problem(ex.StatusCode, ex.Message);
-        }
-        catch (UnsupportedImageException ex)
-        {
-            return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, ex.Message);
-        }
-        catch (CropOutsideImageException ex)
-        {
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, ex.Message);
-        }
-        catch (ImageTooLargeException ex)
-        {
-            return ApiRequest.Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
-        }
-        catch (ImageProcessingException ex)
-        {
-            return ApiRequest.Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
-        }
-        catch (JobTooLargeException ex)
-        {
-            logger.LogWarning("Rejected a job needing {Needed} with {Budget} for jobs", ByteSizes.ToGigabytes(ex.NeededBytes), ByteSizes.ToGigabytes(ex.BudgetBytes));
-            return ApiRequest.Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
-        }
-        catch (ToolKilledException ex)
-        {
-            // Never fall back to a weaker result: the caller asked for this preset and should know it failed.
-            logger.LogError("{Tool} was killed while optimizing {Bytes} bytes; the container is out of memory. Raise its memory limit or lower {Setting}",
-                ex.Tool, input.Length, ImageMasonOptions.Prefix + "MEMORY_LIMIT");
-            http.Response.Headers.RetryAfter = ApiRequest.RetryAfterSeconds;
-            return ApiRequest.Problem(StatusCodes.Status503ServiceUnavailable,
-                "The server ran out of memory while optimizing this image. Retry later, or send a smaller image or maxWidth.");
-        }
-        catch (OperationCanceledException) when (!http.RequestAborted.IsCancellationRequested)
-        {
-            logger.LogWarning("Request of {Bytes} bytes timed out after {Seconds} s", input.Length, options.TimeoutSeconds);
-            return ApiRequest.Problem(StatusCodes.Status504GatewayTimeout, "The request timed out.");
-        }
-    }
-
-    private static bool TryParseQuality(string? value, QualityPreset fallback, out QualityPreset preset)
-    {
-        switch (value?.ToLowerInvariant())
-        {
-            case null or "":
-                preset = fallback;
-                return true;
-            case "high":
-                preset = QualityPreset.High;
-                return true;
-            case "medium":
-                preset = QualityPreset.Medium;
-                return true;
-            case "low":
-                preset = QualityPreset.Low;
-                return true;
-            case "lossless":
-                preset = QualityPreset.Lossless;
-                return true;
-            default:
-                preset = default;
-                return false;
+            return ApiRequest.Problem(api, ex, input.Length, "Request");
         }
     }
 }

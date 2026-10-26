@@ -127,3 +127,38 @@ export function dragRect(start: Rect, handle: CropHandle, dx: number, dy: number
 export function rectParameter(rect: Rect): string {
   return `${rect.left},${rect.top},${rect.width},${rect.height}`
 }
+
+// Drawing on the canvas: areas in image pixels placed over an element that shows part of the image, in percentages so
+// they follow the element's size on screen.
+
+/** The scale that fits a size into a space without enlarging it, so the pixels on screen stay honest. */
+export function fitScale(size: Size, space: Size): number {
+  return Math.min(space.width / size.width, space.height / size.height, 1)
+}
+
+/**
+ * Where inner lies on an element that shows outer, in percentages of the element: the crop frame over the part of the
+ * image in view, or the whole image behind that view (reaching past the element's edges).
+ */
+export function percentWithin(inner: Rect, outer: Rect): Rect {
+  return {
+    left: (inner.left - outer.left) / outer.width * 100,
+    top: (inner.top - outer.top) / outer.height * 100,
+    width: inner.width / outer.width * 100,
+    height: inner.height / outer.height * 100,
+  }
+}
+
+/** Percentages as an absolutely positioned element's style. */
+export function percentStyle(area: Rect): Record<'left' | 'top' | 'width' | 'height', string> {
+  return { left: `${area.left}%`, top: `${area.top}%`, width: `${area.width}%`, height: `${area.height}%` }
+}
+
+/**
+ * The output drawn over the image from its top left corner, in percentages of the image. An enlarged output can't be
+ * drawn past the image, so the drawing shrinks to fit, keeping its shape (the numbers beside it stay true).
+ */
+export function outputDrawing(output: Size, image: Size): Size {
+  const fit = Math.min(1, image.width / output.width, image.height / output.height)
+  return { width: output.width / image.width * fit * 100, height: output.height / image.height * fit * 100 }
+}

@@ -120,11 +120,10 @@ h2 {
 .lede, .hint { margin: 0; }
 .lede { color: var(--muted); }
 
+// The shared alert, a little tighter as the dialog's one line.
 .alert {
   margin: 0;
   padding: 8px 10px;
-  border-radius: var(--radius);
-  background: var(--flag-soft);
 }
 
 .key-field {

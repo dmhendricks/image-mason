@@ -36,6 +36,9 @@ builder.Services.AddSingleton(jobMemory);
 builder.Services.AddSingleton<ImageOptimizer>();
 builder.Services.AddSingleton<ImageStore>();
 builder.Services.AddHostedService<ImageStoreCleanupService>();
+// One log category for every API endpoint, so their messages can be found (and filtered) together.
+builder.Services.AddKeyedSingleton(ApiServices.LogCategory,
+    (services, _) => services.GetRequiredService<ILoggerFactory>().CreateLogger(ApiServices.LogCategory));
 
 builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(json =>

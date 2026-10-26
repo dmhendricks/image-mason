@@ -3,10 +3,21 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useImage } from '../../composables/useImage'
 import { usePlan } from '../../composables/usePlan'
 import { useSettings } from '../../composables/useSettings'
-import { formatBytes, formatChange, formatSize } from '../../format'
-import { type CropHandle, type Rect, dragRect, rectFits, rectWithin, wholeImage } from '../../geometry'
+import { formatBytes, formatChange } from '../../format'
+import {
+  type Rect,
+  fitScale,
+  outputDrawing,
+  percentStyle,
+  percentWithin,
+  rectFits,
+  rectWithin,
+  wholeImage,
+} from '../../geometry'
+import CropFrame from './CropFrame.vue'
 import DimensionLine from './DimensionLine.vue'
 import EmptyCanvas from './EmptyCanvas.vue'
+import SplitDivider from './SplitDivider.vue'
 
 // The drawing board: the image with its dimension lines; the output box or crop frame to scale before a run; the
 // original and the result split by a divider after one. Zoom, flip and the results strip come with the full
@@ -47,12 +58,7 @@ const viewStyle = computed(() => {
   const area = view.value
   if (!source || !area || (area.width === source.width && area.height === source.height))
     return undefined
-  return {
-    left: `${-area.left / area.width * 100}%`,
-    top: `${-area.top / area.height * 100}%`,
-    width: `${source.width / area.width * 100}%`,
-    height: `${source.height / area.height * 100}%`,
-  }
+  return percentStyle(percentWithin(wholeImage(source), area))
 })
 
 // The board's content box, so the frame can be sized to fit it (never above 100%, so pixels stay honest). On
@@ -85,11 +91,14 @@ const compare = computed(() => !!resultSize.value && !!image.value && settings.t
 /** What the frame measures: the result when it has a size of its own, else the part of the image in view. */
 const shown = computed(() => (!compare.value && resultSize.value) || view.value)
 
+// The divider's position, in % of the frame from the left.
+const split = ref(50)
+
 const frameStyle = computed(() => {
   const size = shown.value
   if (!size || space.value.width === 0)
     return {}
-  const scale = Math.min(space.value.width / size.width, space.value.height / size.height, 1)
+  const scale = fitScale(size, space.value)
   return { width: `${size.width * scale}px`, height: `${size.height * scale}px`, '--split': `${split.value}%` }
 })
 
@@ -101,114 +110,22 @@ const outputBox = computed(() => {
     return null
   if (output.width === source.width && output.height === source.height)
     return null
-  // An enlarged output can't be drawn past the frame; shrink the drawing, keep the numbers.
-  const fit = Math.min(1, source.width / output.width, source.height / output.height)
+  const drawn = outputDrawing(output, source)
   return {
-    style: { width: `${output.width / source.width * fit * 100}%`, height: `${output.height / source.height * fit * 100}%` },
+    style: { width: `${drawn.width}%`, height: `${drawn.height}%` },
     width: `${output.width} px`,
     height: `${output.height} px`,
   }
 })
 
-// Drawn over the view, before a run and over the result after one.
-const cropBox = computed(() => {
+// The crop area, and the shade around it: drawn over the view, before a run and over the result after one.
+const cropStyle = computed(() => {
   const source = image.value
   const area = view.value
   if (!source || !area || settings.tool !== 'crop' || plan.value.errors.rect || !rectFits(rect, source))
     return null
-  return {
-    style: {
-      left: `${(rect.left - area.left) / area.width * 100}%`,
-      top: `${(rect.top - area.top) / area.height * 100}%`,
-      width: `${rect.width / area.width * 100}%`,
-      height: `${rect.height / area.height * 100}%`,
-    },
-    label: `${formatSize(rect.width, rect.height)} from ${rect.left}, ${rect.top}`,
-  }
+  return percentStyle(percentWithin(rect, area))
 })
-
-// The crop frame: drag inside to move it, or an edge or corner to resize it. The panel's fields edit the same
-// rect, so they follow along (and are the keyboard way in).
-const cropHandles: CropHandle[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se']
-
-// The view is fixed for the whole drag, so the frame's scale and limits don't shift under the pointer.
-let cropDrag: {
-  handle: CropHandle
-  x: number
-  y: number
-  start: Rect
-  bounds: Rect
-  scaleX: number
-  scaleY: number
-} | null = null
-
-function startCrop(event: PointerEvent, handle: CropHandle) {
-  const frame = (event.currentTarget as HTMLElement).closest<HTMLElement>('.frame')
-  const area = view.value
-  if (event.button !== 0 || !area || !frame)
-    return
-  const bounds = frame.getBoundingClientRect()
-  cropDrag = {
-    handle,
-    x: event.clientX,
-    y: event.clientY,
-    start: { ...rect },
-    bounds: { ...area },
-    scaleX: area.width / bounds.width,
-    scaleY: area.height / bounds.height,
-  }
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-}
-
-function dragCrop(event: PointerEvent) {
-  if (!cropDrag)
-    return
-  const dx = (event.clientX - cropDrag.x) * cropDrag.scaleX
-  const dy = (event.clientY - cropDrag.y) * cropDrag.scaleY
-  Object.assign(rect, dragRect(cropDrag.start, cropDrag.handle, dx, dy, cropDrag.bounds))
-}
-
-function stopCrop() {
-  cropDrag = null
-}
-
-// The split divider: drag anywhere on the frame, or focus it and use the arrow keys.
-const split = ref(50)
-let sliding = false
-
-function splitAt(event: PointerEvent) {
-  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  split.value = Math.min(100, Math.max(0, (event.clientX - bounds.left) / bounds.width * 100))
-}
-
-function onPointerDown(event: PointerEvent) {
-  if (!compare.value || event.button !== 0)
-    return
-  sliding = true
-  const frame = event.currentTarget as HTMLElement
-  frame.setPointerCapture(event.pointerId)
-  splitAt(event)
-}
-
-function onPointerMove(event: PointerEvent) {
-  if (sliding)
-    splitAt(event)
-}
-
-function stopSliding() {
-  sliding = false
-}
-
-function onDividerKey(event: KeyboardEvent) {
-  const steps: Record<string, number> = { ArrowLeft: -2, ArrowRight: 2, PageDown: -10, PageUp: 10 }
-  if (event.key in steps)
-    split.value = Math.min(100, Math.max(0, split.value + steps[event.key]!))
-  else if (event.key === 'Home' || event.key === 'End')
-    split.value = event.key === 'Home' ? 0 : 100
-  else
-    return
-  event.preventDefault()
-}
 </script>
 
 <template>
@@ -228,15 +145,7 @@ function onDividerKey(event: KeyboardEvent) {
     </div>
 
     <div v-else ref="board" class="board">
-      <div
-        class="frame"
-        :class="{ comparing: compare }"
-        :style="frameStyle"
-        @pointerdown="onPointerDown"
-        @pointermove="onPointerMove"
-        @pointerup="stopSliding"
-        @pointercancel="stopSliding"
-      >
+      <div class="frame" :class="{ comparing: compare }" :style="frameStyle">
         <div class="pic">
           <img v-if="!result || compare" :src="image.url" :alt="`${image.name}, original`" :style="viewStyle">
           <img
@@ -254,28 +163,11 @@ function onDividerKey(event: KeyboardEvent) {
           <span v-if="result && compare" class="tag a">Original<span>{{ formatBytes(image.size) }}</span></span>
           <span v-if="result" class="tag b">{{ result.label }}<span>{{ formatBytes(result.stats.size) }}</span></span>
 
-          <div v-if="cropBox" class="crop-shade" :style="cropBox.style" />
+          <div v-if="cropStyle" class="crop-shade" :style="cropStyle" />
         </div>
 
         <!-- Outside .pic, which clips the shade, so handles on the image's edges stay whole and grabbable. -->
-        <div
-          v-if="cropBox"
-          class="crop-box"
-          :style="cropBox.style"
-          @pointerdown="startCrop($event, 'move')"
-          @pointermove="dragCrop"
-          @pointerup="stopCrop"
-          @pointercancel="stopCrop"
-        >
-          <i
-            v-for="handle in cropHandles"
-            :key="handle"
-            :class="handle"
-            aria-hidden="true"
-            @pointerdown.stop="startCrop($event, handle)"
-          />
-          <b>{{ cropBox.label }}</b>
-        </div>
+        <CropFrame v-if="cropStyle && view" :view="view" :style="cropStyle" />
 
         <DimensionLine
           class="top"
@@ -295,20 +187,11 @@ function onDividerKey(event: KeyboardEvent) {
           <DimensionLine class="beside" orientation="vertical" :label="outputBox.height" flag />
         </div>
 
-        <div
+        <SplitDivider
           v-if="result && compare && undisplayable !== result.id"
-          class="divider"
-          role="slider"
-          tabindex="0"
-          aria-label="Divider between the original and the result"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          :aria-valuenow="Math.round(split)"
-          :aria-valuetext="`${Math.round(split)}% original`"
-          @keydown="onDividerKey"
-        >
-          <span>{{ formatChange(result.stats.originalSize, result.stats.size) }}</span>
-        </div>
+          v-model="split"
+          :label="formatChange(result.stats.originalSize, result.stats.size)"
+        />
       </div>
     </div>
 
@@ -415,39 +298,6 @@ function onDividerKey(event: KeyboardEvent) {
   }
 }
 
-.divider {
-  position: absolute;
-  top: -10px;
-  bottom: -10px;
-  left: var(--split);
-  width: 30px;
-  margin-left: -15px;
-  cursor: ew-resize;
-
-  &::before {
-    content: "";
-    position: absolute;
-    left: 14px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--flag);
-  }
-
-  span {
-    position: absolute;
-    bottom: -12px;
-    left: 50%;
-    translate: -50% 0;
-    padding: 1px 7px;
-    border-radius: 3px;
-    background: var(--flag);
-    color: var(--flag-ink);
-    font: 600 12px var(--font-cond);
-    white-space: nowrap;
-  }
-}
-
 .output-box {
   position: absolute;
   left: 0;
@@ -465,55 +315,6 @@ function onDividerKey(event: KeyboardEvent) {
   position: absolute;
   box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
   pointer-events: none;
-}
-
-.crop-box {
-  position: absolute;
-  outline: 2px solid var(--flag);
-  cursor: move;
-
-  // Grab areas wider than what's drawn: 12px strips along the edges, 22px squares at the corners (drawn 12px).
-  i {
-    position: absolute;
-    --grab: 12px;
-
-    &.n, &.s { left: 11px; right: 11px; height: var(--grab); cursor: ns-resize; }
-    &.e, &.w { top: 11px; bottom: 11px; width: var(--grab); cursor: ew-resize; }
-    &.n { top: calc(var(--grab) / -2); }
-    &.s { bottom: calc(var(--grab) / -2); }
-    &.e { right: calc(var(--grab) / -2); }
-    &.w { left: calc(var(--grab) / -2); }
-
-    &.nw, &.ne, &.sw, &.se {
-      width: 22px;
-      height: 22px;
-
-      &::after {
-        content: "";
-        position: absolute;
-        inset: 5px;
-        background: var(--flag);
-      }
-    }
-    &.nw { left: -11px; top: -11px; cursor: nwse-resize; }
-    &.se { right: -11px; bottom: -11px; cursor: nwse-resize; }
-    &.ne { right: -11px; top: -11px; cursor: nesw-resize; }
-    &.sw { left: -11px; bottom: -11px; cursor: nesw-resize; }
-  }
-
-  b {
-    pointer-events: none;
-    position: absolute;
-    left: 8px;
-    top: 8px;
-    padding: 1px 7px;
-    border-radius: 3px;
-    background: var(--flag);
-    color: var(--flag-ink);
-    font: 600 12px var(--font-cond);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
 }
 
 .notice {

@@ -39,7 +39,7 @@ function place(event: Event) {
 
 <template>
   <button ref="button" class="help-tip" type="button" :aria-label="label" :popovertarget="id">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />
     </svg>
@@ -71,11 +71,7 @@ function place(event: Event) {
   svg {
     width: 15px;
     height: 15px;
-    fill: none;
-    stroke: currentColor;
     stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 }
 

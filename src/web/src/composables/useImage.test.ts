@@ -35,7 +35,8 @@ function pendingDownload() {
 async function load() {
   vi.resetModules()
   const { useImage } = await import('./useImage')
-  return useImage()
+  const { useResults } = await import('./useResults')
+  return { ...useImage(), ...useResults() }
 }
 
 beforeEach(() => {

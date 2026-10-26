@@ -17,7 +17,7 @@ Send an image and get a smaller one back, in the same format or another. Lossy r
 - **Hosting:** results can be stored and served from a URL for a limited time.
 - **Web interface:** open an image in the browser, try the options, compare the result with the original and download it.
 
-The image is about 65 MB, runs as a non-root user with a read-only root filesystem, and is published for `linux/amd64` and `linux/arm64`.
+The image is about 70 MB, runs as a non-root user with a read-only root filesystem, and is published for `linux/amd64` and `linux/arm64`.
 
 ## Contents
 
@@ -143,8 +143,8 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o square.avif \
 | Preset | Minimum score | Result |
 |---|---|---|
 | `lossless` | | Identical pixels; only the encoding is optimized (see [JPEG output](#how-each-format-is-handled)) |
-| `high` | 85 | No visible difference in place at 1:1 |
-| `medium` (default) | 80 | No visible difference side by side at 1:1 |
+| `high` (default) | 85 | No visible difference in place at 1:1 |
+| `medium` | 80 | No visible difference side by side at 1:1 |
 | `low` | 70 | Barely visible difference side by side |
 
 Scores are SSIMULACRA2, from 0 to 100, where 100 is identical. Use `minScore` for a custom floor, or change the default preset and the preset floors with [environment variables](#configuration).
@@ -232,7 +232,7 @@ The image is the request body, the file at `url`, or a stored image named by `so
 
 | Parameter | Default | Description |
 |---|---|---|
-| `quality` | `medium` (`IMAGE_MASON_DEFAULT_QUALITY`) | `lossless`, `high`, `medium` or `low` |
+| `quality` | `high` (`IMAGE_MASON_DEFAULT_QUALITY`) | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
 | `rect` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
 | `maxWidth` | `0` | Downscale images wider than this, keeping the aspect ratio. `0` keeps the original size. Can't be combined with `width` or `height`. |
@@ -267,7 +267,7 @@ Response headers:
 
 #### How Each Format Is Handled
 
-Lossy encoders search their quality setting for the smallest result that meets the floor, scoring each attempt against the input.
+Lossy encoders search their quality setting for the smallest result that meets the floor, scoring each attempt against the input. Scores come from `ssim2`, built on [fast-ssim2](https://github.com/imazen/fast-ssim2): it reads images and their color profiles the way libjxl's `ssimulacra2` does and matches its scores to within 0.07 (0.25 on images with transparency). For an opaque image it prepares the input once per job instead of once per attempt.
 
 - **JPEG:** `jpegtran` recompresses a JPEG without loss, keeping the ICC color profile (and the EXIF data, when the image relies on its orientation tag). Unless the preset is `lossless`, jpegli encodes it too. JPEG has no lossless mode, so a JPEG produced by cropping, resizing or converting under `lossless` is held to a score of 90 instead. Transparent images are placed on white.
 - **PNG:** `oxipng` recompresses without loss. Unless the preset is `lossless`, `pngquant` reduces the palette, and the result is kept only if it meets the floor.
@@ -365,7 +365,7 @@ What this server accepts, so a client can check an image before sending it. The 
   "maxInputSize": 26214400,
   "maxPixels": 50000000,
   "presets": { "lossless": null, "high": 85, "medium": 80, "low": 70 },
-  "defaultQuality": "medium",
+  "defaultQuality": "high",
   "defaultMaxWidth": 0,
   "imageTtlMinutes": 60,
   "timeoutSeconds": 120,
@@ -410,13 +410,14 @@ All settings are environment variables, and all are optional. Sizes are in bytes
 | `IMAGE_MASON_TIMEOUT_SECONDS` | `120` | Time before a request stops with 504; at most `86400` (a day) |
 | `IMAGE_MASON_MEMORY_LIMIT` | container limit | Memory the service may use. See [Memory](#memory). |
 | `IMAGE_MASON_DEFAULT_MAX_WIDTH` | `0` | `maxWidth` for requests that don't send one. `0` keeps the original size. |
-| `IMAGE_MASON_DEFAULT_QUALITY` | `medium` | `quality` for requests that don't send one, and the web interface's starting choice: `high`, `medium` or `low` |
+| `IMAGE_MASON_DEFAULT_QUALITY` | `high` | `quality` for requests that don't send one, and the web interface's starting choice: `high`, `medium` or `low` |
 | `IMAGE_MASON_HIGH_MIN_SCORE` | `85` | Floor for `high` |
 | `IMAGE_MASON_MEDIUM_MIN_SCORE` | `80` | Floor for `medium` |
 | `IMAGE_MASON_LOW_MIN_SCORE` | `70` | Floor for `low` |
 | `IMAGE_MASON_IMAGE_TTL_MINUTES` | `60` | How long stored images are served; at most `525600` (a year) |
 | `IMAGE_MASON_MAX_STORE_SIZE` | `10g` | Total stored size; past it, the oldest images are deleted. `0` turns the cap off. |
 | `IMAGE_MASON_URL_FETCH_ENABLED` | `true` | `false` accepts uploaded images only |
+| `IMAGE_MASON_URL_ALLOW_PRIVATE` | `true` | `false` keeps `url` off loopback, private, link-local and other non-public addresses, checked after DNS on every connection |
 | `IMAGE_MASON_URL_ALLOWED_HOSTS` | | Comma-separated hosts `url` may point to. `*.example.com` matches subdomains. Empty allows any host. |
 | `IMAGE_MASON_URL_ALLOWED_EXTENSIONS` | | Comma-separated extensions the `url` path must end in, such as `png,jpg,jpeg,webp,avif,jxl`. Empty allows any. |
 | `IMAGE_MASON_UI_ENABLED` | `true` | `false` turns the web interface off: `/` redirects to the usage examples at `/docs`. The API is unaffected. |
@@ -446,7 +447,7 @@ Image Mason is built for private networks and trusted callers.
 
 - **Set an API key** unless only trusted clients can reach the port. Without one, anyone who can reach the service can use it, and the container logs a warning at startup.
 - **Use TLS.** The service speaks plain HTTP. Put it behind a reverse proxy for HTTPS, and set `IMAGE_MASON_PUBLIC_BASE_URL` so stored image URLs use the public address.
-- **Restrict URL fetching.** The service fetches any URL a caller sends, including addresses on your private network; it does not block private or internal addresses. Set `IMAGE_MASON_URL_ALLOWED_HOSTS`, or turn fetching off with `IMAGE_MASON_URL_FETCH_ENABLED=false`. The host list is checked again on every redirect.
+- **Restrict URL fetching.** By default the service fetches any URL a caller sends, including addresses on your private network. Set `IMAGE_MASON_URL_ALLOW_PRIVATE=false` to refuse loopback, private, link-local (including cloud metadata) and other non-public addresses; it checks the address each connection actually goes to, so a public name that resolves to a private address is refused too. Set `IMAGE_MASON_URL_ALLOWED_HOSTS` to limit the hosts, or turn fetching off with `IMAGE_MASON_URL_FETCH_ENABLED=false`. Both checks apply again on every redirect.
 - **Stored images are public** to anyone with the URL until they expire or are deleted with `DELETE /images/{name}`. The names are random unless `outputFilename` sets one.
 
 To report a vulnerability, see [SECURITY.md](https://github.com/dmhendricks/image-mason/blob/main/SECURITY.md).

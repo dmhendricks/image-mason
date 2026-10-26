@@ -2,8 +2,8 @@
 import { computed } from 'vue'
 import { useServer } from '../../composables/useServer'
 import { useSettings } from '../../composables/useSettings'
-import { formatName, sortFormats } from '../../format'
-import { type ImageFormat, imageFormats } from '../../settings'
+import { formatName, outputFormats } from '../../format'
+import type { ImageFormat } from '../../settings'
 import SegmentedControl from '../controls/SegmentedControl.vue'
 import MaxWidthField from './MaxWidthField.vue'
 import QualityGroup from './QualityGroup.vue'
@@ -11,10 +11,7 @@ import QualityGroup from './QualityGroup.vue'
 const { settings } = useSettings()
 const { limits } = useServer()
 
-const options = computed(() =>
-  sortFormats((limits.value?.formats.map(f => f.name) ?? [...imageFormats])
-    .filter((f): f is ImageFormat => (imageFormats as readonly string[]).includes(f)))
-    .map(value => ({ value, label: formatName(value) })))
+const options = computed(() => outputFormats(limits.value).map(value => ({ value, label: formatName(value) })))
 
 const hints: Record<ImageFormat, string> = {
   jpeg: 'Opens everywhere. Best for photos; no transparency.',

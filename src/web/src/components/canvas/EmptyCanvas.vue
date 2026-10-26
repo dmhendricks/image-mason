@@ -41,7 +41,7 @@ const floors = computed(() =>
 <template>
   <div class="empty">
     <button class="drop" type="button" :disabled="!!opening" @click="emit('open')">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
       <strong>{{ opening ? (opening.fromUrl ? 'Downloading the image…' : 'Reading the image…') : 'Open an image' }}</strong>
       <span>
         or drop it here, or paste it{{ limits?.urlFetch ? ' or its web address' : '' }} with {{ isMac ? '⌘V' : 'Ctrl+V' }}
@@ -95,11 +95,8 @@ const floors = computed(() =>
     width: 34px;
     height: 34px;
     margin-bottom: 4px;
-    fill: none;
     stroke: var(--flag);
     stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   strong {
@@ -144,13 +141,5 @@ const floors = computed(() =>
 
   &:first-of-type:not(:last-child) { margin-top: 0; }
   a { color: inherit; }
-}
-
-.alert {
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--flag-soft);
-
-  p { margin: 0 0 8px; }
 }
 </style>

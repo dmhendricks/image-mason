@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Limits } from './api/types'
 import { wholeImage } from './geometry'
-import { type SourceImage, planJob, scoredPixelRange } from './jobs'
+import { type Job, type SourceImage, jobStatus, planJob, scoredPixelRange } from './jobs'
 import { type Settings, defaultSettings } from './settings'
 
 const limits: Limits = {
@@ -44,7 +44,7 @@ describe('planJob', () => {
     expect(query(planJob('optimize', settings(), photo, null, lowServer).path)).toEqual({ quality: 'low' })
     expect(planJob('optimize', settings(), photo, null, lowServer).label).toBe('Low')
     expect(query(planJob('optimize', settings({ quality: 'high' }), photo, null, lowServer).path)).toEqual({ quality: 'high' })
-    expect(query(planJob('optimize', settings(), photo, null, { ...limits, defaultQuality: 'ultra' }).path)).toEqual({ quality: 'medium' })
+    expect(query(planJob('optimize', settings(), photo, null, { ...limits, defaultQuality: 'ultra' }).path)).toEqual({ quality: 'high' })
   })
 
   it('sends a custom score, but not for lossless', () => {
@@ -165,7 +165,7 @@ describe('planJob', () => {
   it('plans without an image or limits', () => {
     const plan = planJob('resize', settings({ width: 300 }), null, null, null)
 
-    expect(plan.path).toBe('/api/v1/resize?quality=medium&width=300')
+    expect(plan.path).toBe('/api/v1/resize?quality=high&width=300')
     expect(plan.output).toBeNull()
     expect(plan.action).toBe('Resize')
   })
@@ -213,5 +213,24 @@ describe('memory', () => {
     expect(scoredPixelRange(memoryLimits)).toEqual([19997085, 23851945])
     expect(scoredPixelRange(limits)).toBeNull()
     expect(scoredPixelRange({ ...memoryLimits, maxPixels: 10_000_000 })).toBeNull()
+  })
+})
+
+describe('jobStatus', () => {
+  const job: Job = { working: 'Optimizing', phase: 'processing', progress: 1, since: 10_000, retryAt: null, attempt: 1 }
+
+  it('shows the upload\'s progress', () => {
+    expect(jobStatus({ ...job, phase: 'uploading', progress: 0.426 }, 10_000)).toBe('Uploading… 43%')
+  })
+
+  it('counts whole seconds while the server works, from the first one', () => {
+    expect(jobStatus(job, 10_999)).toBe('Optimizing…')
+    expect(jobStatus(job, 13_500)).toBe('Optimizing… 3 s')
+  })
+
+  it('counts down to the next try, rounding up and stopping at 0', () => {
+    const waiting: Job = { ...job, phase: 'waiting', retryAt: 12_000, attempt: 2 }
+    expect(jobStatus(waiting, 10_500)).toBe('The server is busy. Trying again in 2 s (try 2 of 3).')
+    expect(jobStatus(waiting, 12_400)).toBe('The server is busy. Trying again in 0 s (try 2 of 3).')
   })
 })

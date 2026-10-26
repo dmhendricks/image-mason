@@ -1,7 +1,7 @@
 //! ssim2: SSIMULACRA2 scores from fast-ssim2, reading PNG and JPEG the way libjxl's ssimulacra2 tool does.
 //!
 //!   ssim2 <reference> <distorted>   prints the score, like ssimulacra2
-//!   ssim2 <reference> -             prepares the reference once, then reads one candidate path per line from stdin
+//!   ssim2 <reference> -             prepares an opaque reference once, then reads one candidate path per line from stdin
 //!                                   and prints one line per candidate: the score, or "error: " and the reason
 //!
 //! Matching libjxl: alpha is blended in the image's own encoding, on 0.1 and 0.9 backgrounds with the lower score
@@ -14,7 +14,7 @@ use std::ffi::CStr;
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
-use fast_ssim2::{PixelDescriptor, PixelSlice, Ssimulacra2Reference};
+use fast_ssim2::{PixelDescriptor, PixelSlice, Ssimulacra2Reference, compute_ssimulacra2};
 use lcms2::{CIExyY, CIExyYTRIPLE, Flags, Intent, PixelFormat, Profile, ToneCurve, Transform};
 
 type Error = Box<dyn std::error::Error>;
@@ -255,36 +255,52 @@ fn decode_jpeg(data: &[u8]) -> Result<Image, Error> {
     }
 }
 
-/// The reference, prepared once per background: 0.1 and 0.9 when it has alpha (the lower score wins), else 0.5,
-/// which only matters for a candidate with alpha.
 struct Scorer {
     width: u32,
     height: u32,
-    prepared: Vec<(f32, Ssimulacra2Reference)>,
+    reference: Reference,
+}
+
+/// A prepared reference holds about 48 bytes per pixel for as long as the scorer runs, encoders included. An opaque
+/// one is prepared once, on a 0.5 background (which only matters for a candidate with alpha). One with alpha is scored
+/// on 0.1 and 0.9 backgrounds (the lower score wins), and two prepared copies cost more memory than scoring from
+/// scratch does, so it's kept decoded and each candidate is scored in full.
+enum Reference {
+    Prepared(Ssimulacra2Reference),
+    Decoded(Image),
 }
 
 impl Scorer {
     fn new(reference: Image) -> Result<Self, Error> {
-        let backgrounds: &[f32] = if reference.alpha { &[0.1, 0.9] } else { &[0.5] };
-        let mut prepared = Vec::with_capacity(backgrounds.len());
-        for &background in backgrounds {
-            let (bytes, descriptor, stride) = reference.prepare(background)?;
-            let pixels = PixelSlice::new(&bytes, reference.width, reference.height, stride, descriptor)?;
-            prepared.push((background, Ssimulacra2Reference::new(&pixels)?));
-        }
-        // The decoded reference is dropped here; only the prepared pyramids stay.
-        Ok(Self { width: reference.width, height: reference.height, prepared })
+        let (width, height) = (reference.width, reference.height);
+        let reference = if reference.alpha {
+            Reference::Decoded(reference)
+        } else {
+            let (bytes, descriptor, stride) = reference.prepare(0.5)?;
+            Reference::Prepared(Ssimulacra2Reference::new(&PixelSlice::new(&bytes, width, height, stride, descriptor)?)?)
+        };
+        Ok(Self { width, height, reference })
     }
 
     fn score(&self, candidate: &Image) -> Result<f64, Error> {
         if candidate.width != self.width || candidate.height != self.height {
             return Err("image size mismatch".into());
         }
-        let mut lowest = f64::INFINITY;
-        for (background, reference) in &self.prepared {
-            lowest = lowest.min(candidate.score_against(reference, *background)?);
+        match &self.reference {
+            Reference::Prepared(reference) => candidate.score_against(reference, 0.5),
+            Reference::Decoded(reference) => {
+                let mut lowest = f64::INFINITY;
+                for background in [0.1, 0.9] {
+                    let (r, r_descriptor, r_stride) = reference.prepare(background)?;
+                    let (c, c_descriptor, c_stride) = candidate.prepare(background)?;
+                    lowest = lowest.min(compute_ssimulacra2(
+                        &PixelSlice::new(&r, self.width, self.height, r_stride, r_descriptor)?,
+                        &PixelSlice::new(&c, self.width, self.height, c_stride, c_descriptor)?,
+                    )?);
+                }
+                Ok(lowest)
+            }
         }
-        Ok(lowest)
     }
 }
 

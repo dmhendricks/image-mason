@@ -1,11 +1,15 @@
 using System.Net;
+using System.Net.Sockets;
 using ImageMason.Configuration;
 
 namespace ImageMason.Http;
 
 /// <summary>
 /// Downloads an image for the url parameter. Redirects are followed here rather than by HttpClient, so that every
-/// hop is checked against <see cref="UrlFetchPolicy"/>. The caller still checks that the bytes are a supported image.
+/// hop is checked against <see cref="UrlFetchPolicy"/>. Unless private addresses are allowed, every connection is
+/// checked against the address it actually goes to, after DNS, so neither a redirect nor a name that resolves to a
+/// private address (DNS rebinding) reaches the internal network. The caller still checks that the bytes are a
+/// supported image.
 /// </summary>
 public sealed class ImageDownloader : IDisposable
 {
@@ -23,6 +27,7 @@ public sealed class ImageDownloader : IDisposable
         {
             AllowAutoRedirect = false,
             ConnectTimeout = TimeSpan.FromSeconds(10),
+            ConnectCallback = policy.AllowPrivate ? null : ConnectPublicAsync,
         })
         {
             Timeout = Timeout.InfiniteTimeSpan,
@@ -56,8 +61,9 @@ public sealed class ImageDownloader : IDisposable
                 continue;
             }
 
+            // The same answer as a failed connection, so the status can't be used to probe what's behind url.
             if (!response.IsSuccessStatusCode)
-                throw new ImageDownloadException($"Downloading the image returned {(int)response.StatusCode}.", StatusCodes.Status502BadGateway);
+                throw CouldNotDownload();
 
             return await ReadBodyAsync(response, cancellationToken);
         }
@@ -71,9 +77,14 @@ public sealed class ImageDownloader : IDisposable
         {
             return await _http.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         }
+        catch (HttpRequestException ex) when (ex.InnerException is PrivateAddressException)
+        {
+            throw new ImageDownloadException("url points to a private network address, which this server doesn't fetch from.",
+                StatusCodes.Status400BadRequest);
+        }
         catch (HttpRequestException)
         {
-            throw new ImageDownloadException("Could not download the image.", StatusCodes.Status502BadGateway);
+            throw CouldNotDownload();
         }
     }
 
@@ -100,7 +111,7 @@ public sealed class ImageDownloader : IDisposable
         catch (Exception ex) when (ex is IOException or HttpRequestException)
         {
             // The connection dropped, or the body ended before its declared length.
-            throw new ImageDownloadException("Could not download the image.", StatusCodes.Status502BadGateway);
+            throw CouldNotDownload();
         }
     }
 
@@ -124,12 +135,42 @@ public sealed class ImageDownloader : IDisposable
         return buffer.ToArray();
     }
 
+    /// <summary>Connects only to public addresses of the host, whatever DNS returns for it.</summary>
+    private static async ValueTask<Stream> ConnectPublicAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    {
+        var host = context.DnsEndPoint.Host;
+        var addresses = IPAddress.TryParse(host.Trim('[', ']'), out var literal)
+            ? [literal]
+            : await Dns.GetHostAddressesAsync(host, cancellationToken);
+        var allowed = addresses.Where(address => !UrlFetchPolicy.IsPrivate(address)).ToArray();
+        if (allowed.Length == 0)
+            throw new PrivateAddressException();
+
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(allowed, context.DnsEndPoint.Port, cancellationToken);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
+
+    private static ImageDownloadException CouldNotDownload() =>
+        new("Could not download the image.", StatusCodes.Status502BadGateway);
+
     private static bool IsRedirect(HttpStatusCode status) => status is HttpStatusCode.MovedPermanently
         or HttpStatusCode.Found or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
 
     private static ImageDownloadException TooLarge() =>
         new("The image at url is larger than the upload limit.", StatusCodes.Status413PayloadTooLarge);
 }
+
+/// <summary>The host has no public address to connect to.</summary>
+internal sealed class PrivateAddressException : Exception;
 
 public sealed class ImageDownloadException(string message, int statusCode) : Exception(message)
 {

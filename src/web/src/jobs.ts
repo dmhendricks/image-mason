@@ -1,7 +1,10 @@
 // Turns the current tool, settings and image into a request, the size it should produce, and anything the server
 // would reject, in plain words. The rules mirror ResizeParameters, RectParameter, OptimizeEndpoint and
 // ImageOptimizer.CheckOutputSize and EstimateMemory, so a request the interface allows never comes back as a 400 or 422.
+// Once the job runs: its progress and what went wrong, in plain words too.
 
+import { ApiError } from './api/client'
+import { maxAttempts } from './api/retry'
 import type { Limits } from './api/types'
 import { formatBytes, formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
@@ -217,5 +220,75 @@ function actionName(tool: Tool, output: Size | null, settings: Settings): string
       return output ? `Crop to ${formatSize(output.width, output.height)}` : 'Crop'
     case 'convert':
       return `Convert to ${formatName(settings.convertTo)}`
+  }
+}
+
+/** A job on its way: uploading the image, waiting for the server to make the result, or waiting to try again. */
+export interface Job {
+  /** "Optimizing", "Resizing". */
+  working: string
+  phase: 'uploading' | 'processing' | 'waiting'
+  /** Fraction of the image uploaded, 0 to 1. */
+  progress: number
+  /** When the current phase started (Date.now()). */
+  since: number
+  /** While waiting: when the next attempt starts. */
+  retryAt: number | null
+  attempt: number
+}
+
+/** The line under the progress bar at the time now: "Uploading… 40%", "Optimizing… 3 s", or the retry countdown. */
+export function jobStatus(job: Job, now: number): string {
+  switch (job.phase) {
+    case 'uploading':
+      return `Uploading… ${Math.round(job.progress * 100)}%`
+    case 'processing': {
+      const seconds = Math.floor((now - job.since) / 1000)
+      return seconds < 1 ? `${job.working}…` : `${job.working}… ${seconds} s`
+    }
+    case 'waiting': {
+      const seconds = Math.max(0, Math.ceil(((job.retryAt ?? now) - now) / 1000))
+      return `The server is busy. Trying again in ${seconds} s (try ${job.attempt} of ${maxAttempts}).`
+    }
+  }
+  return ''
+}
+
+export interface JobError {
+  message: string
+  /** The HTTP status; 0 when the server couldn't be reached. */
+  status: number
+  /** Whether trying the same request again might work. */
+  canRetry: boolean
+}
+
+/** Why a job failed and whether to offer trying again, from what it threw. */
+export function describeFailure(failure: unknown, limits: Limits | null): JobError {
+  if (!(failure instanceof ApiError))
+    return { message: `Something went wrong in the page: ${String(failure)}`, status: -1, canRetry: true }
+
+  const { status, message } = failure
+  switch (status) {
+    case 0:
+      return { message, status, canRetry: true }
+    case 401:
+      return { message: 'The server needs a valid API key. Enter it, then try again.', status, canRetry: true }
+    case 413:
+      return {
+        message: `The file is larger than this server accepts${limits ? ` (${formatBytes(limits.maxInputSize)})` : ''}.`,
+        status,
+        canRetry: false,
+      }
+    case 503:
+      return { message: `${message} The server was still busy after ${maxAttempts} tries.`, status, canRetry: true }
+    case 504:
+      return {
+        message: `The server stopped after ${limits?.timeoutSeconds ?? 'its'} seconds. A smaller size or a lower `
+          + 'quality preset finishes sooner.',
+        status,
+        canRetry: true,
+      }
+    default:
+      return { message, status, canRetry: status >= 500 }
   }
 }

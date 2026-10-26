@@ -36,7 +36,7 @@ const keyTitle = computed(() => {
 
     <nav class="end">
       <button class="button" type="button" aria-label="Open image" @click="emit('open')">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
         <span class="label">Open image</span>
       </button>
       <button
@@ -48,11 +48,11 @@ const keyTitle = computed(() => {
         :title="keyTitle"
         @click="emit('manageKey')"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l3 3M15 8l2 2" /></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l3 3M15 8l2 2" /></svg>
         <span class="label">API key</span>
       </button>
       <a class="button" href="/docs" aria-label="API examples">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5" /></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5" /></svg>
         <span class="label">API examples</span>
       </a>
       <button
@@ -62,10 +62,10 @@ const keyTitle = computed(() => {
         :title="theme === 'dark' ? 'Light theme' : 'Dark theme'"
         @click="toggle"
       >
-        <svg v-if="theme === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
+        <svg v-if="theme === 'dark'" class="icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z" />
         </svg>
-        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+        <svg v-else class="icon" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="4" />
           <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
         </svg>

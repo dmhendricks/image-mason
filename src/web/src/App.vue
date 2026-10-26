@@ -8,11 +8,13 @@ import StatusBar from './components/StatusBar.vue'
 import ToolRail from './components/ToolRail.vue'
 import { useApiKey } from './composables/useApiKey'
 import { useImage } from './composables/useImage'
+import { useResults } from './composables/useResults'
 import { useServer } from './composables/useServer'
-import { isWebUrl } from './files'
+import { accept, isWebUrl } from './files'
 
 const { limits } = useServer()
-const { open, openUrl, hasUnsavedResults } = useImage()
+const { open, openUrl } = useImage()
+const { hasUnsavedResults } = useResults()
 const apiKey = useApiKey()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -136,7 +138,7 @@ onBeforeUnmount(() => {
     <input
       ref="fileInput"
       type="file"
-      accept="image/jpeg,image/png,image/webp,image/avif,image/jxl,.jpg,.jpeg,.png,.webp,.avif,.jxl"
+      :accept="accept"
       hidden
       @change="onFileChosen"
     >

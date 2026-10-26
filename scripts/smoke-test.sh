@@ -129,7 +129,7 @@ code=$(request png "${auth[@]}" --data-binary @"$fixtures/graphic.png" "$api/opt
 check "optimize PNG is 200" [ "$code" = 200 ]
 check "  returns a PNG" [ "$(header png content-type)" = image/png ]
 check "  smaller than the input" smaller "$work/png.body" "$fixtures/graphic.png"
-check "  uses the default quality, medium" [ "$(header png x-image-mason-quality)" = medium ]
+check "  uses the default quality, high" [ "$(header png x-image-mason-quality)" = high ]
 
 code=$(request resize "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?maxWidth=320")
 check "optimize with maxWidth=320 is 200" [ "$code" = 200 ]
@@ -281,7 +281,7 @@ code=$(request limits "$api/limits")
 check "GET limits without the API key is 200" [ "$code" = 200 ]
 check "  lists five formats" [ "$(json limits '.formats | length')" = 5 ]
 check "  reports the API key" [ "$(json limits .apiKeyRequired)" = true ]
-check "  reports the default quality" [ "$(json limits .defaultQuality)" = medium ]
+check "  reports the default quality" [ "$(json limits .defaultQuality)" = high ]
 
 code=$(request info "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/info")
 check "info is 200" [ "$code" = 200 ]

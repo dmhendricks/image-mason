@@ -1,8 +1,5 @@
 using System.Diagnostics;
-using ImageMason.Configuration;
-using ImageMason.Http;
 using ImageMason.Imaging;
-using ImageMason.Storage;
 
 namespace ImageMason.Endpoints;
 
@@ -12,20 +9,14 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class UploadEndpoint
 {
-    public static async Task<IResult> HandleAsync(
-        HttpContext http,
-        ImageMasonOptions options,
-        ImageDownloader downloader,
-        ImageStore store,
-        ILogger<ImageStore> logger,
-        string? outputFilename,
-        string? url)
+    public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, string? outputFilename, string? url)
     {
+        var (http, options, downloader, _, store, logger) = api;
+
         if (!ApiRequest.TryParseOutputFilename(outputFilename, out var storedName, out var nameError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, nameError!);
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
-        timeout.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        using var timeout = api.StartTimeout();
 
         var stopwatch = Stopwatch.StartNew();
         byte[] input = [];
@@ -62,27 +53,9 @@ internal static class UploadEndpoint
                 DurationMs = elapsedMs,
             });
         }
-        catch (BadHttpRequestException ex)
+        catch (Exception ex) when (ApiRequest.IsExpected(ex, http))
         {
-            return ApiRequest.Problem(ex.StatusCode, ex.Message);
-        }
-        catch (ImageDownloadException ex)
-        {
-            logger.LogWarning("Image download failed: {Message}", ex.Message);
-            return ApiRequest.Problem(ex.StatusCode, ex.Message);
-        }
-        catch (UnsupportedImageException ex)
-        {
-            return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, ex.Message);
-        }
-        catch (ImageTooLargeException ex)
-        {
-            return ApiRequest.Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
-        }
-        catch (OperationCanceledException) when (!http.RequestAborted.IsCancellationRequested)
-        {
-            logger.LogWarning("Upload of {Bytes} bytes timed out after {Seconds} s", input.Length, options.TimeoutSeconds);
-            return ApiRequest.Problem(StatusCodes.Status504GatewayTimeout, "The request timed out.");
+            return ApiRequest.Problem(api, ex, input.Length, "Upload");
         }
     }
 }

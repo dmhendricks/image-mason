@@ -1,5 +1,3 @@
-using ImageMason.Configuration;
-using ImageMason.Http;
 using ImageMason.Imaging;
 
 namespace ImageMason.Endpoints;
@@ -11,37 +9,26 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class FetchEndpoint
 {
-    public static async Task<IResult> HandleAsync(
-        HttpContext http,
-        ImageMasonOptions options,
-        ImageDownloader downloader,
-        ILogger<ImageDownloader> logger,
-        string? url)
+    public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, string? url)
     {
         if (string.IsNullOrWhiteSpace(url))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Pass url, the address of the image to download.");
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
-        timeout.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        using var timeout = api.StartTimeout();
 
         try
         {
-            var input = await downloader.DownloadAsync(url.Trim(), timeout.Token);
+            var input = await api.Downloader.DownloadAsync(url.Trim(), timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
                 return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"That address isn't a {ImageFormatDetector.SupportedNames} image.");
 
-            http.Response.Headers.CacheControl = "no-store";
+            api.Http.Response.Headers.CacheControl = "no-store";
             return Results.Bytes(input, format.ContentType());
         }
-        catch (ImageDownloadException ex)
+        catch (Exception ex) when (ApiRequest.IsExpected(ex, api.Http))
         {
-            logger.LogWarning("Image download failed: {Message}", ex.Message);
-            return ApiRequest.Problem(ex.StatusCode, ex.Message);
-        }
-        catch (OperationCanceledException) when (!http.RequestAborted.IsCancellationRequested)
-        {
-            return ApiRequest.Problem(StatusCodes.Status504GatewayTimeout, "The request timed out.");
+            return ApiRequest.Problem(api, ex, inputBytes: 0, job: null);
         }
     }
 }

@@ -1,8 +1,3 @@
-using ImageMason.Configuration;
-using ImageMason.Http;
-using ImageMason.Imaging;
-using ImageMason.Storage;
-
 namespace ImageMason.Endpoints;
 
 /// <summary>
@@ -11,31 +6,14 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class ConvertEndpoint
 {
-    public static async Task<IResult> HandleAsync(
-        HttpContext http,
-        ImageMasonOptions options,
-        ImageDownloader downloader,
-        ImageOptimizer optimizer,
-        ImageStore store,
-        ILogger<ImageOptimizer> logger,
-        string? format,
-        string? quality,
-        double? minScore,
-        int? maxWidth,
-        string? rect,
-        string? output,
-        string? outputFilename,
-        string? url,
-        string? source,
-        bool keepOriginal = false)
+    public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, [AsParameters] JobParameters job, int? maxWidth)
     {
-        if (!ImageFormatDetector.TryParse(format, out var target))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp', 'avif' or 'jxl'.");
+        if (!ApiRequest.TryParseFormat(job.Format, required: true, out var target, out var formatError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, formatError!);
 
-        if (!RectParameter.TryParse(rect, out var area, out var rectError))
+        if (!RectParameter.TryParse(job.Rect, out var area, out var rectError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
 
-        return await OptimizeEndpoint.RunAsync(http, options, downloader, optimizer, store, logger,
-            target, null, area, quality, minScore, maxWidth, output, outputFilename, url, source, preferJpeg: false, keepOriginal);
+        return await OptimizeEndpoint.RunAsync(api, job, target, resize: null, area, maxWidth, preferJpeg: false);
     }
 }

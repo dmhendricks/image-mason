@@ -56,7 +56,7 @@ public sealed class ImageMasonOptions
     public int DefaultMaxWidth { get; init; }
 
     /// <summary>Preset for requests that send no quality: High, Medium or Low.</summary>
-    public QualityPreset DefaultQuality { get; init; } = QualityPreset.Medium;
+    public QualityPreset DefaultQuality { get; init; } = QualityPreset.High;
 
     // Minimum SSIMULACRA2 score per preset. Tiers from the SSIMULACRA2 README:
     // 90 = not noticeable in a flicker test, 85 = not noticeable in place at 1:1,
@@ -128,6 +128,13 @@ public sealed class ImageMasonOptions
     /// <summary>False rejects the url parameter, so only uploaded images are accepted.</summary>
     public bool UrlFetchEnabled { get; init; } = true;
 
+    /// <summary>
+    /// False keeps url off loopback, private, link-local and other non-public addresses. Checked against the address
+    /// actually connected to, so a public name that resolves to a private address is refused too. True by default, so
+    /// url can reach an internal image server.
+    /// </summary>
+    public bool UrlAllowPrivate { get; init; } = true;
+
     /// <summary>Hosts url may point to: <c>cdn.example.com</c> exactly, or <c>*.example.com</c> for subdomains. Empty allows any.</summary>
     public IReadOnlyList<string> UrlAllowedHosts { get; init; } = [];
 
@@ -165,6 +172,7 @@ public sealed class ImageMasonOptions
             ImageTtlMinutes = settings.Int("IMAGE_TTL_MINUTES", defaults.ImageTtlMinutes, min: 1, max: 525_600),
             MaxStoreBytes = settings.Size("MAX_STORE_SIZE", defaults.MaxStoreBytes, allowZero: true),
             UrlFetchEnabled = settings.Bool("URL_FETCH_ENABLED", defaults.UrlFetchEnabled),
+            UrlAllowPrivate = settings.Bool("URL_ALLOW_PRIVATE", defaults.UrlAllowPrivate),
             UrlAllowedHosts = settings.Hosts("URL_ALLOWED_HOSTS"),
             UrlAllowedExtensions = settings.Extensions("URL_ALLOWED_EXTENSIONS"),
             UiEnabled = settings.Bool("UI_ENABLED", defaults.UiEnabled),
@@ -225,13 +233,10 @@ public sealed class ImageMasonOptions
             if (String(name) is not { } text)
                 return fallback;
 
-            return text.ToLowerInvariant() switch
-            {
-                "high" => QualityPreset.High,
-                "medium" => QualityPreset.Medium,
-                "low" => QualityPreset.Low,
-                _ => throw Invalid(name, text, "high, medium or low"),
-            };
+            if (!QualityPresets.TryParse(text, out var preset) || preset == QualityPreset.Lossless)
+                throw Invalid(name, text, "high, medium or low");
+
+            return preset;
         }
 
         public bool Bool(string name, bool fallback)

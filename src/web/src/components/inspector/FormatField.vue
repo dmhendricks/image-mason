@@ -2,8 +2,8 @@
 import { computed } from 'vue'
 import { useImage } from '../../composables/useImage'
 import { useServer } from '../../composables/useServer'
-import { formatName, sortFormats } from '../../format'
-import { type ImageFormat, chosenFormat, imageFormats } from '../../settings'
+import { formatName, outputFormats } from '../../format'
+import { type ImageFormat, chosenFormat } from '../../settings'
 
 // The output format: "Keep" (null) sends no format, so the result stays in the input's. The input's own format
 // isn't listed, since "Keep" names it, and a saved choice of that format shows as "Keep".
@@ -19,9 +19,7 @@ const selected = computed({
   set: (format: ImageFormat | null) => { model.value = format },
 })
 
-const formats = computed(() =>
-  sortFormats((limits.value?.formats.map(f => f.name) ?? [...imageFormats]).filter((f): f is ImageFormat =>
-    (imageFormats as readonly string[]).includes(f) && f !== image.value?.format)))
+const formats = computed(() => outputFormats(limits.value).filter(format => format !== image.value?.format))
 
 const keepLabel = computed(() => image.value ? `Keep (${formatName(image.value.format)})` : 'Keep the same')
 </script>

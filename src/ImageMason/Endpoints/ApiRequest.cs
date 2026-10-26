@@ -1,5 +1,7 @@
 using System.Globalization;
+using ImageMason.Configuration;
 using ImageMason.Http;
+using ImageMason.Imaging;
 using ImageMason.Storage;
 using Microsoft.AspNetCore.Http.Features;
 
@@ -13,6 +15,80 @@ internal static class ApiRequest
 
     public static IResult Problem(int statusCode, string detail) =>
         Results.Problem(detail: detail, statusCode: statusCode);
+
+    /// <summary>Whether <see cref="Problem(ApiServices, Exception, long, string?)"/> answers this exception; anything
+    /// else is left to become a 500.</summary>
+    public static bool IsExpected(Exception exception, HttpContext http) => exception switch
+    {
+        BadHttpRequestException or ImageDownloadException or UnsupportedImageException or CropOutsideImageException
+            or ImageTooLargeException or ImageProcessingException or JobTooLargeException or ToolKilledException => true,
+        // A timeout, rather than the client going away.
+        OperationCanceledException => !http.RequestAborted.IsCancellationRequested,
+        _ => false,
+    };
+
+    /// <summary>The Problem Details for an exception the API expects (see <see cref="IsExpected"/>), shared by every
+    /// endpoint that reads an image.</summary>
+    /// <param name="inputBytes">The image's size for the log, or 0 before it was read.</param>
+    /// <param name="job">"Request" or "Upload", to log a timeout as "Request of N bytes timed out"; null logs none.</param>
+    public static IResult Problem(ApiServices api, Exception exception, long inputBytes, string? job)
+    {
+        var logger = api.Logger;
+        switch (exception)
+        {
+            case BadHttpRequestException ex:
+                return Problem(ex.StatusCode, ex.Message);
+            case ImageDownloadException ex:
+                logger.LogWarning("Image download failed: {Message}", ex.Message);
+                return Problem(ex.StatusCode, ex.Message);
+            case UnsupportedImageException:
+                return Problem(StatusCodes.Status415UnsupportedMediaType, exception.Message);
+            case CropOutsideImageException:
+                return Problem(StatusCodes.Status400BadRequest, exception.Message);
+            case ImageTooLargeException or ImageProcessingException:
+                return Problem(StatusCodes.Status422UnprocessableEntity, exception.Message);
+            case JobTooLargeException ex:
+                logger.LogWarning("Rejected a job needing {Needed} with {Budget} for jobs", ByteSizes.ToGigabytes(ex.NeededBytes), ByteSizes.ToGigabytes(ex.BudgetBytes));
+                return Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
+            case ToolKilledException ex:
+                // Never fall back to a weaker result: the caller asked for this preset and should know it failed.
+                logger.LogError("{Tool} was killed while optimizing {Bytes} bytes; the container is out of memory. Raise its memory limit or lower {Setting}",
+                    ex.Tool, inputBytes, ImageMasonOptions.Prefix + "MEMORY_LIMIT");
+                api.Http.Response.Headers.RetryAfter = RetryAfterSeconds;
+                return Problem(StatusCodes.Status503ServiceUnavailable,
+                    "The server ran out of memory while optimizing this image. Retry later, or send a smaller image or maxWidth.");
+            case OperationCanceledException:
+                if (job is not null)
+                    logger.LogWarning("{Job} of {Bytes} bytes timed out after {Seconds} s", job, inputBytes, api.Options.TimeoutSeconds);
+                return Problem(StatusCodes.Status504GatewayTimeout, "The request timed out.");
+            default:
+                throw new ArgumentException("Not an exception the API expects.", nameof(exception), exception);
+        }
+    }
+
+    /// <summary>"format must be 'png', 'webp', 'jpeg', 'jxl' or 'avif'.", from the supported formats.</summary>
+    private static readonly string FormatError = "format must be "
+        + string.Join(", ", ImageFormatDetector.Supported.SkipLast(1).Select(format => $"'{format.Name()}'"))
+        + $" or '{ImageFormatDetector.Supported[^1].Name()}'.";
+
+    /// <summary>
+    /// Parses the format parameter, or returns why it can't be used. Null keeps the input's format, unless
+    /// <paramref name="required"/>.
+    /// </summary>
+    public static bool TryParseFormat(string? value, bool required, out ImageFormat? format, out string? error)
+    {
+        format = null;
+        error = null;
+        if (value is null && !required)
+            return true;
+
+        if (ImageFormatDetector.TryParse(value, out var parsed))
+            format = parsed;
+        else
+            error = FormatError;
+
+        return error is null;
+    }
 
     public static string Origin(HttpRequest request, string? publicBaseUrl) =>
         !string.IsNullOrEmpty(publicBaseUrl) ? publicBaseUrl : $"{request.Scheme}://{request.Host.Value}";

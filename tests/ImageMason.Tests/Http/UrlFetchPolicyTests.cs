@@ -1,3 +1,4 @@
+using System.Net;
 using ImageMason.Configuration;
 using ImageMason.Http;
 
@@ -54,5 +55,32 @@ public sealed class UrlFetchPolicyTests
         var reason = Check(url, extensions: ["jpg", "jpeg", "png"]);
 
         Assert.Equal(allowed, reason is null);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("10.1.2.3", true)]
+    [InlineData("172.16.0.1", true)]
+    [InlineData("172.32.0.1", false)]
+    [InlineData("192.168.1.10", true)]
+    [InlineData("169.254.169.254", true)]
+    [InlineData("100.64.0.1", true)]
+    [InlineData("0.0.0.0", true)]
+    [InlineData("224.0.0.1", true)]
+    [InlineData("255.255.255.255", true)]
+    [InlineData("8.8.8.8", false)]
+    [InlineData("::1", true)]
+    [InlineData("::", true)]
+    [InlineData("fe80::1", true)]
+    [InlineData("fd00::1", true)]
+    [InlineData("::ffff:10.0.0.1", true)]
+    [InlineData("::ffff:8.8.8.8", false)]
+    [InlineData("64:ff9b::a00:1", true)]
+    [InlineData("64:ff9b::808:808", false)]
+    [InlineData("2002:a00:1::", true)]
+    [InlineData("2606:4700:4700::1111", false)]
+    public void IsPrivate_CoversNonPublicRanges(string address, bool expected)
+    {
+        Assert.Equal(expected, UrlFetchPolicy.IsPrivate(IPAddress.Parse(address)));
     }
 }

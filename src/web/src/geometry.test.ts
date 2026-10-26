@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { type Box, centeredRect, dragRect, rectFits, rectWithin, resizeOutput, roundHalfEven } from './geometry'
+import {
+  type Box,
+  centeredRect,
+  dragRect,
+  fitScale,
+  outputDrawing,
+  percentWithin,
+  rectFits,
+  rectWithin,
+  resizeOutput,
+  roundHalfEven,
+} from './geometry'
 import type { Fit } from './settings'
 
 describe('resizeOutput', () => {
@@ -89,5 +100,40 @@ describe('dragRect', () => {
     expect(dragRect(start, 'sw', -500, 500, image)).toEqual({ left: 0, top: 100, width: 300, height: 380 })
     expect(dragRect(start, 'w', 500, 0, image)).toEqual({ left: 299, top: 100, width: 1, height: 100 })
     expect(dragRect(start, 'ne', -500, 500, image)).toEqual({ left: 100, top: 199, width: 1, height: 1 })
+  })
+})
+
+describe('fitScale', () => {
+  it('shrinks to fit the tighter side, and never enlarges', () => {
+    expect(fitScale({ width: 1280, height: 427 }, { width: 640, height: 400 })).toBe(0.5)
+    expect(fitScale({ width: 640, height: 800 }, { width: 640, height: 400 })).toBe(0.5)
+    expect(fitScale({ width: 320, height: 200 }, { width: 640, height: 400 })).toBe(1)
+  })
+})
+
+describe('percentWithin', () => {
+  const view = { left: 100, top: 50, width: 200, height: 100 }
+
+  it('places an area inside the view', () => {
+    expect(percentWithin({ left: 150, top: 75, width: 100, height: 25 }, view)).toEqual({ left: 25, top: 25, width: 50, height: 25 })
+    expect(percentWithin(view, view)).toEqual({ left: 0, top: 0, width: 100, height: 100 })
+  })
+
+  it('places the whole image behind the view, past its edges', () => {
+    expect(percentWithin({ left: 0, top: 0, width: 400, height: 300 }, view)).toEqual({ left: -50, top: -50, width: 200, height: 300 })
+  })
+})
+
+describe('outputDrawing', () => {
+  const image = { width: 640, height: 427 }
+  const rounded = (size: { width: number, height: number }) => ({ width: +size.width.toFixed(2), height: +size.height.toFixed(2) })
+
+  it('draws a smaller output to scale', () => {
+    expect(rounded(outputDrawing({ width: 320, height: 214 }, image))).toEqual({ width: 50, height: 50.12 })
+  })
+
+  it('shrinks an enlarged output to fit the image, keeping its shape', () => {
+    expect(rounded(outputDrawing({ width: 1280, height: 854 }, image))).toEqual({ width: 100, height: 100 })
+    expect(rounded(outputDrawing({ width: 1000, height: 100 }, image))).toEqual({ width: 100, height: 14.99 })
   })
 })

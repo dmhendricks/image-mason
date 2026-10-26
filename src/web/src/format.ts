@@ -1,5 +1,8 @@
 // Display formatting. Sizes use 1024-based units, as the server's IMAGE_MASON_*_SIZE settings do.
 
+import type { Limits } from './api/types'
+import { type ImageFormat, imageFormats } from './settings'
+
 const units = ['bytes', 'KB', 'MB', 'GB']
 
 /** 15000 → "14.6 KB", 161713 → "158 KB", 26214400 → "25 MB": one decimal below 100, none from 100 up. */
@@ -33,6 +36,15 @@ export function formatName(format: string): string {
 /** Format names in the order they're listed: alphabetical by the name shown, so the API's order doesn't leak into menus. */
 export function sortFormats<T extends string>(formats: readonly T[]): T[] {
   return [...formats].sort((a, b) => formatName(a).localeCompare(formatName(b), 'en', { sensitivity: 'base' }))
+}
+
+/**
+ * The formats to offer for output: those the server lists that the interface knows (all of them until it answers), in
+ * menu order.
+ */
+export function outputFormats(limits: Limits | null): ImageFormat[] {
+  return sortFormats((limits?.formats.map(f => f.name) ?? [...imageFormats])
+    .filter((f): f is ImageFormat => (imageFormats as readonly string[]).includes(f)))
 }
 
 /** 640, 480 → "640 × 480". */

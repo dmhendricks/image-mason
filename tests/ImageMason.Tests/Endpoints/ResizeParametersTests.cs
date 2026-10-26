@@ -5,10 +5,13 @@ namespace ImageMason.Tests.Endpoints;
 
 public sealed class ResizeParametersTests
 {
+    private static ResizeParameters Box(int? width, int? height, string? fit, string? crop, bool? upscale) =>
+        new() { Width = width, Height = height, Fit = fit, Crop = crop, Upscale = upscale };
+
     [Fact]
     public void TryParse_NothingSent_HasNoBox()
     {
-        Assert.True(ResizeParameters.TryParse(null, null, null, null, null, out var resize, out var error));
+        Assert.True(new ResizeParameters().TryParse(out var resize, out var error));
         Assert.Null(resize);
         Assert.Null(error);
     }
@@ -22,7 +25,7 @@ public sealed class ResizeParametersTests
     public void TryParse_ValidBox(int? width, int? height, string? fit, string? crop, bool? upscale,
         int? expectedWidth, int? expectedHeight, ResizeFit expectedFit, bool expectedUpscale, CropPosition expectedCrop)
     {
-        Assert.True(ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out _));
+        Assert.True(Box(width, height, fit, crop, upscale).TryParse(out var resize, out _));
         Assert.Equal(new ResizeRequest(expectedWidth, expectedHeight, expectedFit, expectedUpscale, expectedCrop), resize);
     }
 
@@ -39,7 +42,7 @@ public sealed class ResizeParametersTests
     [InlineData(800, 600, null, "attention", null, "crop is only used with fit=cover.")]
     public void TryParse_Invalid(int? width, int? height, string? fit, string? crop, bool? upscale, string expected)
     {
-        Assert.False(ResizeParameters.TryParse(width, height, fit, crop, upscale, out var resize, out var error));
+        Assert.False(Box(width, height, fit, crop, upscale).TryParse(out var resize, out var error));
         Assert.Null(resize);
         Assert.Equal(expected, error);
     }

@@ -1,4 +1,4 @@
-import { onScopeDispose, readonly, ref } from 'vue'
+import { readonly, ref } from 'vue'
 
 export type Theme = 'light' | 'dark'
 
@@ -22,22 +22,25 @@ export function applySavedTheme(): void {
     document.documentElement.dataset.theme = theme
 }
 
+function effective(): Theme {
+  const chosen = document.documentElement.dataset.theme
+  if (chosen === 'light' || chosen === 'dark')
+    return chosen
+  return systemDark()?.matches ? 'dark' : 'light'
+}
+
+const theme = ref<Theme>('light')
+let started = false
+
 /** The current theme: the user's choice once they toggle it, the system's until then. */
 export function useTheme() {
-  const effective = (): Theme => {
-    const chosen = document.documentElement.dataset.theme
-    if (chosen === 'light' || chosen === 'dark')
-      return chosen
-    return systemDark()?.matches ? 'dark' : 'light'
+  // Read on first use rather than when the module loads, so a saved choice has been applied (applySavedTheme).
+  if (!started) {
+    started = true
+    theme.value = effective()
+    // Without a choice, follow the system as it changes.
+    systemDark()?.addEventListener('change', () => { theme.value = effective() })
   }
-
-  const theme = ref<Theme>(effective())
-
-  // Without a choice, follow the system as it changes.
-  const media = systemDark()
-  const onSystemChange = () => { theme.value = effective() }
-  media?.addEventListener('change', onSystemChange)
-  onScopeDispose(() => media?.removeEventListener('change', onSystemChange))
 
   function toggle() {
     const next: Theme = theme.value === 'dark' ? 'light' : 'dark'

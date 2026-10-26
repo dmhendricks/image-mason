@@ -23,10 +23,11 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(defaults.MaxPixels, options.MaxPixels);
         Assert.Equal(Environment.ProcessorCount, options.MaxConcurrentJobs);
         Assert.Equal(0, options.DefaultMaxWidth);
-        Assert.Equal(QualityPreset.Medium, options.DefaultQuality);
+        Assert.Equal(QualityPreset.High, options.DefaultQuality);
         Assert.Equal(120, options.TimeoutSeconds);
         Assert.Null(options.MemoryLimitBytes);
         Assert.True(options.UrlFetchEnabled);
+        Assert.True(options.UrlAllowPrivate);
         Assert.Empty(options.UrlAllowedHosts);
         Assert.True(options.UiEnabled);
         Assert.Equal(LogLevel.Information, options.LogLevel);
@@ -45,12 +46,13 @@ public sealed class ImageMasonOptionsTests
             ("TIMEOUT_SECONDS", "30"),
             ("MEMORY_LIMIT", "4g"),
             ("DEFAULT_MAX_WIDTH", "2000"),
-            ("DEFAULT_QUALITY", "High"),
+            ("DEFAULT_QUALITY", "Low"),
             ("HIGH_MIN_SCORE", "88.5"),
             ("STORE_PATH", "/tmp/store"),
             ("IMAGE_TTL_MINUTES", "5"),
             ("MAX_STORE_SIZE", "0"),
             ("URL_FETCH_ENABLED", "false"),
+            ("URL_ALLOW_PRIVATE", "false"),
             ("URL_ALLOWED_HOSTS", "CDN.example.com, *.example.org"),
             ("URL_ALLOWED_EXTENSIONS", ".PNG,*.jpg, jpeg"),
             ("UI_ENABLED", "false"),
@@ -65,12 +67,13 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(30, options.TimeoutSeconds);
         Assert.Equal(4L * 1024 * 1024 * 1024, options.MemoryLimitBytes);
         Assert.Equal(2000, options.DefaultMaxWidth);
-        Assert.Equal(QualityPreset.High, options.DefaultQuality);
+        Assert.Equal(QualityPreset.Low, options.DefaultQuality);
         Assert.Equal(88.5, options.HighMinScore);
         Assert.Equal("/tmp/store", options.StorePath);
         Assert.Equal(5, options.ImageTtlMinutes);
         Assert.Equal(0, options.MaxStoreBytes);
         Assert.False(options.UrlFetchEnabled);
+        Assert.False(options.UrlAllowPrivate);
         Assert.Equal(["cdn.example.com", "*.example.org"], options.UrlAllowedHosts);
         Assert.Equal(["png", "jpg", "jpeg"], options.UrlAllowedExtensions);
         Assert.False(options.UiEnabled);

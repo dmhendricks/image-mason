@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useApiKey } from '../../composables/useApiKey'
-import { maxAttempts, useImage } from '../../composables/useImage'
+import { useImage } from '../../composables/useImage'
 import { usePlan } from '../../composables/usePlan'
+import { useResults } from '../../composables/useResults'
 import { useServer } from '../../composables/useServer'
 import { formatBytes, formatChange, formatName, formatSize } from '../../format'
+import { jobStatus } from '../../jobs'
 
 const emit = defineEmits<{ enterKey: [] }>()
 
-const { image, job, error, run, cancel, markDownloaded, dismissError } = useImage()
+const { image, job, error, run, cancel, dismissError } = useImage()
+const { markDownloaded } = useResults()
 const { plan, result } = usePlan()
 const { limits } = useServer()
 const apiKey = useApiKey()
@@ -34,24 +37,7 @@ watch(apiKey.key, key => {
 const problem = computed(() => Object.values(plan.value.errors)[0] ?? null)
 const canRun = computed(() => image.value !== null && job.value === null && problem.value === null)
 
-const status = computed(() => {
-  const current = job.value
-  if (!current)
-    return ''
-  switch (current.phase) {
-    case 'uploading':
-      return `Uploading… ${Math.round(current.progress * 100)}%`
-    case 'processing': {
-      const seconds = Math.floor((now.value - current.since) / 1000)
-      return seconds < 1 ? `${current.working}…` : `${current.working}… ${seconds} s`
-    }
-    case 'waiting': {
-      const seconds = Math.max(0, Math.ceil(((current.retryAt ?? now.value) - now.value) / 1000))
-      return `The server is busy. Trying again in ${seconds} s (try ${current.attempt} of ${maxAttempts}).`
-    }
-  }
-  return ''
-})
+const status = computed(() => job.value ? jobStatus(job.value, now.value) : '')
 
 const expected = computed(() => {
   const output = plan.value.output
@@ -142,7 +128,7 @@ function start() {
           :download="result.fileName"
           @click="markDownloaded(result.id)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
           Download
         </a>
         <button class="button primary" type="button" :disabled="!canRun" @click="start">
@@ -204,14 +190,6 @@ function start() {
 }
 
 .wide { width: 100%; height: 40px; }
-
-.alert {
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--flag-soft);
-
-  p { margin: 0 0 8px; }
-}
 
 .alert-actions {
   display: flex;

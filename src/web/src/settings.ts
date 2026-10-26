@@ -47,9 +47,9 @@ export function chosenFormat(format: ImageFormat | null, input: ImageFormat | un
   return format === input ? null : format
 }
 
-/** The preset in effect: the chosen one, else the server's default, else medium (as the server's own default). */
+/** The preset in effect: the chosen one, else the server's default, else high (as the server's own default). */
 export function effectiveQuality(quality: Quality | null, serverDefault: string | undefined): Quality {
-  return quality ?? (qualities.includes(serverDefault as Quality) ? serverDefault as Quality : 'medium')
+  return quality ?? (qualities.includes(serverDefault as Quality) ? serverDefault as Quality : 'high')
 }
 
 export function defaultSettings(): Settings {

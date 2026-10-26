@@ -86,7 +86,7 @@ internal static class SiteEndpoints
         });
 
         // Removing an image before it expires needs the API key, unlike fetching it.
-        app.MapDelete("/images/{name}", (string name, ImageStore store, ILogger<ImageStore> logger) =>
+        app.MapDelete("/images/{name}", (string name, ImageStore store, [FromKeyedServices(ApiServices.LogCategory)] ILogger logger) =>
         {
             if (!store.Delete(name))
                 return ApiRequest.Problem(StatusCodes.Status404NotFound, "No stored image has that name.");

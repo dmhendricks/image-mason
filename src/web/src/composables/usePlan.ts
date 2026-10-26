@@ -1,6 +1,7 @@
 import { type ComputedRef, computed } from 'vue'
 import { type JobPlan, planJob } from '../jobs'
-import { type Result, useImage } from './useImage'
+import { useImage } from './useImage'
+import { type Result, useResults } from './useResults'
 import { useServer } from './useServer'
 import { useSettings } from './useSettings'
 
@@ -14,7 +15,8 @@ export function usePlan() {
     return shared
 
   const { settings } = useSettings()
-  const { image, results, rect } = useImage()
+  const { image, rect } = useImage()
+  const { results } = useResults()
   const { limits } = useServer()
 
   const plan = computed(() => planJob(settings.tool, settings, image.value, rect, limits.value))

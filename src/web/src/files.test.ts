@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { baseName, fileNameFromUrl, formatFromContentType, isHeif, isWebUrl, resultFileName, sniffFormat } from './files'
+import type { Limits } from './api/types'
+import { baseName, fileNameFromUrl, formatFromContentType, isHeif, isWebUrl, limitProblem, resultFileName, sniffFormat } from './files'
 
 const bytes = (...parts: (number[] | string)[]) =>
   new Uint8Array(parts.flatMap(part => typeof part === 'string' ? [...part].map(c => c.charCodeAt(0)) : part))
@@ -80,5 +81,27 @@ describe('fileNameFromUrl', () => {
   it('falls back when the path has no file name or is malformed', () => {
     expect(fileNameFromUrl('https://example.com/')).toBe('Image from URL')
     expect(fileNameFromUrl('https://example.com/%E0%A4%A')).toBe('Image from URL')
+  })
+})
+
+describe('limitProblem', () => {
+  const limits = { maxInputSize: 26214400, maxPixels: 50_000_000 } as Limits
+
+  it('refuses an empty file, even before the server\'s limits arrive', () => {
+    expect(limitProblem('blank.png', 0, null, null)).toBe('“blank.png” is empty.')
+  })
+
+  it('refuses a file over the size limit before it is measured', () => {
+    expect(limitProblem('scan.png', 30 * 1024 ** 2, null, limits)).toBe('“scan.png” is 30 MB; this server accepts files up to 25 MB.')
+  })
+
+  it('refuses an image over the pixel limit once measured', () => {
+    expect(limitProblem('pano.jpg', 1000, { width: 10000, height: 6000 }, limits))
+      .toBe('“pano.jpg” is 10000 × 6000 (60 megapixels); this server accepts up to 50 megapixels.')
+  })
+
+  it('accepts what fits, edges included', () => {
+    expect(limitProblem('photo.jpg', 26214400, { width: 10000, height: 5000 }, limits)).toBeNull()
+    expect(limitProblem('photo.jpg', 30 * 1024 ** 2, { width: 10000, height: 6000 }, null)).toBeNull()
   })
 })

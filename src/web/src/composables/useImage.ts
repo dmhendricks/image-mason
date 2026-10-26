@@ -1,15 +1,23 @@
-import { computed, reactive, readonly, ref, shallowRef } from 'vue'
-import { ApiError, type PostImageOptions, deleteStoredImage, postForBlob, postImage, uploadImage } from '../api/client'
-import { type ResultStats, readStats } from '../api/types'
-import { fileNameFromUrl, formatFromContentType, isHeif, resultFileName, sniffFormat } from '../files'
-import { formatBytes, formatMegapixels, formatSize } from '../format'
+import { reactive, readonly, ref, shallowRef } from 'vue'
+import {
+  ApiError,
+  type ImageResponse,
+  type PostImageOptions,
+  deleteStoredImage,
+  postForBlob,
+  postImage,
+  uploadImage,
+} from '../api/client'
+import { retryWhileBusy } from '../api/retry'
+import { readStats } from '../api/types'
+import { fileNameFromUrl, formatFromContentType, isHeif, limitProblem, measure, resultFileName, sniffFormat } from '../files'
 import { type Rect, wholeImage } from '../geometry'
-import type { JobPlan, SourceImage } from '../jobs'
-import type { ImageFormat } from '../settings'
+import { type Job, type JobError, type JobPlan, type SourceImage, describeFailure } from '../jobs'
 import { useApiKey } from './useApiKey'
+import { useResults } from './useResults'
 import { useServer } from './useServer'
 
-// The current image, the results made from it, and the request running now. One image at a time (docs/WEB-UI.md
+// The current image and the request running now; its results are in useResults. One image at a time (docs/WEB-UI.md
 // W8); a queue of images could later hold one of these per file.
 
 export interface OpenedImage extends SourceImage {
@@ -22,40 +30,6 @@ export interface OpenedImage extends SourceImage {
   address?: string
 }
 
-export interface Result {
-  id: number
-  /** The request path and query: the same settings give the same path. */
-  path: string
-  label: string
-  blob: Blob
-  url: string
-  format: ImageFormat
-  fileName: string
-  stats: ResultStats
-  downloaded: boolean
-}
-
-export interface Job {
-  /** "Optimizing", "Resizing". */
-  working: string
-  phase: 'uploading' | 'processing' | 'waiting'
-  /** Fraction of the image uploaded, 0 to 1. */
-  progress: number
-  /** When the current phase started (Date.now()). */
-  since: number
-  /** While waiting: when the next attempt starts. */
-  retryAt: number | null
-  attempt: number
-}
-
-export interface JobError {
-  message: string
-  /** The HTTP status; 0 when the server couldn't be reached. */
-  status: number
-  /** Whether trying the same request again might work. */
-  canRetry: boolean
-}
-
 /** An image being read, or downloaded by the server first. */
 export interface Opening {
   /** The file name, or the one taken from the web address. */
@@ -64,11 +38,7 @@ export interface Opening {
   fromUrl: boolean
 }
 
-/** Tries for a busy server (503) before giving up. */
-export const maxAttempts = 3
-
 const image = shallowRef<OpenedImage | null>(null)
-const results = ref<Result[]>([])
 const job = ref<Job | null>(null)
 const error = ref<JobError | null>(null)
 const openError = ref<string | null>(null)
@@ -83,13 +53,11 @@ let stored: { image: OpenedImage, name: string } | null = null
 let unstorable: OpenedImage | null = null
 /** The open in progress. A newer open aborts it, so only the last image chosen is opened. */
 let openController: AbortController | null = null
-let nextId = 1
 
 export function useImage() {
   const apiKey = useApiKey()
   const { limits } = useServer()
-
-  const hasUnsavedResults = computed(() => results.value.some(result => !result.downloaded))
+  const { hasUnsavedResults, add, clear } = useResults()
 
   /**
    * Checks a file and makes it the current image, replacing the last one and its results. When results haven't been
@@ -186,10 +154,9 @@ export function useImage() {
   /** The image's format and size, or why it can't be used. */
   async function check(file: Blob, name: string): Promise<string | SourceImage & { url: string }> {
     const max = limits.value
-    if (file.size === 0)
-      return `“${name}” is empty.`
-    if (max && file.size > max.maxInputSize)
-      return `“${name}” is ${formatBytes(file.size)}; this server accepts files up to ${formatBytes(max.maxInputSize)}.`
+    const sizeProblem = limitProblem(name, file.size, null, max)
+    if (sizeProblem)
+      return sizeProblem
 
     const head = new Uint8Array(await file.slice(0, 64).arrayBuffer())
     const format = sniffFormat(head)
@@ -199,27 +166,20 @@ export function useImage() {
         : `“${name}” isn't a PNG, WebP, AVIF, JPEG or JPEG XL image.`
     }
 
-    // Browsers apply the EXIF orientation, so these are the display dimensions the server's rect uses.
-    const url = URL.createObjectURL(file)
-    const element = new Image()
-    element.src = url
-    try {
-      await element.decode()
-    } catch {
-      URL.revokeObjectURL(url)
+    const measured = await measure(file)
+    if (!measured) {
       // Not every browser decodes JPEG XL yet; the file is most likely fine.
       return format === 'jxl'
         ? `Your browser can't display JPEG XL, so “${name}” can't be opened here. Try a browser that shows JPEG XL.`
         : `Your browser couldn't display “${name}”. The file may be damaged.`
     }
 
-    const { naturalWidth: width, naturalHeight: height } = element
-    if (max && width * height > max.maxPixels) {
-      URL.revokeObjectURL(url)
-      return `“${name}” is ${formatSize(width, height)} (${formatMegapixels(width * height)}); `
-        + `this server accepts up to ${formatMegapixels(max.maxPixels)}.`
+    const pixelProblem = limitProblem(name, file.size, measured, max)
+    if (pixelProblem) {
+      URL.revokeObjectURL(measured.url)
+      return pixelProblem
     }
-    return { format, width, height, url }
+    return { format, ...measured }
   }
 
   /**
@@ -252,59 +212,50 @@ export function useImage() {
     }
     let uploadedAgain = false
 
-    try {
-      for (let attempt = 1; ; attempt++) {
-        try {
-          const name = await storedName(source, options)
-          const response = name
-            ? await postImage(withSource(plan.path, name), null, options)
-            : await postImage(plan.path, source.blob, options)
-          if (image.value !== source)
-            return
-
-          const format = formatFromContentType(response.blob.type || response.header('Content-Type')) ?? plan.format ?? source.format
-          const result: Result = {
-            id: nextId++,
-            path: plan.path,
-            label: plan.label,
-            blob: response.blob,
-            url: URL.createObjectURL(response.blob),
-            format,
-            fileName: resultFileName(source.name, plan.label, format),
-            stats: readStats(response.header),
-            downloaded: false,
-          }
-
-          // The same settings give the same path, and only the newest result for a path is shown, so it replaces the
-          // older one rather than leaving a hidden result that counts as not downloaded.
-          const index = results.value.findIndex(r => r.path === plan.path)
-          if (index === -1) {
-            results.value.push(result)
-          } else {
-            URL.revokeObjectURL(results.value[index]!.url)
-            results.value[index] = result
-          }
-          return
-        } catch (failure) {
-          // The stored copy expired or was deleted: upload it again, once, without counting an attempt.
-          if (failure instanceof ApiError && failure.status === 404 && stored?.image === source && !uploadedAgain) {
-            stored = null
-            uploadedAgain = true
-            job.value = start(attempt--)
-            continue
-          }
-          if (!(failure instanceof ApiError && failure.status === 503 && attempt < maxAttempts))
-            throw failure
-          const seconds = Math.min(failure.retryAfter ?? 2 ** attempt, 60)
-          job.value = { ...start(attempt + 1), phase: 'waiting', retryAt: Date.now() + seconds * 1000 }
-          await delay(seconds * 1000, current.signal)
-          job.value = start(attempt + 1)
+    // One try, uploading the image first unless the server has it.
+    const send = async (attempt: number): Promise<ImageResponse> => {
+      try {
+        const name = await storedName(source, options)
+        return name
+          ? await postImage(withSource(plan.path, name), null, options)
+          : await postImage(plan.path, source.blob, options)
+      } catch (failure) {
+        // The stored copy expired or was deleted: upload it again, once, without counting an attempt.
+        if (failure instanceof ApiError && failure.status === 404 && stored?.image === source && !uploadedAgain) {
+          stored = null
+          uploadedAgain = true
+          job.value = start(attempt)
+          return await send(attempt)
         }
+        throw failure
       }
+    }
+
+    try {
+      const response = await retryWhileBusy(attempt => {
+        if (attempt > 1)
+          job.value = start(attempt)
+        return send(attempt)
+      }, current.signal, (attempt, retryAt) => {
+        job.value = { ...start(attempt), phase: 'waiting', retryAt }
+      })
+      if (image.value !== source)
+        return
+
+      const format = formatFromContentType(response.blob.type || response.header('Content-Type')) ?? plan.format ?? source.format
+      add({
+        path: plan.path,
+        label: plan.label,
+        blob: response.blob,
+        url: URL.createObjectURL(response.blob),
+        format,
+        fileName: resultFileName(source.name, plan.label, format),
+        stats: readStats(response.header),
+      })
     } catch (failure) {
       if (failure instanceof DOMException && failure.name === 'AbortError')
         return
-      error.value = describe(failure)
+      error.value = describeFailure(failure, limits.value)
       if (failure instanceof ApiError && failure.status === 401)
         apiKey.reject()
     } finally {
@@ -352,44 +303,8 @@ export function useImage() {
     return name
   }
 
-  function describe(failure: unknown): JobError {
-    if (!(failure instanceof ApiError))
-      return { message: `Something went wrong in the page: ${String(failure)}`, status: -1, canRetry: true }
-
-    const { status, message } = failure
-    switch (status) {
-      case 0:
-        return { message, status, canRetry: true }
-      case 401:
-        return { message: 'The server needs a valid API key. Enter it, then try again.', status, canRetry: true }
-      case 413:
-        return {
-          message: `The file is larger than this server accepts${limits.value ? ` (${formatBytes(limits.value.maxInputSize)})` : ''}.`,
-          status,
-          canRetry: false,
-        }
-      case 503:
-        return { message: `${message} The server was still busy after ${maxAttempts} tries.`, status, canRetry: true }
-      case 504:
-        return {
-          message: `The server stopped after ${limits.value?.timeoutSeconds ?? 'its'} seconds. A smaller size or a lower `
-            + 'quality preset finishes sooner.',
-          status,
-          canRetry: true,
-        }
-      default:
-        return { message, status, canRetry: status >= 500 }
-    }
-  }
-
   function cancel() {
     controller?.abort()
-  }
-
-  function markDownloaded(id: number) {
-    const result = results.value.find(r => r.id === id)
-    if (result)
-      result.downloaded = true
   }
 
   function dismissError() {
@@ -406,27 +321,22 @@ export function useImage() {
     unstorable = null
     if (image.value)
       URL.revokeObjectURL(image.value.url)
-    for (const result of results.value)
-      URL.revokeObjectURL(result.url)
+    clear()
     image.value = null
-    results.value = []
   }
 
   return {
     image,
-    results,
     job: readonly(job),
     error: readonly(error),
     openError: readonly(openError),
     opening: readonly(opening),
     rect,
-    hasUnsavedResults,
     open,
     openUrl,
     cancelOpen,
     run,
     cancel,
-    markDownloaded,
     dismissError,
   }
 }
@@ -442,18 +352,4 @@ function withSource(path: string, name: string): string {
  */
 function canSendInstead(failure: unknown): boolean {
   return failure instanceof ApiError && ![0, 401, 413, 415, 422, 503].includes(failure.status)
-}
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timer)
-      reject(new DOMException('The request was cancelled.', 'AbortError'))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
 }

@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { effectScope } from 'vue'
-import { applySavedTheme, useTheme } from './useTheme'
+import { applySavedTheme } from './useTheme'
 
 function systemPrefersDark(dark: boolean) {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: dark, addEventListener() {}, removeEventListener() {} })))
 }
 
-function withTheme() {
-  const scope = effectScope()
-  const result = scope.run(() => useTheme())!
-  return { ...result, stop: () => scope.stop() }
+// The theme is shared module state, read on first use, so each test imports a fresh copy.
+async function load() {
+  vi.resetModules()
+  const { useTheme } = await import('./useTheme')
+  return useTheme()
 }
 
 beforeEach(() => {
@@ -23,37 +23,34 @@ afterEach(() => {
 })
 
 describe('useTheme', () => {
-  it('follows the system until the user chooses', () => {
+  it('follows the system until the user chooses', async () => {
     systemPrefersDark(true)
 
-    const { theme, stop } = withTheme()
+    const { theme } = await load()
 
     expect(theme.value).toBe('dark')
     expect(document.documentElement.dataset.theme).toBeUndefined()
-    stop()
   })
 
-  it('toggles, applies and remembers the choice', () => {
+  it('toggles, applies and remembers the choice', async () => {
     systemPrefersDark(false)
-    const { theme, toggle, stop } = withTheme()
+    const { theme, toggle } = await load()
 
     toggle()
 
     expect(theme.value).toBe('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(localStorage.getItem('image-mason.theme')).toBe('dark')
-    stop()
   })
 
-  it('still toggles when storage is blocked', () => {
+  it('still toggles when storage is blocked', async () => {
     systemPrefersDark(false)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError') })
-    const { theme, toggle, stop } = withTheme()
+    const { theme, toggle } = await load()
 
     toggle()
 
     expect(theme.value).toBe('dark')
-    stop()
   })
 })
 

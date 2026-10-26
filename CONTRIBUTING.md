@@ -39,18 +39,13 @@ The build treats warnings as errors and enforces the code style in [.editorconfi
 ### Guidelines
 
 - Keep the API backward compatible within a major version. Breaking changes go in a new API version.
-- Settings are `IMAGE_MASON_*` environment variables. Document new ones in [.env.sample](.env.sample) and
-  the README.
-- Keep the image tools as separate programs, and add any new third-party component to
-  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) with its license in [licenses/](licenses/).
-- Pin new dependencies to their latest stable version. Packages bundled into the web interface count as
-  third-party components too.
+- Settings are `IMAGE_MASON_*` environment variables. Document new ones in [.env.sample](.env.sample) and the README.
+- Keep the image tools as separate programs, and add any new third-party component to [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) with its license in [licenses/](licenses/).
+- Pin new dependencies to their latest stable version. Packages bundled into the web interface count as third-party components too.
 
 ## Sign-Off
 
-Contributions are accepted under the [Apache License 2.0](LICENSE). Sign off each commit to certify that
-you wrote it or otherwise have the right to submit it, as described in the
-[Developer Certificate of Origin](https://developercertificate.org/):
+Contributions are accepted under the [Apache License 2.0](LICENSE). Sign off each commit to certify that you wrote it or otherwise have the right to submit it, as described in the [Developer Certificate of Origin](https://developercertificate.org/):
 
 ```bash
 git commit -s

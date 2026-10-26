@@ -1,16 +1,10 @@
 # Third-Party Notices
 
-Image Mason is licensed under the [Apache License 2.0](LICENSE). The Docker image also contains
-third-party software, distributed under the licenses listed below. Those licenses apply to those
-components only.
+Image Mason is licensed under the [Apache License 2.0](LICENSE). The Docker image also contains third-party software, distributed under the licenses listed below. Those licenses apply to those components only.
 
-The image tools (`cjpegli`, `ssimulacra2`, `cjxl`, `djxl`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`,
-`oxipng`, `pngquant`) run as separate programs. None of them is linked into the Image Mason application. The application binary
-contains the .NET runtime and ASP.NET Core, compiled in ahead of time, and the web interface's files (Vue and the
-Barlow fonts), embedded as resources.
+The image tools (`cjpegli`, `ssimulacra2`, `cjxl`, `djxl`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`, `oxipng`, `pngquant`) run as separate programs. None of them is linked into the Image Mason application. The application binary contains the .NET runtime and ASP.NET Core, compiled in ahead of time, and the web interface's files (Vue and the Barlow fonts), embedded as resources.
 
-Full license texts are in the [`licenses/`](licenses/) directory. In the image, they are in
-`/usr/share/licenses/image-mason/`.
+Full license texts are in the [`licenses/`](licenses/) directory. In the image, they are in `/usr/share/licenses/image-mason/`.
 
 ## Image Tools
 
@@ -30,68 +24,49 @@ Full license texts are in the [`licenses/`](licenses/) directory. In the image, 
 
 ### libjxl
 
-Copyright (c) the JPEG XL Project Authors. All rights reserved.
-See [`licenses/libjxl-LICENSE.txt`](licenses/libjxl-LICENSE.txt) and
-[`licenses/libjxl-PATENTS.txt`](licenses/libjxl-PATENTS.txt).
+Copyright (c) the JPEG XL Project Authors. All rights reserved. See [`licenses/libjxl-LICENSE.txt`](licenses/libjxl-LICENSE.txt) and [`licenses/libjxl-PATENTS.txt`](licenses/libjxl-PATENTS.txt).
 
 ### mozjpeg
 
 This software is based in part on the work of the Independent JPEG Group.
 
-Copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding.
-Copyright (C) 2009-2023 D. R. Commander. Copyright (C) 2015 Viktor Szathmáry.
-See [`licenses/mozjpeg-LICENSE.md`](licenses/mozjpeg-LICENSE.md) and
-[`licenses/mozjpeg-README.ijg.txt`](licenses/mozjpeg-README.ijg.txt).
+Copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding. Copyright (C) 2009-2023 D. R. Commander. Copyright (C) 2015 Viktor Szathmáry. See [`licenses/mozjpeg-LICENSE.md`](licenses/mozjpeg-LICENSE.md) and [`licenses/mozjpeg-README.ijg.txt`](licenses/mozjpeg-README.ijg.txt).
 
 ### libvips
 
-Licensed under the GNU Lesser General Public License, version 2.1 or later.
-See [`licenses/libvips-LICENSE.txt`](licenses/libvips-LICENSE.txt).
+Licensed under the GNU Lesser General Public License, version 2.1 or later. See [`licenses/libvips-LICENSE.txt`](licenses/libvips-LICENSE.txt).
 
 ### libavif
 
-Copyright 2019 Joe Drago. All rights reserved. See [`licenses/libavif-LICENSE.txt`](licenses/libavif-LICENSE.txt),
-which also covers code libavif includes from other projects.
+Copyright 2019 Joe Drago. All rights reserved. See [`licenses/libavif-LICENSE.txt`](licenses/libavif-LICENSE.txt), which also covers code libavif includes from other projects.
 
 ### aom
 
-Copyright (c) 2016, Alliance for Open Media. All rights reserved.
-See [`licenses/aom-LICENSE.txt`](licenses/aom-LICENSE.txt) and
-[`licenses/aom-PATENTS.txt`](licenses/aom-PATENTS.txt) (Alliance for Open Media Patent License 1.0).
+Copyright (c) 2016, Alliance for Open Media. All rights reserved. See [`licenses/aom-LICENSE.txt`](licenses/aom-LICENSE.txt) and [`licenses/aom-PATENTS.txt`](licenses/aom-PATENTS.txt) (Alliance for Open Media Patent License 1.0).
 
 ### dav1d
 
-Copyright © 2018-2025, VideoLAN and dav1d authors. All rights reserved.
-See [`licenses/dav1d-COPYING.txt`](licenses/dav1d-COPYING.txt).
+Copyright © 2018-2025, VideoLAN and dav1d authors. All rights reserved. See [`licenses/dav1d-COPYING.txt`](licenses/dav1d-COPYING.txt).
 
 ### libyuv
 
-Copyright 2011 The LibYuv Project Authors. All rights reserved.
-See [`licenses/libyuv-LICENSE.txt`](licenses/libyuv-LICENSE.txt) and
-[`licenses/libyuv-PATENTS.txt`](licenses/libyuv-PATENTS.txt).
+Copyright 2011 The LibYuv Project Authors. All rights reserved. See [`licenses/libyuv-LICENSE.txt`](licenses/libyuv-LICENSE.txt) and [`licenses/libyuv-PATENTS.txt`](licenses/libyuv-PATENTS.txt).
 
 ### libargparse
 
-Copyright 2017 K. Murray. Licensed under the MIT License.
-See [`licenses/libargparse-LICENSE.md`](licenses/libargparse-LICENSE.md).
+Copyright 2017 K. Murray. Licensed under the MIT License. See [`licenses/libargparse-LICENSE.md`](licenses/libargparse-LICENSE.md).
 
 ### libwebp
 
-Copyright (c) 2010, Google Inc. All rights reserved.
-See [`licenses/libwebp-COPYING.txt`](licenses/libwebp-COPYING.txt) and
-[`licenses/libwebp-PATENTS.txt`](licenses/libwebp-PATENTS.txt).
+Copyright (c) 2010, Google Inc. All rights reserved. See [`licenses/libwebp-COPYING.txt`](licenses/libwebp-COPYING.txt) and [`licenses/libwebp-PATENTS.txt`](licenses/libwebp-PATENTS.txt).
 
 ### oxipng
 
-Copyright (c) 2016 Joshua Holmer. Licensed under the MIT License.
-See [`licenses/oxipng-LICENSE.txt`](licenses/oxipng-LICENSE.txt).
+Copyright (c) 2016 Joshua Holmer. Licensed under the MIT License. See [`licenses/oxipng-LICENSE.txt`](licenses/oxipng-LICENSE.txt).
 
 ### pngquant and libimagequant
 
-pngquant © 2009-2018 by Kornel Lesiński. Licensed under the GNU General Public License, version 3 or
-later. Derived from code by Jef Poskanzer and Greg Roelofs under their original licenses.
-See [`licenses/pngquant-COPYRIGHT.txt`](licenses/pngquant-COPYRIGHT.txt) and
-[`licenses/libimagequant-COPYRIGHT.txt`](licenses/libimagequant-COPYRIGHT.txt).
+pngquant © 2009-2018 by Kornel Lesiński. Licensed under the GNU General Public License, version 3 or later. Derived from code by Jef Poskanzer and Greg Roelofs under their original licenses. See [`licenses/pngquant-COPYRIGHT.txt`](licenses/pngquant-COPYRIGHT.txt) and [`licenses/libimagequant-COPYRIGHT.txt`](licenses/libimagequant-COPYRIGHT.txt).
 
 ## .NET
 
@@ -101,9 +76,7 @@ See [`licenses/pngquant-COPYRIGHT.txt`](licenses/pngquant-COPYRIGHT.txt) and
 | ASP.NET Core | MIT | <https://github.com/dotnet/aspnetcore> |
 | Asp.Versioning.Http | MIT | <https://github.com/dotnet/aspnet-api-versioning> |
 
-Copyright (c) .NET Foundation and Contributors. See [`licenses/dotnet-LICENSE.txt`](licenses/dotnet-LICENSE.txt)
-and [`licenses/asp-versioning-LICENSE.txt`](licenses/asp-versioning-LICENSE.txt). The .NET runtime and
-ASP.NET Core include further third-party components, listed in their own `THIRD-PARTY-NOTICES.TXT` files:
+Copyright (c) .NET Foundation and Contributors. See [`licenses/dotnet-LICENSE.txt`](licenses/dotnet-LICENSE.txt) and [`licenses/asp-versioning-LICENSE.txt`](licenses/asp-versioning-LICENSE.txt). The .NET runtime and ASP.NET Core include further third-party components, listed in their own `THIRD-PARTY-NOTICES.TXT` files:
 
 - <https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT>
 - <https://github.com/dotnet/aspnetcore/blob/main/THIRD-PARTY-NOTICES.txt>
@@ -118,18 +91,13 @@ Bundled into the web interface's JavaScript, CSS and font files, which are embed
 | Barlow (font, from `@fontsource/barlow`) | 5.3.0 | OFL-1.1 | <https://github.com/jpt/barlow> |
 | Barlow Semi Condensed (font, from `@fontsource/barlow-semi-condensed`) | 5.3.0 | OFL-1.1 | <https://github.com/jpt/barlow> |
 
-Vue: Copyright (c) 2018-present, Yuxi (Evan) You. See
-[`licenses/vue-LICENSE.txt`](licenses/vue-LICENSE.txt).
+Vue: Copyright (c) 2018-present, Yuxi (Evan) You. See [`licenses/vue-LICENSE.txt`](licenses/vue-LICENSE.txt).
 
-Barlow and Barlow Semi Condensed: Copyright 2017 The Barlow Project Authors. See
-[`licenses/barlow-OFL.txt`](licenses/barlow-OFL.txt) and
-[`licenses/barlow-semi-condensed-OFL.txt`](licenses/barlow-semi-condensed-OFL.txt).
+Barlow and Barlow Semi Condensed: Copyright 2017 The Barlow Project Authors. See [`licenses/barlow-OFL.txt`](licenses/barlow-OFL.txt) and [`licenses/barlow-semi-condensed-OFL.txt`](licenses/barlow-semi-condensed-OFL.txt).
 
 ## Base Image and Shared Libraries
 
-The image is built on `mcr.microsoft.com/dotnet/runtime-deps` (Alpine Linux 3.24). These Alpine packages
-are installed, each under its own license. Versions change as Alpine publishes updates. To list the
-packages in a specific image:
+The image is built on `mcr.microsoft.com/dotnet/runtime-deps` (Alpine Linux 3.24). These Alpine packages are installed, each under its own license. Versions change as Alpine publishes updates. To list the packages in a specific image:
 
 ```bash
 docker run --rm --entrypoint apk hendridm/image-mason:<tag> list --installed
@@ -154,15 +122,9 @@ docker run --rm --entrypoint apk hendridm/image-mason:<tag> list --installed
 
 ## Source Code for GPL and LGPL Components
 
-The corresponding source for every GPL- and LGPL-licensed component in the image is available at no
-charge:
+The corresponding source for every GPL- and LGPL-licensed component in the image is available at no charge:
 
-- **Built from source** (libvips): the exact upstream tag linked above. The build steps are in this
-  repository's `Dockerfile`.
-- **Alpine packages** (pngquant, busybox, glib and others): the package build recipe is in
-  [Alpine aports](https://gitlab.alpinelinux.org/alpine/aports), on the branch for the Alpine release
-  in the image (for example `3.24-stable`), under `main/<package>/` or `community/<package>/`. Each
-  `APKBUILD` names the upstream source archive and lists any patches Alpine applies.
+- **Built from source** (libvips): the exact upstream tag linked above. The build steps are in this repository's `Dockerfile`.
+- **Alpine packages** (pngquant, busybox, glib and others): the package build recipe is in [Alpine aports](https://gitlab.alpinelinux.org/alpine/aports), on the branch for the Alpine release in the image (for example `3.24-stable`), under `main/<package>/` or `community/<package>/`. Each `APKBUILD` names the upstream source archive and lists any patches Alpine applies.
 
-If a source link stops working, open an issue at <https://github.com/dmhendricks/image-mason/issues> and
-the source will be provided.
+If a source link stops working, open an issue at <https://github.com/dmhendricks/image-mason/issues> and the source will be provided.

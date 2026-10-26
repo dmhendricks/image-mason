@@ -21,6 +21,7 @@ public sealed class ImageMasonOptionsTests
         Assert.Null(options.ApiKey);
         Assert.Equal(defaults.MaxInputBytes, options.MaxInputBytes);
         Assert.Equal(defaults.MaxPixels, options.MaxPixels);
+        Assert.Equal(Environment.ProcessorCount, options.MaxConcurrentJobs);
         Assert.Equal(0, options.DefaultMaxWidth);
         Assert.Equal(QualityPreset.Medium, options.DefaultQuality);
         Assert.Equal(120, options.TimeoutSeconds);

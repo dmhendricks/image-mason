@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format is based on 
 - **Breaking:** the default `quality` is now `medium` (was `high`), in the API and the web interface. Set `IMAGE_MASON_DEFAULT_QUALITY=high`, or send `quality=high`, for the previous results.
 - libjxl 0.12.0 (`cjxl`, `djxl`, `ssimulacra2`; was 0.11.2), with about 30 security and hardening fixes to the decoder. jpegli moved out of libjxl in 0.12, so `cjpegli` is built from [google/jpegli](https://github.com/google/jpegli), pinned to a commit since it has no releases yet.
 - oxipng 10.2.1 (was 9.1.5), from the project's static release build, since Alpine still packages 9.1.5.
+- `IMAGE_MASON_MAX_CONCURRENT_JOBS` defaults to the container's CPU count (was 2). Scoring and most encoders use one core, so two jobs left half of a 4-CPU container idle; 20 small photos now optimize in 1.1 s instead of about 2 s. Large images still wait for memory.
+- A PNG (or a WebP, AVIF or JPEG XL) whose alpha channel is opaque everywhere is scored without it, since ssimulacra2 scores images with alpha on two backgrounds. Results are byte for byte the same; jobs on such images are 25–35% faster (WebP, AVIF and JPEG XL output) and about 10% faster to PNG.
 
 ### Fixed
 

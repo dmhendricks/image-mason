@@ -77,11 +77,14 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
 
     private sealed record Candidate(string Method, string Path, long Size, double? Score);
 
-    /// <param name="Reference">The pixels results are encoded from and scored against: the source, or a normalized PNG.</param>
+    /// <param name="Reference">The pixels results are scored against: the source, or a normalized PNG.</param>
+    /// <param name="Input">The pixels results are encoded from: the reference, or the same pixels with an alpha channel
+    /// that the reference dropped because it is opaque everywhere.</param>
     /// <param name="Cropped">Cropped; method names start with "crop+".</param>
     /// <param name="Resized">Resized; method names start with "resize+" (after "crop+").</param>
     /// <param name="Icc">The reference embeds an ICC profile, which the encoders copy.</param>
-    private sealed record Job(string Work, string Source, string Reference, ImageInfo Info, bool Cropped, bool Resized, double? MinScore, bool Icc);
+    private sealed record Job(string Work, string Source, string Reference, string Input, ImageInfo Info, bool Cropped, bool Resized,
+        double? MinScore, bool Icc);
 
     /// <summary>One encoder setting searched for the smallest result that meets the floor.</summary>
     /// <param name="Smaller">+1 when a higher value gives a smaller file (jpegli distance), -1 when lower does (quality).</param>
@@ -175,14 +178,25 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             var referenceFormat = reference == source ? format : ImageFormat.Png;
             var head = reference == source ? input : await ReadHeadAsync(reference, ct);
 
+            var hasAlpha = referenceFormat == ImageFormat.Png && ImageHeader.PngHasAlpha(head);
+
             // JPEG has no alpha: flatten onto white, which is also what the result is scored against.
-            if (target == ImageFormat.Jpeg && referenceFormat == ImageFormat.Png && ImageHeader.PngHasAlpha(head))
+            if (target == ImageFormat.Jpeg && hasAlpha)
             {
                 reference = await FlattenAsync(reference, work.FullName, ImageHeader.PngBitDepth(head), ct);
                 head = await ReadHeadAsync(reference, ct);
+                hasAlpha = false;
             }
 
-            var job = new Job(work.FullName, source, reference, info, crop, resize, minScore, ImageHeader.HasIccProfile(head, referenceFormat));
+            // Scoring an image with alpha takes two to three times as long (ssimulacra2 also scores it on a dark and a light
+            // background), so an alpha channel that is opaque everywhere is dropped from what results are scored
+            // against; the scores are the same. The encoders keep their input, so the results don't change.
+            var encoderInput = reference;
+            if (hasAlpha && scored && await IsOpaqueAsync(reference, work.FullName, ImageHeader.PngBitDepth(head), ct))
+                reference = await FlattenAsync(reference, work.FullName, ImageHeader.PngBitDepth(head), ct);
+
+            var job = new Job(work.FullName, source, reference, encoderInput, info, crop, resize, minScore,
+                ImageHeader.HasIccProfile(head, referenceFormat));
 
             // Size guard: unless the image must be cropped, resized or converted, the original is a candidate and wins ties.
             List<Candidate> candidates = crop || resize || converting ? [] : [new(Original, source, input.Length, null)];
@@ -375,6 +389,26 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         return output;
     }
 
+    /// <summary>
+    /// True when a PNG's alpha channel is at its maximum everywhere. vips stats writes one row per band after the
+    /// all-bands row, alpha last, with the minimum first. False when the check fails, which only costs speed.
+    /// </summary>
+    private async Task<bool> IsOpaqueAsync(string png, string work, int bitDepth, CancellationToken ct)
+    {
+        var output = Path.Combine(work, "stats.mat");
+        var vips = await tools.RunAsync("vips", ["stats", png, output], ct);
+        if (vips.ExitCode != 0 || !File.Exists(output))
+        {
+            logger.LogWarning("vips stats exited {ExitCode}: {StdErr}", vips.ExitCode, vips.StdErr);
+            return false;
+        }
+
+        var rows = (await File.ReadAllLinesAsync(output, ct)).Where(line => line.Length > 0).ToArray();
+        var alphaMin = rows.Length > 2 ? rows[^1].Split(' ', StringSplitOptions.RemoveEmptyEntries)[0] : null;
+        return double.TryParse(alphaMin, NumberStyles.Float, CultureInfo.InvariantCulture, out var min)
+            && min >= (bitDepth == 16 ? 65535 : 255);
+    }
+
     /// <summary>Throws <paramref name="message"/> to the caller when a step the job can't do without fails, and logs why.</summary>
     /// <exception cref="ImageProcessingException">The tool failed or wrote no output.</exception>
     private void EnsureOutput(string tool, ToolResult result, string output, string message)
@@ -440,7 +474,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     {
         var d = distance.ToString("0.###", CultureInfo.InvariantCulture);
         var output = Path.Combine(job.Work, $"jpegli-{suffix}.jpg");
-        var cjpegli = await tools.RunAsync("cjpegli", [job.Reference, output, $"--distance={d}"], ct);
+        var cjpegli = await tools.RunAsync("cjpegli", [job.Input, output, $"--distance={d}"], ct);
         if (cjpegli.ExitCode != 0 || !File.Exists(output))
         {
             logger.LogWarning("cjpegli exited {ExitCode}: {StdErr}", cjpegli.ExitCode, cjpegli.StdErr);
@@ -473,7 +507,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             var cwebp = await tools.RunAsync("cwebp",
             [
                 "-quiet", "-lossless", "-exact", "-z", options.WebPLosslessEffort.ToString(CultureInfo.InvariantCulture),
-                "-metadata", "icc", job.Reference, "-o", output
+                "-metadata", "icc", job.Input, "-o", output
             ], ct);
 
             if (cwebp.ExitCode == 0 && File.Exists(output))
@@ -488,7 +522,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var q = quality.ToString("0", CultureInfo.InvariantCulture);
         var output = Path.Combine(job.Work, $"webp-{suffix}.webp");
         var cwebp = await tools.RunAsync("cwebp",
-            ["-quiet", "-m", "4", "-sharp_yuv", "-q", q, "-metadata", "icc", job.Reference, "-o", output], ct);
+            ["-quiet", "-m", "4", "-sharp_yuv", "-q", q, "-metadata", "icc", job.Input, "-o", output], ct);
         if (cwebp.ExitCode != 0 || !File.Exists(output))
         {
             logger.LogWarning("cwebp exited {ExitCode}: {StdErr}", cwebp.ExitCode, cwebp.StdErr);
@@ -545,7 +579,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         if (!job.Icc)
             args.AddRange(["--cicp", lossless ? "1/13/0" : "1/13/6"]);
 
-        args.AddRange([job.Reference, output]);
+        args.AddRange([job.Input, output]);
 
         var avifenc = await tools.RunAsync("avifenc", args, ct);
         if (avifenc.ExitCode == 0 && File.Exists(output))
@@ -593,7 +627,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         if (tryLossless || (found is null && recompressed is null))
         {
             var output = Path.Combine(job.Work, "lossless.jxl");
-            if (await RunCjxlAsync(job.Reference, output, ["-d", "0"], ct))
+            if (await RunCjxlAsync(job.Input, output, ["-d", "0"], ct))
                 candidates.Add(new(MethodName(job, "cjxl-lossless"), output, new FileInfo(output).Length, null));
         }
     }
@@ -605,7 +639,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
 
         // cjxl recompresses a JPEG input losslessly unless told not to, whatever the distance; the reference is the
         // source JPEG itself when nothing else changes.
-        if (!await RunCjxlAsync(job.Reference, output, ["-d", d, "--lossless_jpeg=0"], ct))
+        if (!await RunCjxlAsync(job.Input, output, ["-d", d, "--lossless_jpeg=0"], ct))
             return null;
 
         // Scored from djxl's PNG, the pixels a viewer shows; ssimulacra2 reading the .jxl itself scores a little higher.
@@ -705,12 +739,12 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     private async Task OptimizePngAsync(Job job, List<Candidate> candidates, CancellationToken ct)
     {
         // Lossless baseline: oxipng on the original, or on the resized pixels
-        var lossless = await OxipngAsync(job.Reference, Path.Combine(job.Work, "lossless.png"), alpha: false, ct);
+        var lossless = await OxipngAsync(job.Input, Path.Combine(job.Work, "lossless.png"), alpha: false, ct);
         if (lossless is not null)
             candidates.Add(new(MethodName(job, "oxipng"), lossless, new FileInfo(lossless).Length, null));
-        else if (job.Reference != job.Source)
+        else if (job.Input != job.Source)
             candidates.Add(new(MethodName(job, "") is { Length: > 0 } changed ? changed.TrimEnd('+') : "decode",
-                job.Reference, new FileInfo(job.Reference).Length, null));
+                job.Input, new FileInfo(job.Input).Length, null));
 
         if (job.MinScore is not { } minScore)
             return;
@@ -743,7 +777,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         {
             var output = Path.Combine(job.Work, $"quantized-{maxQuality}.png");
             var pngquant = await tools.RunAsync("pngquant",
-                ["--quality", $"0-{maxQuality}", "--speed", "1", "--force", "--output", output, "--", job.Reference], ct);
+                ["--quality", $"0-{maxQuality}", "--speed", "1", "--force", "--output", output, "--", job.Input], ct);
 
             if (pngquant.ExitCode != 0 || !File.Exists(output))
             {

@@ -400,7 +400,7 @@ All settings are environment variables, and all are optional. Sizes are in bytes
 | `IMAGE_MASON_PUBLIC_BASE_URL` | | Origin for stored image URLs, such as `https://images.example.com`, when behind a proxy. Empty uses each request's scheme and host. |
 | `IMAGE_MASON_MAX_INPUT_SIZE` | `25m` | Largest accepted image file |
 | `IMAGE_MASON_MAX_PIXELS` | `50000000` | Largest accepted image in pixels, checked before decoding |
-| `IMAGE_MASON_MAX_CONCURRENT_JOBS` | `2` | Requests processed at once |
+| `IMAGE_MASON_MAX_CONCURRENT_JOBS` | CPU count | Requests processed at once. Large images also wait for memory; see [Memory](#memory). |
 | `IMAGE_MASON_MAX_QUEUED_JOBS` | `16` | Requests that wait for a slot before getting 503 |
 | `IMAGE_MASON_TIMEOUT_SECONDS` | `120` | Time before a request stops with 504 |
 | `IMAGE_MASON_MEMORY_LIMIT` | container limit | Memory the service may use. See [Memory](#memory). |

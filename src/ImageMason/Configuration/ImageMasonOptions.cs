@@ -22,8 +22,11 @@ public sealed class ImageMasonOptions
     /// <summary>Largest accepted image (width x height), checked against the file header before anything is decoded.</summary>
     public long MaxPixels { get; init; } = 50_000_000;
 
-    /// <summary>Jobs that run at once. oxipng and avifenc are multithreaded, so keep this near half the CPU count.</summary>
-    public int MaxConcurrentJobs { get; init; } = 2;
+    /// <summary>
+    /// Jobs that run at once. Defaults to the CPU count (the container's CPU limit, when it has one): scoring and most
+    /// encoders use one core, and the memory gate, not this limit, keeps large jobs from running out of memory.
+    /// </summary>
+    public int MaxConcurrentJobs { get; init; } = Environment.ProcessorCount;
 
     /// <summary>Requests that wait for a slot before the service answers 503.</summary>
     public int MaxQueuedJobs { get; init; } = 16;

@@ -29,7 +29,10 @@ const fitHints: Record<Fit, string> = {
   fill: 'Stretches to exactly the box, changing the shape.',
 }
 
-const sizeError = computed(() => plan.value.errors.width ?? plan.value.errors.height)
+// Both sides empty still blocks the run, but it's where every resize starts, so it reads as a hint rather than
+// marking a field wrong. Values that are actually wrong (not a number, out of range) still show as errors.
+const empty = computed(() => settings.width === null && settings.height === null)
+const sizeError = computed(() => empty.value ? undefined : plan.value.errors.width ?? plan.value.errors.height)
 </script>
 
 <template>
@@ -40,7 +43,7 @@ const sizeError = computed(() => plan.value.errors.width ?? plan.value.errors.he
         v-model="settings.width"
         placeholder="Auto"
         aria-label="Width"
-        :aria-invalid="plan.errors.width ? 'true' : undefined"
+        :aria-invalid="plan.errors.width && !empty ? 'true' : undefined"
       />
       <span aria-hidden="true">×</span>
       <NumberField
@@ -51,6 +54,7 @@ const sizeError = computed(() => plan.value.errors.width ?? plan.value.errors.he
       />
     </div>
     <p v-if="sizeError" class="field-error">{{ sizeError }}</p>
+    <p v-else-if="empty" class="hint">Enter a width, a height or both. Leave one side empty to keep the shape.</p>
     <p v-else class="hint">Leave one side empty to keep the shape.</p>
   </div>
 

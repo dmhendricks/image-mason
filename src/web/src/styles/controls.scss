@@ -110,6 +110,11 @@
   }
 
   &:has(.field:disabled) .unit { opacity: 0.55; }
+
+  // One focus ring around the field and its unit, which would otherwise paint over the field's own ring.
+  border-radius: var(--radius);
+  .field:focus-visible { outline: none; }
+  &:has(.field:focus-visible) { outline: 2px solid var(--flag); outline-offset: 1px; }
 }
 
 .seg {

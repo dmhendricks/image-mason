@@ -17,6 +17,10 @@ All notable changes to this project are documented here. The format is based on
 ### Changed
 
 - The usage examples that were at `/` moved to `/docs`.
+- **Breaking:** the JSON `reductionPercent` is now `sizeChangePercent`, and the `X-Image-Mason-Reduction-Percent`
+  header is now `X-Image-Mason-Size-Change-Percent`. The sign is flipped: negative when the result is smaller,
+  positive when it's larger.
+- The optimize log line says "larger" instead of a negative "smaller".
 
 ## [0.2.1] - 2026-10-25
 

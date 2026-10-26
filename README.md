@@ -102,7 +102,7 @@ The response body is the optimized image. Its statistics are in the response hea
 X-Image-Mason-Quality: high
 X-Image-Mason-Original-Size: 93694
 X-Image-Mason-Optimized-Size: 47521
-X-Image-Mason-Reduction-Percent: 49.28
+X-Image-Mason-Size-Change-Percent: -49.28
 X-Image-Mason-Original-Dimensions: 640x427
 X-Image-Mason-Dimensions: 640x427
 X-Image-Mason-Method: jpegli-d1.15
@@ -179,7 +179,7 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @graphic.png \
   "mimeType": "image/png",
   "originalSize": 9810,
   "compressedSize": 894,
-  "reductionPercent": 90.89,
+  "sizeChangePercent": -90.89,
   "originalWidth": 480,
   "originalHeight": 320,
   "width": 480,
@@ -272,7 +272,7 @@ Response headers:
 | `X-Image-Mason-Quality` | The preset used |
 | `X-Image-Mason-Original-Size` | Input size in bytes |
 | `X-Image-Mason-Optimized-Size` | Output size in bytes |
-| `X-Image-Mason-Reduction-Percent` | Percent smaller than the input; negative if larger |
+| `X-Image-Mason-Size-Change-Percent` | Percent change from the input size: negative if smaller, positive if larger |
 | `X-Image-Mason-Original-Dimensions` | Input width x height |
 | `X-Image-Mason-Dimensions` | Output width x height |
 | `X-Image-Mason-Method` | How the result was produced, such as `jpegtran`, `jpegli-d1.15`, `oxipng`, `pngquant+oxipng`, `cwebp-q93`, `cwebp-lossless`, `avifenc-q80` or `original`. Cropped results start with `crop+` and resized ones with `resize+` (`crop+resize+` when both). |

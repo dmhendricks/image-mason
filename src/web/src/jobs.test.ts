@@ -57,6 +57,16 @@ describe('planJob', () => {
       .toEqual({ quality: 'high', format: 'webp' })
   })
 
+  it('treats a chosen format that is the input\'s own as keeping it', () => {
+    const png: SourceImage = { width: 640, height: 480, format: 'png' }
+
+    expect(query(planJob('optimize', settings({ format: 'jpeg' }), photo, null, limits).path)).toEqual({ quality: 'high' })
+    expect(query(planJob('optimize', settings({ format: 'png', preferJpeg: true }), png, null, limits).path))
+      .toEqual({ quality: 'high', preferJpeg: 'true' })
+    expect(query(planJob('optimize', settings({ format: 'jpeg' }), png, null, limits).path))
+      .toEqual({ quality: 'high', format: 'jpeg' })
+  })
+
   it('shrinks to maxWidth, or to the server default when none is sent', () => {
     expect(planJob('optimize', settings({ maxWidth: 320 }), photo, null, limits).output).toEqual({ width: 320, height: 240 })
     expect(planJob('optimize', settings(), photo, null, { ...limits, defaultMaxWidth: 400 }).output).toEqual({ width: 400, height: 300 })

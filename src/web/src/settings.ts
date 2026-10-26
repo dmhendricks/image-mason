@@ -35,6 +35,14 @@ export interface Settings {
   upscale: boolean
 }
 
+/**
+ * The format to ask for: null ("Keep") when none is chosen, or when the chosen one is the input's own. The
+ * saved choice stays as it is, so it still converts the next image that's in another format.
+ */
+export function chosenFormat(format: ImageFormat | null, input: ImageFormat | undefined): ImageFormat | null {
+  return format === input ? null : format
+}
+
 export function defaultSettings(): Settings {
   return {
     tool: 'optimize',

@@ -171,16 +171,16 @@ internal static class OptimizeEndpoint
             var floor = result.MinScore?.ToString("0.##", CultureInfo.InvariantCulture);
             var before = $"{result.OriginalInfo.Width}x{result.OriginalInfo.Height}";
             var after = $"{result.Info.Width}x{result.Info.Height}";
-            var reduction = result.OriginalSize == 0
+            var sizeChange = result.OriginalSize == 0
                 ? 0
-                : Math.Round((result.OriginalSize - result.Data.Length) * 100d / result.OriginalSize, 2);
-            var reductionText = reduction.ToString("0.##", CultureInfo.InvariantCulture);
+                : Math.Round((result.Data.Length - result.OriginalSize) * 100d / result.OriginalSize, 2);
+            var sizeChangeText = sizeChange.ToString("0.##", CultureInfo.InvariantCulture);
 
             var headers = http.Response.Headers;
             headers["X-Image-Mason-Quality"] = qualityName;
             headers["X-Image-Mason-Original-Size"] = result.OriginalSize.ToString(CultureInfo.InvariantCulture);
             headers["X-Image-Mason-Optimized-Size"] = result.Data.Length.ToString(CultureInfo.InvariantCulture);
-            headers["X-Image-Mason-Reduction-Percent"] = reductionText;
+            headers["X-Image-Mason-Size-Change-Percent"] = sizeChangeText;
             headers["X-Image-Mason-Original-Dimensions"] = before;
             headers["X-Image-Mason-Dimensions"] = after;
             headers["X-Image-Mason-Method"] = result.Method;
@@ -193,9 +193,9 @@ internal static class OptimizeEndpoint
                 headers["X-Image-Mason-Is-Photo"] = photo ? "true" : "false";
 
             var formats = detected == result.Format ? result.Format.Name() : $"{detected.Name()} -> {result.Format.Name()}";
-            var sizeChange = $"{Math.Abs(reduction).ToString("0.##", CultureInfo.InvariantCulture)}% {(reduction < 0 ? "larger" : "smaller")}";
+            var sizeChangeLog = $"{Math.Abs(sizeChange).ToString("0.##", CultureInfo.InvariantCulture)}% {(sizeChange > 0 ? "larger" : "smaller")}";
             logger.LogInformation("{Quality} {Formats} {Before}: {BeforeBytes} -> {AfterBytes} bytes ({SizeChange}), {After} via {Method} (score {Score}, min {MinScore}, isPhoto {IsPhoto}) in {ElapsedMs} ms",
-                preset, formats, before, result.OriginalSize, result.Data.Length, sizeChange, after, result.Method, score ?? "n/a", floor ?? "n/a", isPhoto?.ToString() ?? "n/a", elapsedMs);
+                preset, formats, before, result.OriginalSize, result.Data.Length, sizeChangeLog, after, result.Method, score ?? "n/a", floor ?? "n/a", isPhoto?.ToString() ?? "n/a", elapsedMs);
 
             if (!asJson)
                 return Results.Bytes(result.Data, result.Format.ContentType());
@@ -220,7 +220,7 @@ internal static class OptimizeEndpoint
                 MimeType = result.Format.ContentType(),
                 OriginalSize = result.OriginalSize,
                 CompressedSize = result.Data.Length,
-                ReductionPercent = reduction,
+                SizeChangePercent = sizeChange,
                 OriginalWidth = result.OriginalInfo.Width,
                 OriginalHeight = result.OriginalInfo.Height,
                 Width = result.Info.Width,

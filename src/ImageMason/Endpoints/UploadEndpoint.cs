@@ -54,7 +54,7 @@ internal static class UploadEndpoint
                 MimeType = format.ContentType(),
                 OriginalSize = input.LongLength,
                 CompressedSize = input.LongLength,
-                ReductionPercent = 0,
+                SizeChangePercent = 0,
                 OriginalWidth = info.Width,
                 OriginalHeight = info.Height,
                 Width = info.Width,

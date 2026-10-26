@@ -18,8 +18,8 @@ public sealed class HostedImageResponse
     public required long OriginalSize { get; init; }
     public required long CompressedSize { get; init; }
 
-    /// <summary>Percent smaller than the original. Negative when the result is larger.</summary>
-    public required double ReductionPercent { get; init; }
+    /// <summary>Percent change from the original size: negative when the result is smaller, positive when larger.</summary>
+    public required double SizeChangePercent { get; init; }
 
     public required int OriginalWidth { get; init; }
     public required int OriginalHeight { get; init; }

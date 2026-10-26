@@ -5,7 +5,7 @@
 import type { Limits } from './api/types'
 import { formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
-import type { ImageFormat, Settings, Tool } from './settings'
+import { type ImageFormat, type Settings, type Tool, chosenFormat } from './settings'
 
 /** Largest width or height the API accepts (ResizeParameters.MaxSide). */
 export const maxSide = 65535
@@ -50,7 +50,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
   }
 
   // Output format: convert always sends one; the others keep the input's unless one is chosen.
-  const format = tool === 'convert' ? settings.convertTo : settings.format
+  const format = tool === 'convert' ? settings.convertTo : chosenFormat(settings.format, image?.format)
   if (format !== null)
     query.set('format', format)
   if (tool === 'optimize' && format === null && settings.preferJpeg)

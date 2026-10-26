@@ -41,8 +41,14 @@ describe('planJob', () => {
   it('sends a custom score, but not for lossless', () => {
     expect(query(planJob('optimize', settings({ customScore: true, minScore: 82.5 }), photo, null, limits).path))
       .toMatchObject({ minScore: '82.5' })
-    expect(query(planJob('optimize', settings({ customScore: true, quality: 'lossless' }), photo, null, limits).path))
-      .not.toHaveProperty('minScore')
+    expect(query(planJob('optimize', settings({ customScore: true, lossless: true }), photo, null, limits).path))
+      .toEqual({ quality: 'lossless' })
+  })
+
+  it('labels the job by lossless, a custom score or the preset', () => {
+    expect(planJob('optimize', settings({ lossless: true, customScore: true }), photo, null, limits).label).toBe('Lossless')
+    expect(planJob('optimize', settings({ customScore: true, minScore: 75 }), photo, null, limits).label).toBe('Score 75')
+    expect(planJob('optimize', settings({ quality: 'low' }), photo, null, limits).label).toBe('Low')
   })
 
   it('rejects a score outside 0 to 100', () => {
@@ -71,7 +77,7 @@ describe('planJob', () => {
     expect(planJob('optimize', settings({ maxWidth: 320 }), photo, null, limits).output).toEqual({ width: 320, height: 240 })
     expect(planJob('optimize', settings(), photo, null, { ...limits, defaultMaxWidth: 400 }).output).toEqual({ width: 400, height: 300 })
     // Lossless skips the server default, as ImageOptimizer does.
-    expect(planJob('optimize', settings({ quality: 'lossless' }), photo, null, { ...limits, defaultMaxWidth: 400 }).output)
+    expect(planJob('optimize', settings({ lossless: true }), photo, null, { ...limits, defaultMaxWidth: 400 }).output)
       .toEqual({ width: 640, height: 480 })
   })
 

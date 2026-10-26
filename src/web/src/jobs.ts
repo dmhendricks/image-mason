@@ -33,15 +33,15 @@ export interface JobPlan {
   label: string
 }
 
-const qualityNames = { lossless: 'Lossless', high: 'High', medium: 'Medium', low: 'Low' }
+const qualityNames = { high: 'High', medium: 'Medium', low: 'Low' }
 const workingNames = { optimize: 'Optimizing', resize: 'Resizing', crop: 'Cropping', convert: 'Converting' }
 
 export function planJob(tool: Tool, settings: Settings, image: SourceImage | null, rect: Rect | null, limits: Limits | null): JobPlan {
   const errors: JobPlan['errors'] = {}
   const query = new URLSearchParams()
-  const lossless = settings.quality === 'lossless'
+  const lossless = settings.lossless
 
-  query.set('quality', settings.quality)
+  query.set('quality', lossless ? 'lossless' : settings.quality)
   if (settings.customScore && !lossless) {
     if (Number.isFinite(settings.minScore) && settings.minScore >= 0 && settings.minScore <= 100)
       query.set('minScore', String(settings.minScore))
@@ -130,7 +130,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
     action: actionName(tool, output, settings),
     working: workingNames[tool],
     label: [
-      settings.customScore && !lossless ? `Score ${settings.minScore}` : qualityNames[settings.quality],
+      lossless ? 'Lossless' : settings.customScore ? `Score ${settings.minScore}` : qualityNames[settings.quality],
       format !== null && format !== image?.format ? formatName(format) : null,
       output && image && (output.width !== image.width || output.height !== image.height) ? formatSize(output.width, output.height) : null,
     ].filter(Boolean).join(', '),

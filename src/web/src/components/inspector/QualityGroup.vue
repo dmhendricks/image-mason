@@ -7,26 +7,41 @@ import type { Quality } from '../../settings'
 import NumberField from '../controls/NumberField.vue'
 import SegmentedControl from '../controls/SegmentedControl.vue'
 
+// The switch picks how much visible difference is allowed: a preset's floor, or a custom score. Lossless sits
+// apart as a checkbox, since it allows none at all; while it's on, the switch keeps its choice for later.
+
+type Level = Quality | 'custom'
+
 const { settings } = useSettings()
 const { limits } = useServer()
 const { plan } = usePlan()
 
-const options: { value: Quality, label: string }[] = [
-  { value: 'lossless', label: 'Lossless' },
+const options: { value: Level, label: string }[] = [
   { value: 'high', label: 'High' },
   { value: 'medium', label: 'Medium' },
   { value: 'low', label: 'Low' },
+  { value: 'custom', label: 'Custom' },
 ]
 
-const lossless = computed(() => settings.quality === 'lossless')
+const level = computed<Level>({
+  get: () => settings.customScore ? 'custom' : settings.quality,
+  set: value => {
+    settings.customScore = value === 'custom'
+    if (value !== 'custom')
+      settings.quality = value
+  },
+})
 
-// What each preset promises, with its floor from the server (IMAGE_MASON_*_MIN_SCORE).
+// What each choice promises, with the preset's floor from the server (IMAGE_MASON_*_MIN_SCORE).
 const hint = computed(() => {
+  if (settings.lossless)
+    return 'Not used while Lossless is on.'
+  if (settings.customScore)
+    return 'Results must score at least this, from 0 to 100. 90 and up is hard to tell from the original.'
+
   const floor = limits.value?.presets[settings.quality]
   const score = floor == null ? '' : `Score ${floor} or better: `
   switch (settings.quality) {
-    case 'lossless':
-      return 'Identical pixels; only the encoding is redone. A crop, resize or new format still re-encodes, held to a high score.'
     case 'high':
       return `${score}no visible difference when viewed normally.`
     case 'medium':
@@ -46,18 +61,10 @@ const minScore = computed({
 <template>
   <div class="group">
     <h3>Quality</h3>
-    <SegmentedControl v-model="settings.quality" :options="options" label="Quality" />
+    <SegmentedControl v-model="level" :options="options" label="Quality" :disabled="settings.lossless" />
     <p class="hint">{{ hint }}</p>
 
-    <label class="check">
-      <input v-model="settings.customScore" type="checkbox" :disabled="lossless">
-      <span>
-        Custom minimum score
-        <small>{{ lossless ? 'Lossless has no score to meet.' : 'Replaces the preset\'s floor, 0 to 100.' }}</small>
-      </span>
-    </label>
-
-    <div v-if="settings.customScore && !lossless" class="score">
+    <div v-if="settings.customScore && !settings.lossless" class="score">
       <input
         v-model.number="settings.minScore"
         type="range"
@@ -74,6 +81,17 @@ const minScore = computed({
       />
     </div>
     <p v-if="plan.errors.minScore" class="field-error">{{ plan.errors.minScore }}</p>
+
+    <label class="check">
+      <input v-model="settings.lossless" type="checkbox">
+      <span>
+        Lossless
+        <small>
+          Identical pixels; only the encoding is redone. A crop, resize or new format still re-encodes, held to a
+          high score.
+        </small>
+      </span>
+    </label>
   </div>
 </template>
 

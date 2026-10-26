@@ -2,7 +2,8 @@
 // settings, so switching tools never loses anything.
 
 export const tools = ['optimize', 'resize', 'crop', 'convert'] as const
-export const qualities = ['lossless', 'high', 'medium', 'low'] as const
+/** The lossy presets. Lossless is its own setting, since it allows no difference at all rather than a level of it. */
+export const qualities = ['high', 'medium', 'low'] as const
 export const imageFormats = ['jpeg', 'png', 'webp', 'avif'] as const
 export const fits = ['contain', 'cover', 'fill'] as const
 export const focuses = ['center', 'attention', 'entropy'] as const
@@ -15,8 +16,10 @@ export type Focus = typeof focuses[number]
 
 export interface Settings {
   tool: Tool
+  /** Send quality=lossless; the preset and custom score are kept for when it's turned off. */
+  lossless: boolean
   quality: Quality
-  /** Send minScore instead of the preset's floor. */
+  /** Send minScore instead of the preset's floor ("Custom" in the quality switch). */
   customScore: boolean
   minScore: number
   /** Output format for optimize, resize and crop; null keeps the input's. */
@@ -46,6 +49,7 @@ export function chosenFormat(format: ImageFormat | null, input: ImageFormat | un
 export function defaultSettings(): Settings {
   return {
     tool: 'optimize',
+    lossless: false,
     quality: 'high',
     customScore: false,
     minScore: 80,
@@ -94,6 +98,8 @@ export function sanitize(value: unknown): Settings {
   const size = (key: string) => Number.isInteger(saved[key]) && (saved[key] as number) >= 0 ? saved[key] as number : null
 
   settings.tool = pick(tools, 'tool', settings.tool)
+  // Earlier versions saved lossless as a quality.
+  settings.lossless = saved.quality === 'lossless' || bool('lossless', settings.lossless)
   settings.quality = pick(qualities, 'quality', settings.quality)
   settings.customScore = bool('customScore', settings.customScore)
   if (typeof saved.minScore === 'number' && saved.minScore >= 0 && saved.minScore <= 100)

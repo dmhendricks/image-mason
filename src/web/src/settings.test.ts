@@ -20,6 +20,11 @@ describe('settings', () => {
     expect(settings).toEqual({ ...defaultSettings(), quality: 'medium', fit: 'cover' })
   })
 
+  it('turns a saved lossless quality into the lossless setting', () => {
+    expect(sanitize({ quality: 'lossless' })).toEqual({ ...defaultSettings(), lossless: true })
+    expect(sanitize({ lossless: true, quality: 'low' })).toEqual({ ...defaultSettings(), lossless: true, quality: 'low' })
+  })
+
   it('starts from the defaults when storage is blocked or holds junk', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('denied', 'SecurityError') })
     expect(loadSettings()).toEqual(defaultSettings())

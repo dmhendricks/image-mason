@@ -15,7 +15,7 @@ const { limits } = useServer()
 const { plan } = usePlan()
 
 const serverDefault = computed(() =>
-  settings.quality === 'lossless' ? 0 : limits.value?.defaultMaxWidth ?? 0)
+  settings.lossless ? 0 : limits.value?.defaultMaxWidth ?? 0)
 </script>
 
 <template>

@@ -30,7 +30,9 @@ const floors = computed(() =>
     <button class="drop" type="button" :disabled="opening" @click="emit('open')">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
       <strong>{{ opening ? 'Reading the image…' : 'Open an image' }}</strong>
-      <span>or drop it here, or paste it with {{ isMac ? '⌘V' : 'Ctrl+V' }}</span>
+      <span>
+        or drop it here, or paste it{{ limits?.urlFetch ? ' or its web address' : '' }} with {{ isMac ? '⌘V' : 'Ctrl+V' }}
+      </span>
     </button>
 
     <section class="server" aria-labelledby="server-heading">

@@ -64,3 +64,24 @@ export function resultFileName(original: string, label: string, format: ImageFor
   const suffix = label.toLowerCase().replace(/\s*×\s*/g, 'x').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   return `${baseName(original)}${suffix ? `-${suffix}` : ''}${extensions[format]}`
 }
+
+/** Whether pasted text is one web address (http or https), as a copied image link is. */
+export function isWebUrl(text: string): boolean {
+  if (!text || /\s/.test(text))
+    return false
+  try {
+    const { protocol } = new URL(text)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/** "https://example.com/a/photo%201.jpg?w=2" → "photo 1.jpg": the file name an address ends in, or a stand-in. */
+export function fileNameFromUrl(address: string): string {
+  try {
+    return decodeURIComponent(new URL(address).pathname.split('/').pop() ?? '') || 'Image from URL'
+  } catch {
+    return 'Image from URL'
+  }
+}

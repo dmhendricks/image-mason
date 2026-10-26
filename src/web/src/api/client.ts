@@ -36,6 +36,27 @@ export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   return await response.json() as T
 }
 
+/**
+ * POSTs to the API and returns the file it answers with (POST /api/v1/fetch).
+ * @throws {ApiError} The server couldn't be reached or answered with an error.
+ * @throws {DOMException} The request was aborted through init.signal ("AbortError").
+ */
+export async function postForBlob(path: string, init?: RequestInit): Promise<Blob> {
+  let response: Response
+  try {
+    response = await fetch(path, { ...init, method: 'POST' })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError')
+      throw error
+    throw new ApiError(unreachable, 0)
+  }
+
+  if (!response.ok)
+    throw new ApiError(problemMessage(await response.text(), response.status, response.statusText), response.status)
+
+  return await response.blob()
+}
+
 export interface PostImageOptions {
   headers?: Record<string, string>
   signal?: AbortSignal

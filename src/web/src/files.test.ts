@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { baseName, formatFromContentType, isHeif, resultFileName, sniffFormat } from './files'
+import { baseName, fileNameFromUrl, formatFromContentType, isHeif, isWebUrl, resultFileName, sniffFormat } from './files'
 
 const bytes = (...parts: (number[] | string)[]) =>
   new Uint8Array(parts.flatMap(part => typeof part === 'string' ? [...part].map(c => c.charCodeAt(0)) : part))
@@ -52,5 +52,31 @@ describe('resultFileName', () => {
 
   it('names a file with nothing but an extension "image"', () => {
     expect(baseName('.png')).toBe('image')
+  })
+})
+
+describe('isWebUrl', () => {
+  it('accepts one http or https address', () => {
+    expect(isWebUrl('https://images.example.com/cdn/2026/287/photo-1052x615.jpg')).toBe(true)
+    expect(isWebUrl('http://localhost:8180/images/a.png')).toBe(true)
+  })
+
+  it('rejects other schemes, plain text and more than one address', () => {
+    expect(isWebUrl('file:///Users/me/photo.jpg')).toBe(false)
+    expect(isWebUrl('data:image/png;base64,AAAA')).toBe(false)
+    expect(isWebUrl('photo.jpg')).toBe(false)
+    expect(isWebUrl('https://a.example/1.jpg https://a.example/2.jpg')).toBe(false)
+    expect(isWebUrl('')).toBe(false)
+  })
+})
+
+describe('fileNameFromUrl', () => {
+  it('takes the last part of the path, decoded, without the query', () => {
+    expect(fileNameFromUrl('https://example.com/a/photo%201.jpg?w=2')).toBe('photo 1.jpg')
+  })
+
+  it('falls back when the path has no file name or is malformed', () => {
+    expect(fileNameFromUrl('https://example.com/')).toBe('Image from URL')
+    expect(fileNameFromUrl('https://example.com/%E0%A4%A')).toBe('Image from URL')
   })
 })

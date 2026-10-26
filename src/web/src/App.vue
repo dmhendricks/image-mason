@@ -9,9 +9,10 @@ import ToolRail from './components/ToolRail.vue'
 import { useApiKey } from './composables/useApiKey'
 import { useImage } from './composables/useImage'
 import { useServer } from './composables/useServer'
+import { isWebUrl } from './files'
 
 const { limits } = useServer()
-const { open, hasUnsavedResults } = useImage()
+const { open, openUrl, hasUnsavedResults } = useImage()
 const apiKey = useApiKey()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -32,10 +33,17 @@ function chooseFile() {
   fileInput.value?.click()
 }
 
+const confirmReplace = () =>
+  !hasUnsavedResults.value || window.confirm('Open another image? Results you haven\'t downloaded will be lost.')
+
 async function openFile(file: Blob, name: string) {
-  if (hasUnsavedResults.value && !window.confirm('Open another image? Results you haven\'t downloaded will be lost.'))
-    return
-  await open(file, name)
+  if (confirmReplace())
+    await open(file, name)
+}
+
+async function openLink(address: string) {
+  if (confirmReplace())
+    await openUrl(address)
 }
 
 function onFileChosen(event: Event) {
@@ -46,7 +54,7 @@ function onFileChosen(event: Event) {
     void openFile(file, file.name)
 }
 
-// Drop an image anywhere on the page, or paste one.
+// Drop an image anywhere on the page, or paste one or its web address.
 let dragDepth = 0
 const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') ?? false
 
@@ -82,10 +90,21 @@ function onDrop(event: DragEvent) {
 
 function onPaste(event: ClipboardEvent) {
   const file = event.clipboardData?.files[0]
-  if (!file)
+  if (file) {
+    event.preventDefault()
+    void openFile(file, file.name || 'Pasted image')
+    return
+  }
+
+  // A pasted image address, unless it's going into a field.
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if (target?.isContentEditable || target?.closest('input, textarea, select'))
+    return
+  const text = event.clipboardData?.getData('text/plain').trim() ?? ''
+  if (!isWebUrl(text))
     return
   event.preventDefault()
-  void openFile(file, file.name || 'Pasted image')
+  void openLink(text)
 }
 
 // Leaving the page loses the results; the browser asks first.

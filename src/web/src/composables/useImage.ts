@@ -1,7 +1,7 @@
 import { computed, reactive, readonly, ref, shallowRef } from 'vue'
-import { ApiError, postImage } from '../api/client'
+import { ApiError, postForBlob, postImage } from '../api/client'
 import { type ResultStats, readStats } from '../api/types'
-import { formatFromContentType, isHeif, resultFileName, sniffFormat } from '../files'
+import { fileNameFromUrl, formatFromContentType, isHeif, resultFileName, sniffFormat } from '../files'
 import { formatBytes, formatMegapixels, formatSize } from '../format'
 import { type Rect, wholeImage } from '../geometry'
 import type { JobPlan, SourceImage } from '../jobs'
@@ -95,6 +95,31 @@ export function useImage() {
     } finally {
       opening.value = false
     }
+  }
+
+  /**
+   * Opens the image at a web address. The server downloads it (POST /api/v1/fetch), since browsers keep pages from
+   * reading most other sites' images, so its URL fetch settings decide which addresses work.
+   */
+  async function openUrl(address: string): Promise<boolean> {
+    if (limits.value && !limits.value.urlFetch) {
+      openError.value = 'This server doesn\'t fetch images by URL. Save the image, then open the file.'
+      return false
+    }
+
+    opening.value = true
+    openError.value = null
+    let file: Blob
+    try {
+      file = await postForBlob(`/api/v1/fetch?url=${encodeURIComponent(address)}`, { headers: apiKey.headers() })
+    } catch (failure) {
+      opening.value = false
+      if (failure instanceof ApiError && failure.status === 401)
+        apiKey.reject()
+      openError.value = failure instanceof Error ? failure.message : 'The image could not be downloaded.'
+      return false
+    }
+    return await open(file, fileNameFromUrl(address))
   }
 
   /** The image's format and size, or why it can't be used. */
@@ -259,6 +284,7 @@ export function useImage() {
     rect,
     hasUnsavedResults,
     open,
+    openUrl,
     run,
     cancel,
     markDownloaded,

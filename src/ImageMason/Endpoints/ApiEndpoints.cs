@@ -27,6 +27,9 @@ internal static class ApiEndpoints
         // Reads the header only: no tools run, so no job slot.
         api.MapPost("/info", InfoEndpoint.HandleAsync);
 
+        // Downloads only, within the URL fetch limits: no tools run, so no job slot.
+        api.MapPost("/fetch", FetchEndpoint.HandleAsync);
+
         // Public: reports apiKeyRequired, so it can't require the key itself.
         api.MapGet("/limits", LimitsEndpoint.Handle);
     }

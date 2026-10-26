@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Box, centeredRect, rectFits, resizeOutput, roundHalfEven } from './geometry'
+import { type Box, centeredRect, dragRect, rectFits, rectWithin, resizeOutput, roundHalfEven } from './geometry'
 import type { Fit } from './settings'
 
 describe('resizeOutput', () => {
@@ -49,5 +49,45 @@ describe('centeredRect', () => {
     expect(centeredRect(1, { width: 640, height: 480 })).toEqual({ left: 80, top: 0, width: 480, height: 480 })
     expect(centeredRect(16 / 9, { width: 640, height: 480 })).toEqual({ left: 0, top: 60, width: 640, height: 360 })
     expect(centeredRect(3 / 4, { width: 480, height: 640 })).toEqual({ left: 0, top: 0, width: 480, height: 640 })
+  })
+})
+
+describe('rectWithin', () => {
+  const outer = { left: 100, top: 50, width: 200, height: 100 }
+
+  it('accepts areas inside, edges included, and rejects any that reach out', () => {
+    expect(rectWithin(outer, outer)).toBe(true)
+    expect(rectWithin({ left: 150, top: 60, width: 50, height: 50 }, outer)).toBe(true)
+    expect(rectWithin({ left: 99, top: 60, width: 50, height: 50 }, outer)).toBe(false)
+    expect(rectWithin({ left: 150, top: 60, width: 151, height: 50 }, outer)).toBe(false)
+  })
+})
+
+describe('dragRect', () => {
+  const image = { left: 0, top: 0, width: 640, height: 480 }
+  const start = { left: 100, top: 100, width: 200, height: 100 }
+
+  it('stops at the bounds it is given, such as the part of the image in view', () => {
+    const view = { left: 50, top: 80, width: 300, height: 150 }
+    expect(dragRect(start, 'move', -500, 500, view)).toEqual({ left: 50, top: 130, width: 200, height: 100 })
+    expect(dragRect(start, 'se', 500, 500, view)).toEqual({ left: 100, top: 100, width: 250, height: 130 })
+  })
+
+  it('moves the area without resizing it, stopping at the image edges', () => {
+    expect(dragRect(start, 'move', 10.4, -20.6, image)).toEqual({ left: 110, top: 79, width: 200, height: 100 })
+    expect(dragRect(start, 'move', 1000, -1000, image)).toEqual({ left: 440, top: 0, width: 200, height: 100 })
+  })
+
+  it('moves only the dragged edges', () => {
+    expect(dragRect(start, 'e', 50, 30, image)).toEqual({ left: 100, top: 100, width: 250, height: 100 })
+    expect(dragRect(start, 'n', 30, -40, image)).toEqual({ left: 100, top: 60, width: 200, height: 140 })
+    expect(dragRect(start, 'nw', -20, -10, image)).toEqual({ left: 80, top: 90, width: 220, height: 110 })
+    expect(dragRect(start, 'se', 20, 10, image)).toEqual({ left: 100, top: 100, width: 220, height: 110 })
+  })
+
+  it('keeps edges inside the image and the area at least 1 pixel', () => {
+    expect(dragRect(start, 'sw', -500, 500, image)).toEqual({ left: 0, top: 100, width: 300, height: 380 })
+    expect(dragRect(start, 'w', 500, 0, image)).toEqual({ left: 299, top: 100, width: 1, height: 100 })
+    expect(dragRect(start, 'ne', -500, 500, image)).toEqual({ left: 100, top: 199, width: 1, height: 1 })
   })
 })

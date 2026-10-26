@@ -4,7 +4,7 @@ import { useImage } from '../../composables/useImage'
 import { usePlan } from '../../composables/usePlan'
 import { useSettings } from '../../composables/useSettings'
 import { formatBytes, formatChange, formatSize } from '../../format'
-import { rectFits } from '../../geometry'
+import { type CropHandle, type Rect, dragRect, rectFits, rectWithin, wholeImage } from '../../geometry'
 import DimensionLine from './DimensionLine.vue'
 import EmptyCanvas from './EmptyCanvas.vue'
 
@@ -19,6 +19,38 @@ const emit = defineEmits<{ open: [] }>()
 const { image, rect, openError, dismissError } = useImage()
 const { plan, result } = usePlan()
 const { settings } = useSettings()
+
+// Crop's view: after a crop, the board shows just the cropped area (the result, then the original through the same
+// window while the area is adjusted), with the frame around it so it can be cropped further. Every run still crops
+// the original, so nothing is encoded twice. The view goes back to the whole image when the area leaves it (a Shape
+// button, a typed value) or another image opens.
+const cropView = ref<Rect | null>(null)
+watch(image, () => { cropView.value = null })
+watch(() => result.value?.id, () => {
+  if (result.value && settings.tool === 'crop')
+    cropView.value = { ...rect }
+})
+
+/** The part of the original on the board, in image pixels. */
+const view = computed<Rect | null>(() => {
+  if (!image.value)
+    return null
+  return settings.tool === 'crop' && cropView.value && rectWithin(rect, cropView.value) ? cropView.value : wholeImage(image.value)
+})
+
+/** Positions the original so only the view shows; nothing when the view is the whole image. */
+const viewStyle = computed(() => {
+  const source = image.value
+  const area = view.value
+  if (!source || !area || (area.width === source.width && area.height === source.height))
+    return undefined
+  return {
+    left: `${-area.left / area.width * 100}%`,
+    top: `${-area.top / area.height * 100}%`,
+    width: `${source.width / area.width * 100}%`,
+    height: `${source.height / area.height * 100}%`,
+  }
+})
 
 // The board's content box, so the frame can be sized to fit it (never above 100%, so pixels stay honest). On
 // narrow screens the page scrolls, so the board takes the image's height, up to most of the screen.
@@ -43,12 +75,12 @@ const resultSize = computed(() => result.value && image.value
   ? { width: result.value.stats.width || image.value.width, height: result.value.stats.height || image.value.height }
   : null)
 
-/** The result has the original's size, so the two can share the stage. */
-const compare = computed(() => !!resultSize.value && !!image.value
+/** The result has the original's size, so the two can share the stage (not on crop, where the frame stays on top). */
+const compare = computed(() => !!resultSize.value && !!image.value && settings.tool !== 'crop'
   && resultSize.value.width === image.value.width && resultSize.value.height === image.value.height)
 
-/** What the frame measures: the result when it has a size of its own, else the image. */
-const shown = computed(() => (!compare.value && resultSize.value) || image.value)
+/** What the frame measures: the result when it has a size of its own, else the part of the image in view. */
+const shown = computed(() => (!compare.value && resultSize.value) || view.value)
 
 const frameStyle = computed(() => {
   const size = shown.value
@@ -75,20 +107,67 @@ const outputBox = computed(() => {
   }
 })
 
+// Drawn over the view, before a run and over the result after one.
 const cropBox = computed(() => {
   const source = image.value
-  if (result.value || !source || settings.tool !== 'crop' || plan.value.errors.rect || !rectFits(rect, source))
+  const area = view.value
+  if (!source || !area || settings.tool !== 'crop' || plan.value.errors.rect || !rectFits(rect, source))
     return null
   return {
     style: {
-      left: `${rect.left / source.width * 100}%`,
-      top: `${rect.top / source.height * 100}%`,
-      width: `${rect.width / source.width * 100}%`,
-      height: `${rect.height / source.height * 100}%`,
+      left: `${(rect.left - area.left) / area.width * 100}%`,
+      top: `${(rect.top - area.top) / area.height * 100}%`,
+      width: `${rect.width / area.width * 100}%`,
+      height: `${rect.height / area.height * 100}%`,
     },
     label: `${formatSize(rect.width, rect.height)} from ${rect.left}, ${rect.top}`,
   }
 })
+
+// The crop frame: drag inside to move it, or an edge or corner to resize it. The panel's fields edit the same
+// rect, so they follow along (and are the keyboard way in).
+const cropHandles: CropHandle[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se']
+
+// The view is fixed for the whole drag, so the frame's scale and limits don't shift under the pointer.
+let cropDrag: {
+  handle: CropHandle
+  x: number
+  y: number
+  start: Rect
+  bounds: Rect
+  scaleX: number
+  scaleY: number
+} | null = null
+
+function startCrop(event: PointerEvent, handle: CropHandle) {
+  const frame = (event.currentTarget as HTMLElement).closest<HTMLElement>('.frame')
+  const area = view.value
+  if (event.button !== 0 || !area || !frame)
+    return
+  const bounds = frame.getBoundingClientRect()
+  cropDrag = {
+    handle,
+    x: event.clientX,
+    y: event.clientY,
+    start: { ...rect },
+    bounds: { ...area },
+    scaleX: area.width / bounds.width,
+    scaleY: area.height / bounds.height,
+  }
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function dragCrop(event: PointerEvent) {
+  if (!cropDrag)
+    return
+  const dx = (event.clientX - cropDrag.x) * cropDrag.scaleX
+  const dy = (event.clientY - cropDrag.y) * cropDrag.scaleY
+  Object.assign(rect, dragRect(cropDrag.start, cropDrag.handle, dx, dy, cropDrag.bounds))
+}
+
+function stopCrop() {
+  cropDrag = null
+}
 
 // The split divider: drag anywhere on the frame, or focus it and use the arrow keys.
 const split = ref(50)
@@ -151,16 +230,33 @@ function onDividerKey(event: KeyboardEvent) {
         @pointercancel="stopSliding"
       >
         <div class="pic">
-          <img v-if="!result || compare" :src="image.url" :alt="`${image.name}, original`">
+          <img v-if="!result || compare" :src="image.url" :alt="`${image.name}, original`" :style="viewStyle">
           <img v-if="result" class="result" :src="result.url" :alt="`${image.name}, ${result.label}`">
 
           <span v-if="result && compare" class="tag a">Original<span>{{ formatBytes(image.size) }}</span></span>
           <span v-if="result" class="tag b">{{ result.label }}<span>{{ formatBytes(result.stats.size) }}</span></span>
 
-          <div v-if="cropBox" class="crop-box" :style="cropBox.style">
-            <i /><i /><i /><i />
-            <b>{{ cropBox.label }}</b>
-          </div>
+          <div v-if="cropBox" class="crop-shade" :style="cropBox.style" />
+        </div>
+
+        <!-- Outside .pic, which clips the shade, so handles on the image's edges stay whole and grabbable. -->
+        <div
+          v-if="cropBox"
+          class="crop-box"
+          :style="cropBox.style"
+          @pointerdown="startCrop($event, 'move')"
+          @pointermove="dragCrop"
+          @pointerup="stopCrop"
+          @pointercancel="stopCrop"
+        >
+          <i
+            v-for="handle in cropHandles"
+            :key="handle"
+            :class="handle"
+            aria-hidden="true"
+            @pointerdown.stop="startCrop($event, handle)"
+          />
+          <b>{{ cropBox.label }}</b>
         </div>
 
         <DimensionLine
@@ -329,25 +425,49 @@ function onDividerKey(event: KeyboardEvent) {
   .beside { left: auto; right: -26px; }
 }
 
+// Dims everything outside the area; .pic clips it to the image.
+.crop-shade {
+  position: absolute;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+
 .crop-box {
   position: absolute;
   outline: 2px solid var(--flag);
-  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
-  pointer-events: none;
+  cursor: move;
 
+  // Grab areas wider than what's drawn: 12px strips along the edges, 22px squares at the corners (drawn 12px).
   i {
     position: absolute;
-    width: 10px;
-    height: 10px;
-    background: var(--flag);
+    --grab: 12px;
 
-    &:nth-of-type(1) { left: -5px; top: -5px; }
-    &:nth-of-type(2) { right: -5px; top: -5px; }
-    &:nth-of-type(3) { left: -5px; bottom: -5px; }
-    &:nth-of-type(4) { right: -5px; bottom: -5px; }
+    &.n, &.s { left: 11px; right: 11px; height: var(--grab); cursor: ns-resize; }
+    &.e, &.w { top: 11px; bottom: 11px; width: var(--grab); cursor: ew-resize; }
+    &.n { top: calc(var(--grab) / -2); }
+    &.s { bottom: calc(var(--grab) / -2); }
+    &.e { right: calc(var(--grab) / -2); }
+    &.w { left: calc(var(--grab) / -2); }
+
+    &.nw, &.ne, &.sw, &.se {
+      width: 22px;
+      height: 22px;
+
+      &::after {
+        content: "";
+        position: absolute;
+        inset: 5px;
+        background: var(--flag);
+      }
+    }
+    &.nw { left: -11px; top: -11px; cursor: nwse-resize; }
+    &.se { right: -11px; bottom: -11px; cursor: nwse-resize; }
+    &.ne { right: -11px; top: -11px; cursor: nesw-resize; }
+    &.sw { left: -11px; bottom: -11px; cursor: nesw-resize; }
   }
 
   b {
+    pointer-events: none;
     position: absolute;
     left: 8px;
     top: 8px;

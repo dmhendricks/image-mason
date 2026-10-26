@@ -79,6 +79,50 @@ export function centeredRect(aspect: number, image: Size): Rect {
   }
 }
 
+/** What a drag on the crop frame moves: the whole area, an edge, or a corner (by compass point). */
+export type CropHandle = 'move' | 'n' | 'e' | 's' | 'w' | 'nw' | 'ne' | 'sw' | 'se'
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+/** Whether inner lies entirely inside outer, edges included. */
+export function rectWithin(inner: Rect, outer: Rect): boolean {
+  return inner.left >= outer.left && inner.top >= outer.top
+    && inner.left + inner.width <= outer.left + outer.width && inner.top + inner.height <= outer.top + outer.height
+}
+
+/**
+ * The area after dragging a handle by (dx, dy) image pixels from where it started: whole pixels, inside bounds (the
+ * image, or the part of it in view), and at least 1 × 1. A moved area keeps its size; a dragged edge stops one pixel
+ * short of the opposite edge.
+ */
+export function dragRect(start: Rect, handle: CropHandle, dx: number, dy: number, bounds: Rect): Rect {
+  const minX = bounds.left
+  const minY = bounds.top
+  const maxX = bounds.left + bounds.width
+  const maxY = bounds.top + bounds.height
+  if (handle === 'move') {
+    return {
+      ...start,
+      left: clamp(Math.round(start.left + dx), minX, maxX - start.width),
+      top: clamp(Math.round(start.top + dy), minY, maxY - start.height),
+    }
+  }
+
+  let left = start.left
+  let top = start.top
+  let right = start.left + start.width
+  let bottom = start.top + start.height
+  if (handle.endsWith('w'))
+    left = clamp(Math.round(left + dx), minX, right - 1)
+  if (handle.endsWith('e'))
+    right = clamp(Math.round(right + dx), left + 1, maxX)
+  if (handle.startsWith('n'))
+    top = clamp(Math.round(top + dy), minY, bottom - 1)
+  if (handle.startsWith('s'))
+    bottom = clamp(Math.round(bottom + dy), top + 1, maxY)
+  return { left, top, width: right - left, height: bottom - top }
+}
+
 /** "rect" as the API takes it: left,top,width,height. */
 export function rectParameter(rect: Rect): string {
   return `${rect.left},${rect.top},${rect.width},${rect.height}`

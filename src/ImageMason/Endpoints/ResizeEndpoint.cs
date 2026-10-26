@@ -32,9 +32,6 @@ internal static class ResizeEndpoint
         bool? upscale,
         bool keepOriginal = false)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         if (width is null && height is null)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send width, height or both.");
 

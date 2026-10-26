@@ -57,6 +57,11 @@ builder.Services.AddApiVersioning(versioning =>
 builder.Services.AddRateLimiter(limiter =>
 {
     limiter.RejectionStatusCode = StatusCodes.Status503ServiceUnavailable;
+    limiter.OnRejected = (rejected, _) =>
+    {
+        rejected.HttpContext.Response.Headers.RetryAfter = ApiRequest.RetryAfterSeconds;
+        return ValueTask.CompletedTask;
+    };
     limiter.AddConcurrencyLimiter(ApiEndpoints.JobsPolicy, concurrency =>
     {
         concurrency.PermitLimit = options.MaxConcurrentJobs;
@@ -77,6 +82,7 @@ if (string.IsNullOrEmpty(options.ApiKey))
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseApiKeyCheck(options.ApiKey);
 app.UseRateLimiter();
 
 app.MapSite(options);

@@ -28,9 +28,6 @@ internal static class ConvertEndpoint
         string? url,
         bool keepOriginal = false)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         if (!ImageFormatDetector.TryParse(format, out var target))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp', 'avif' or 'jxl'.");
 

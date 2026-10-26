@@ -21,9 +21,6 @@ internal static class UploadEndpoint
         string? outputFilename,
         string? url)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         if (!ApiRequest.TryParseOutputFilename(outputFilename, out var storedName, out var nameError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, nameError!);
 

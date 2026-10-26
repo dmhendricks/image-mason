@@ -14,6 +14,7 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class OptimizeEndpoint
 {
+    /// <summary>Optimize's parameter checks and run. Also the crop endpoint's, after it checks rect.</summary>
     public static async Task<IResult> HandleAsync(
         HttpContext http,
         ImageMasonOptions options,
@@ -37,37 +38,6 @@ internal static class OptimizeEndpoint
         bool preferJpeg = false,
         bool keepOriginal = false)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
-        return await HandleAuthorizedAsync(http, options, downloader, optimizer, store, logger, format, quality, minScore,
-            maxWidth, width, height, fit, crop, rect, output, outputFilename, url, upscale, preferJpeg, keepOriginal);
-    }
-
-    /// <summary>Optimize's parameter checks and run, after the API key check. Also the crop endpoint's.</summary>
-    public static async Task<IResult> HandleAuthorizedAsync(
-        HttpContext http,
-        ImageMasonOptions options,
-        ImageDownloader downloader,
-        ImageOptimizer optimizer,
-        ImageStore store,
-        ILogger<ImageOptimizer> logger,
-        string? format,
-        string? quality,
-        double? minScore,
-        int? maxWidth,
-        int? width,
-        int? height,
-        string? fit,
-        string? crop,
-        string? rect,
-        string? output,
-        string? outputFilename,
-        string? url,
-        bool? upscale,
-        bool preferJpeg,
-        bool keepOriginal)
-    {
         if (!RectParameter.TryParse(rect, out var area, out var rectError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
 
@@ -90,7 +60,7 @@ internal static class OptimizeEndpoint
             target, resize, area, quality, minScore, maxWidth, output, outputFilename, url, preferJpeg, keepOriginal);
     }
 
-    /// <summary>Shared by optimize, convert, resize and crop, after the API key check.</summary>
+    /// <summary>Shared by optimize, convert, resize and crop, after their parameter checks.</summary>
     /// <param name="target">The output format; null keeps the input's (or JPEG for a photo PNG with preferJpeg).</param>
     /// <param name="resize">The resize endpoint's box; null uses maxWidth.</param>
     /// <param name="rect">The area to keep, cut out before resizing; null keeps the whole image.</param>
@@ -269,7 +239,7 @@ internal static class OptimizeEndpoint
             // Never fall back to a weaker result: the caller asked for this preset and should know it failed.
             logger.LogError("{Tool} was killed while optimizing {Bytes} bytes; the container is out of memory. Raise its memory limit or lower {Setting}",
                 ex.Tool, input.Length, ImageMasonOptions.Prefix + "MEMORY_LIMIT");
-            http.Response.Headers.RetryAfter = "30";
+            http.Response.Headers.RetryAfter = ApiRequest.RetryAfterSeconds;
             return ApiRequest.Problem(StatusCodes.Status503ServiceUnavailable,
                 "The server ran out of memory while optimizing this image. Retry later, or send a smaller image or maxWidth.");
         }

@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using ImageMason.Http;
 using ImageMason.Storage;
 using Microsoft.AspNetCore.Http.Features;
@@ -10,22 +8,11 @@ namespace ImageMason.Endpoints;
 /// <summary>Helpers shared by the API endpoints.</summary>
 internal static class ApiRequest
 {
+    /// <summary>Retry-After for 503s: the job queue was full, or an image tool ran out of memory.</summary>
+    public const string RetryAfterSeconds = "30";
+
     public static IResult Problem(int statusCode, string detail) =>
         Results.Problem(detail: detail, statusCode: statusCode);
-
-    public static IResult Unauthorized() =>
-        Problem(StatusCodes.Status401Unauthorized, "Send a valid API key in the X-Api-Key header.");
-
-    // Hashing first makes the comparison constant-time regardless of key length.
-    public static bool IsAuthorized(HttpRequest request, string? apiKey)
-    {
-        if (string.IsNullOrEmpty(apiKey))
-            return true;
-
-        var provided = SHA256.HashData(Encoding.UTF8.GetBytes(request.Headers["X-Api-Key"].ToString()));
-        var expected = SHA256.HashData(Encoding.UTF8.GetBytes(apiKey));
-        return CryptographicOperations.FixedTimeEquals(provided, expected);
-    }
 
     public static string Origin(HttpRequest request, string? publicBaseUrl) =>
         !string.IsNullOrEmpty(publicBaseUrl) ? publicBaseUrl : $"{request.Scheme}://{request.Host.Value}";

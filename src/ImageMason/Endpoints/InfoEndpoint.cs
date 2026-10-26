@@ -14,9 +14,6 @@ internal static class InfoEndpoint
         ILogger<ImageDownloader> logger,
         string? url)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
 

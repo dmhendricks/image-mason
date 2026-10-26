@@ -25,6 +25,8 @@ All notable changes to this project are documented here. The format is based on 
 - A damaged JPEG, PNG or WebP that had to be converted, resized or cropped returned 500. It now gets 422 with a plain message, and the tool's output goes to the log only. Damaged AVIF and JPEG XL images get 422 too (they got 415, which means an unsupported format).
 - An EXIF block with an out-of-range offset could make `info`, `upload` and `optimize` fail with 500.
 - The check for PNG photos (`preferJpeg`, and `isPhoto` from `info`) ran before the pixel limit and ignored the request timeout. It now skips images over `IMAGE_MASON_MAX_PIXELS`, stops at the timeout, and runs once per request instead of up to twice.
+- Requests without the API key waited for a job slot before getting 401, so they could fill the queue and make requests with the key get 503. The key is now checked first.
+- The 503 sent when the job queue is full now has `Retry-After`, like the one sent when an image tool runs out of memory.
 
 ## [0.2.1] - 2026-10-25
 

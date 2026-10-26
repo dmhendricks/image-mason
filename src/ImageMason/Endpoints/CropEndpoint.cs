@@ -34,13 +34,10 @@ internal static class CropEndpoint
         bool preferJpeg = false,
         bool keepOriginal = false)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         if (string.IsNullOrWhiteSpace(rect))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send rect as left,top,width,height, such as 80,0,480,480.");
 
-        return await OptimizeEndpoint.HandleAuthorizedAsync(http, options, downloader, optimizer, store, logger, format, quality,
+        return await OptimizeEndpoint.HandleAsync(http, options, downloader, optimizer, store, logger, format, quality,
             minScore, maxWidth, width, height, fit, crop, rect, output, outputFilename, url, upscale, preferJpeg, keepOriginal);
     }
 }

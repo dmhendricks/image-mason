@@ -18,9 +18,6 @@ internal static class FetchEndpoint
         ILogger<ImageDownloader> logger,
         string? url)
     {
-        if (!ApiRequest.IsAuthorized(http.Request, options.ApiKey))
-            return ApiRequest.Unauthorized();
-
         if (string.IsNullOrWhiteSpace(url))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Pass url, the address of the image to download.");
 

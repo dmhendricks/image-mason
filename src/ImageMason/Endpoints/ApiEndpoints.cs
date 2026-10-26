@@ -16,7 +16,8 @@ internal static class ApiEndpoints
             .Build();
 
         var api = app.MapGroup("/api/v{version:apiVersion}")
-            .WithApiVersionSet(versions);
+            .WithApiVersionSet(versions)
+            .RequireApiKey();
 
         api.MapPost("/optimize", OptimizeEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
         api.MapPost("/convert", ConvertEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
@@ -31,6 +32,6 @@ internal static class ApiEndpoints
         api.MapPost("/fetch", FetchEndpoint.HandleAsync);
 
         // Public: reports apiKeyRequired, so it can't require the key itself.
-        api.MapGet("/limits", LimitsEndpoint.Handle);
+        api.MapGet("/limits", LimitsEndpoint.Handle).AllowWithoutApiKey();
     }
 }

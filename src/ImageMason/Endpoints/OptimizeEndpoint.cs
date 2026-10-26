@@ -193,8 +193,9 @@ internal static class OptimizeEndpoint
                 headers["X-Image-Mason-Is-Photo"] = photo ? "true" : "false";
 
             var formats = detected == result.Format ? result.Format.Name() : $"{detected.Name()} -> {result.Format.Name()}";
-            logger.LogInformation("{Quality} {Formats} {Before}: {BeforeBytes} -> {AfterBytes} bytes ({Reduction}% smaller), {After} via {Method} (score {Score}, min {MinScore}, isPhoto {IsPhoto}) in {ElapsedMs} ms",
-                preset, formats, before, result.OriginalSize, result.Data.Length, reductionText, after, result.Method, score ?? "n/a", floor ?? "n/a", isPhoto?.ToString() ?? "n/a", elapsedMs);
+            var sizeChange = $"{Math.Abs(reduction).ToString("0.##", CultureInfo.InvariantCulture)}% {(reduction < 0 ? "larger" : "smaller")}";
+            logger.LogInformation("{Quality} {Formats} {Before}: {BeforeBytes} -> {AfterBytes} bytes ({SizeChange}), {After} via {Method} (score {Score}, min {MinScore}, isPhoto {IsPhoto}) in {ElapsedMs} ms",
+                preset, formats, before, result.OriginalSize, result.Data.Length, sizeChange, after, result.Method, score ?? "n/a", floor ?? "n/a", isPhoto?.ToString() ?? "n/a", elapsedMs);
 
             if (!asJson)
                 return Results.Bytes(result.Data, result.Format.ContentType());

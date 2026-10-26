@@ -185,7 +185,7 @@ public sealed class ImageStore
         }
     }
 
-    // One path segment: letters, digits, '_' or '-', then .jpg, .png, .webp or .avif. Nothing else is served or deleted.
+    // One path segment: letters, digits, '_' or '-', then .jpg, .png, .webp, .avif or .jxl. Nothing else is served or deleted.
     public static bool IsStoredName(string name)
     {
         if (name.Length is < 5 or > 128)

@@ -239,5 +239,5 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ env.IMAGE_NAME }}
-          short-description: Self-hosted API that shrinks and converts JPEG, PNG, WebP and AVIF images
+          short-description: Self-hosted API that shrinks and converts JPEG, PNG, WebP, AVIF and JPEG XL images
           readme-filepath: ./README.md

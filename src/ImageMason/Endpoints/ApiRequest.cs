@@ -36,7 +36,7 @@ internal static class ApiRequest
         name = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         error = name is null || ImageStore.IsStoredName(name)
             ? null
-            : "outputFilename must be letters, digits, '_' or '-', then .jpg, .png, .webp or .avif.";
+            : "outputFilename must be letters, digits, '_' or '-', then .jpg, .png, .webp, .avif or .jxl.";
         return error is null;
     }
 

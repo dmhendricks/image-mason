@@ -32,7 +32,7 @@ internal static class ConvertEndpoint
             return ApiRequest.Unauthorized();
 
         if (!ImageFormatDetector.TryParse(format, out var target))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp' or 'avif'.");
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp', 'avif' or 'jxl'.");
 
         if (!RectParameter.TryParse(rect, out var area, out var rectError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);

@@ -48,7 +48,7 @@ internal static class ResizeEndpoint
         if (format is not null)
         {
             if (!ImageFormatDetector.TryParse(format, out var parsed))
-                return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp' or 'avif'.");
+                return ApiRequest.Problem(StatusCodes.Status400BadRequest, "format must be 'jpeg', 'png', 'webp', 'avif' or 'jxl'.");
             target = parsed;
         }
 

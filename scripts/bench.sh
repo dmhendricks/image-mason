@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run every JPEG, PNG, WebP and AVIF in a folder through the service at every quality preset.
+# Run every JPEG, PNG, WebP, AVIF and JPEG XL in a folder through the service at every quality preset.
 # Writes optimized files to <out>/<quality>/ for side-by-side review and prints a CSV + totals.
 #
 #   scripts/bench.sh <image-dir> [out-dir]
@@ -20,7 +20,7 @@ trap 'rm -f "$headers"' EXIT
 
 header() { { grep -i "^x-image-mason-$1:" "$headers" || true; } | cut -d' ' -f2 | tr -d '\r'; }
 
-find "$dir" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.avif' \) | sort | while read -r file; do
+find "$dir" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.avif' -o -iname '*.jxl' \) | sort | while read -r file; do
     name=$(basename "$file")
     for mode in lossless high medium low; do
         status=$(curl -sS -H "Expect:" -o "${out}/${mode}/${name}" -D "$headers" -w '%{http_code}' \

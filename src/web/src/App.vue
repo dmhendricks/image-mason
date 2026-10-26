@@ -143,7 +143,7 @@ onBeforeUnmount(() => {
     <input
       ref="fileInput"
       type="file"
-      accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif"
+      accept="image/jpeg,image/png,image/webp,image/avif,image/jxl,.jpg,.jpeg,.png,.webp,.avif,.jxl"
       hidden
       @change="onFileChosen"
     >

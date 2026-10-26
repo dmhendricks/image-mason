@@ -135,7 +135,7 @@ export function useImage() {
     if (!format) {
       return isHeif(head)
         ? `“${name}” is a HEIC image, which Image Mason doesn't read. Export it as JPEG first.`
-        : `“${name}” isn't a JPEG, PNG, WebP or AVIF image.`
+        : `“${name}” isn't a PNG, WebP, AVIF, JPEG or JPEG XL image.`
     }
 
     // Browsers apply the EXIF orientation, so these are the display dimensions the server's rect uses.

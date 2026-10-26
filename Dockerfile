@@ -4,13 +4,13 @@
 # avifenc, cjxl, SSIMULACRA2).
 #
 # Four stages:
-#   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (cjpegli, ssimulacra2, cjxl, djxl) and
-#                libavif (avifenc, avifdec), which Alpine doesn't package or packages at older versions. Uses
-#                the same Alpine release as the runtime (musl ABI).
+#   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (ssimulacra2, cjxl, djxl), jpegli
+#                (cjpegli) and libavif (avifenc, avifdec), which Alpine doesn't package or packages at older versions,
+#                and fetches oxipng's checksummed release build. Uses the same Alpine release as the runtime (musl ABI).
 #   2. web     - builds the web interface (src/web, Vue + Vite) into static files. Node exists only here.
 #   3. app     - Native AOT publish of the .NET minimal API, with the web interface embedded, so the runtime
 #                needs no .NET installation and no web root.
-#   4. runtime - runtime-deps:alpine + oxipng, pngquant and cwebp from Alpine + the compiled tools.
+#   4. runtime - runtime-deps:alpine + pngquant and cwebp from Alpine + the tools from stage 1.
 
 ARG ALPINE_VERSION=3.24
 ARG DOTNET_VERSION=10.0
@@ -22,14 +22,19 @@ ARG NODE_VERSION=26
 # ---------------------------------------------------------------------------
 FROM alpine:${ALPINE_VERSION} AS tools
 
-# libjxl v0.11.2 is the last release that bundles jpegli (cjpegli). 0.12+ moved it to
-# github.com/google/jpegli, which has no tagged releases yet.
-ARG LIBJXL_VERSION=v0.11.2
+ARG LIBJXL_VERSION=v0.12.0
+# jpegli left libjxl in 0.12 for github.com/google/jpegli, which has no tagged releases yet: pinned to a commit.
+ARG JPEGLI_COMMIT=031a0077f5799a6041004267fc12b956c1f52a20
 ARG MOZJPEG_VERSION=v4.1.5
 ARG LIBVIPS_VERSION=v8.18.7
 ARG LIBAVIF_VERSION=v1.4.2
 ARG AOM_VERSION=v3.15.2
 ARG DAV1D_VERSION=1.5.4
+# Alpine packages oxipng 9; 10 comes from the project's static musl builds, checked against these SHA-256 sums.
+ARG OXIPNG_VERSION=10.2.1
+ARG OXIPNG_SHA256_AMD64=1813750ef592c5350ca79c88f98b2c0876d05c826dc7156245256d4255c1ad17
+ARG OXIPNG_SHA256_ARM64=ff21aa2a005b324c8dfbdf13cd2f469fb6728b27dacded82635824ecd12e3b35
+ARG TARGETARCH
 
 RUN apk add --no-cache build-base cmake ninja meson git nasm perl pkgconf \
     zlib-dev libpng-dev giflib-dev libjpeg-turbo-dev lcms2-dev brotli-dev highway-dev \
@@ -76,19 +81,15 @@ RUN git clone --depth 1 --branch ${MOZJPEG_VERSION} https://github.com/mozilla/m
     && cmake --build /build/mozjpeg --target jpegtran-static \
     && install -D -s /build/mozjpeg/jpegtran-static /out/bin/jpegtran
 
-# libjxl: builds only cjpegli, ssimulacra2, cjxl (JPEG XL encoder) and djxl (decoder). libjxl is shared, so the
-# four tools share one copy of the codec: 8.2 MB in all, against 14 MB statically linked. Third-party libraries
-# come from Alpine packages; the libjpeg-turbo submodule is needed only for jpegli's API headers.
+# libjxl: builds only ssimulacra2, cjxl (JPEG XL encoder) and djxl (decoder). libjxl is shared, so the three
+# tools share one copy of the codec. Third-party libraries come from Alpine packages.
 RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/libjxl.git /src/libjxl \
-    && git -C /src/libjxl submodule update --init --depth 1 third_party/libjpeg-turbo \
     && cmake -S /src/libjxl -B /build/libjxl -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_SHARED_LIBS=ON \
         -DBUILD_TESTING=OFF \
         -DJPEGXL_ENABLE_TOOLS=ON \
         -DJPEGXL_ENABLE_DEVTOOLS=ON \
-        -DJPEGXL_ENABLE_JPEGLI=ON \
-        -DJPEGXL_ENABLE_JPEGLI_LIBJPEG=OFF \
         -DJPEGXL_ENABLE_SKCMS=OFF \
         -DJPEGXL_FORCE_SYSTEM_LCMS2=ON \
         -DJPEGXL_FORCE_SYSTEM_BROTLI=ON \
@@ -101,11 +102,49 @@ RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/lib
         -DJPEGXL_ENABLE_OPENEXR=OFF \
         -DJPEGXL_ENABLE_DOXYGEN=OFF \
         -DJPEGXL_ENABLE_PLUGINS=OFF \
-    && cmake --build /build/libjxl --target cjpegli ssimulacra2 cjxl djxl \
-    && for tool in cjpegli ssimulacra2 cjxl djxl; do install -D -s /build/libjxl/tools/$tool /out/bin/$tool; done \
+        -DJPEGXL_ENABLE_VIEWERS=OFF \
+    && cmake --build /build/libjxl --target ssimulacra2 cjxl djxl \
+    && for tool in ssimulacra2 cjxl djxl; do install -D -s /build/libjxl/tools/$tool /out/bin/$tool; done \
     && mkdir -p /out/lib && cp -P /build/libjxl/lib/libjxl.so* /build/libjxl/lib/libjxl_cms.so* \
         /build/libjxl/lib/libjxl_threads.so* /out/lib/ \
     && strip /out/lib/libjxl*.so.*.*
+
+# jpegli: cjpegli, with jpegli linked in statically. Third-party libraries come from Alpine packages; the
+# libjpeg-turbo submodule is needed only for jpegli's API headers. Fetched by commit, since there are no tags.
+RUN git init -q /src/jpegli \
+    && git -C /src/jpegli fetch -q --depth 1 https://github.com/google/jpegli.git ${JPEGLI_COMMIT} \
+    && git -C /src/jpegli checkout -q FETCH_HEAD \
+    && git -C /src/jpegli submodule update --init --depth 1 third_party/libjpeg-turbo \
+    && cmake -S /src/jpegli -B /build/jpegli -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_TESTING=OFF \
+        -DJPEGLI_ENABLE_TOOLS=ON \
+        -DJPEGLI_ENABLE_JPEGLI_LIBJPEG=OFF \
+        -DJPEGLI_ENABLE_SKCMS=OFF \
+        -DJPEGLI_FORCE_SYSTEM_LCMS2=ON \
+        -DJPEGLI_FORCE_SYSTEM_HWY=ON \
+        -DJPEGLI_ENABLE_BENCHMARK=OFF \
+        -DJPEGLI_ENABLE_MANPAGES=OFF \
+        -DJPEGLI_ENABLE_JNI=OFF \
+        -DJPEGLI_ENABLE_SJPEG=OFF \
+        -DJPEGLI_ENABLE_OPENEXR=OFF \
+        -DJPEGLI_ENABLE_DOXYGEN=OFF \
+    && cmake --build /build/jpegli --target cjpegli \
+    && install -D -s /build/jpegli/tools/cjpegli /out/bin/cjpegli
+
+# oxipng: the release's static musl binary for this architecture, verified before it's unpacked.
+RUN case "$TARGETARCH" in \
+        amd64) arch=x86_64 sha="$OXIPNG_SHA256_AMD64" ;; \
+        arm64) arch=aarch64 sha="$OXIPNG_SHA256_ARM64" ;; \
+        *) echo "No oxipng build for $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && name="oxipng-${OXIPNG_VERSION}-${arch}-unknown-linux-musl" \
+    && wget -q -O /tmp/oxipng.tar.gz "https://github.com/oxipng/oxipng/releases/download/v${OXIPNG_VERSION}/${name}.tar.gz" \
+    && echo "$sha  /tmp/oxipng.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/oxipng.tar.gz -C /tmp \
+    && install -D "/tmp/${name}/oxipng" /out/bin/oxipng \
+    && rm -rf /tmp/oxipng.tar.gz "/tmp/${name}"
 
 # libavif: avifenc and avifdec share one libavif.so, with aom (encoder), dav1d (decoder) and libyuv linked into
 # it, so the codecs are on disk once. libyuv is the version libavif pins (Alpine's has no linkable library);
@@ -205,9 +244,9 @@ LABEL org.opencontainers.image.title="Image Mason" \
       org.opencontainers.image.source="https://github.com/dmhendricks/image-mason" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# oxipng, pngquant and cwebp from Alpine; the rest are shared libraries the compiled tools link against.
+# pngquant and cwebp from Alpine; the rest are shared libraries the compiled tools link against.
 # tzdata supplies IANA zones so TZ can move the clock off UTC.
-RUN apk add --no-cache oxipng pngquant libwebp-tools tzdata \
+RUN apk add --no-cache pngquant libwebp-tools tzdata \
     libpng libjpeg-turbo giflib lcms2 brotli-libs libhwy libstdc++ libgcc \
     glib expat libexif libwebp libwebpmux libwebpdemux libsharpyuv
 

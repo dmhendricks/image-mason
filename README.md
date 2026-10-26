@@ -465,7 +465,7 @@ scripts/smoke-test.sh image-mason:dev                # checks every endpoint aga
 scripts/optimize.sh photo.jpg medium                 # optimize one image and print the stats
 ```
 
-The first build compiles libjxl, mozjpeg, libvips, aom, dav1d and libavif from source and takes 10 minutes or more; later builds reuse the cached layers.
+The first build compiles libjxl, jpegli, mozjpeg, libvips, aom, dav1d and libavif from source and takes 10 minutes or more; later builds reuse the cached layers.
 
 The web interface is a Vue 3 app in `src/web`, built with Vite into static files that are embedded in the binary. To work on it with instant reloads, run the container as above, then:
 

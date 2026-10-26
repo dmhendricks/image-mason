@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format is based on 
 - **Breaking:** the JSON `reductionPercent` is now `sizeChangePercent`, and the `X-Image-Mason-Reduction-Percent` header is now `X-Image-Mason-Size-Change-Percent`. The sign is flipped: negative when the result is smaller, positive when it's larger.
 - The optimize log line says "larger" instead of a negative "smaller".
 - **Breaking:** the default `quality` is now `medium` (was `high`), in the API and the web interface. Set `IMAGE_MASON_DEFAULT_QUALITY=high`, or send `quality=high`, for the previous results.
+- libjxl 0.12.0 (`cjxl`, `djxl`, `ssimulacra2`; was 0.11.2), with about 30 security and hardening fixes to the decoder. jpegli moved out of libjxl in 0.12, so `cjpegli` is built from [google/jpegli](https://github.com/google/jpegli), pinned to a commit since it has no releases yet.
+- oxipng 10.2.1 (was 9.1.5), from the project's static release build, since Alpine still packages 9.1.5.
 
 ### Fixed
 

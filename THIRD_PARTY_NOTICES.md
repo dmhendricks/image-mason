@@ -10,7 +10,8 @@ Full license texts are in the [`licenses/`](licenses/) directory. In the image, 
 
 | Component | Version | License | Included as | Source |
 |---|---|---|---|---|
-| libjxl (`cjpegli`, `ssimulacra2`, `cjxl`, `djxl`) | 0.11.2 | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/libjxl/libjxl/tree/v0.11.2> |
+| libjxl (`ssimulacra2`, `cjxl`, `djxl`) | 0.12.0 | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/libjxl/libjxl/tree/v0.12.0> |
+| jpegli (`cjpegli`) | `031a0077` | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/google/jpegli/tree/031a0077f5799a6041004267fc12b956c1f52a20> |
 | mozjpeg (`jpegtran`) | 4.1.5 | IJG AND BSD-3-Clause AND Zlib | Built from source | <https://github.com/mozilla/mozjpeg/tree/v4.1.5> |
 | libvips (`vips`, `vipsthumbnail`) | 8.18.7 | LGPL-2.1-or-later | Built from source | <https://github.com/libvips/libvips/tree/v8.18.7> |
 | libavif (`avifenc`, `avifdec`) | 1.4.2 | BSD-2-Clause | Built from source | <https://github.com/AOMediaCodec/libavif/tree/v1.4.2> |
@@ -19,12 +20,16 @@ Full license texts are in the [`licenses/`](licenses/) directory. In the image, 
 | libyuv (in libavif) | 1924 (`644251f2`) | BSD-3-Clause, plus a patent grant | Built from source | <https://chromium.googlesource.com/libyuv/libyuv/+/644251f252a84bf8ce91ff0aca86a9b16b069ab8> |
 | libargparse (in `avifenc`, `avifdec`) | `ee74d1b5` | MIT | Built from source | <https://github.com/kmurray/libargparse/tree/ee74d1b53bd680748af14e737378de57e2a0a954> |
 | libwebp (`cwebp`, and WebP in libvips) | 1.6.0 | BSD-3-Clause, plus a patent grant | Alpine package | <https://github.com/webmproject/libwebp/tree/v1.6.0> |
-| oxipng | 9.1.5 | MIT | Alpine package | <https://github.com/oxipng/oxipng/tree/v9.1.5> |
+| oxipng | 10.2.1 | MIT | Upstream release build | <https://github.com/oxipng/oxipng/tree/v10.2.1> |
 | pngquant (with libimagequant) | 3.0.3 | GPL-3.0-or-later | Alpine package | <https://github.com/kornelski/pngquant/tree/3.0.3> |
 
 ### libjxl
 
 Copyright (c) the JPEG XL Project Authors. All rights reserved. See [`licenses/libjxl-LICENSE.txt`](licenses/libjxl-LICENSE.txt) and [`licenses/libjxl-PATENTS.txt`](licenses/libjxl-PATENTS.txt).
+
+### jpegli
+
+Copyright (c) the JPEG XL Project Authors. All rights reserved. jpegli's license and patent grant are identical to libjxl's: see [`licenses/libjxl-LICENSE.txt`](licenses/libjxl-LICENSE.txt) and [`licenses/libjxl-PATENTS.txt`](licenses/libjxl-PATENTS.txt).
 
 ### mozjpeg
 

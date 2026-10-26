@@ -1,7 +1,8 @@
 version: 2
 
 # The Dockerfile's base images and source-built tools are pinned with ARGs, which Dependabot can't update.
-# Check those by hand: alpine, the .NET images, LIBVIPS_VERSION, MOZJPEG_VERSION and LIBJXL_VERSION.
+# Check those by hand: alpine, the .NET images, NODE_VERSION, LIBVIPS_VERSION, MOZJPEG_VERSION, LIBJXL_VERSION,
+# JPEGLI_COMMIT, LIBAVIF_VERSION, AOM_VERSION, DAV1D_VERSION and OXIPNG_VERSION (with its SHA-256 sums).
 updates:
   - package-ecosystem: nuget
     directory: /

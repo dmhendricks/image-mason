@@ -1,8 +1,6 @@
-[![CI](https://github.com/dmhendricks/image-mason/actions/workflows/ci.yml/badge.svg)](https://github.com/dmhendricks/image-mason/actions/workflows/ci.yml) [![Docker Image Version](https://img.shields.io/docker/v/hendridm/image-mason?sort=semver&label=docker)](https://hub.docker.com/r/hendridm/image-mason) [![Docker Image Size](https://img.shields.io/docker/image-size/hendridm/image-mason?sort=semver)](https://hub.docker.com/r/hendridm/image-mason) [![License](https://img.shields.io/github/license/dmhendricks/image-mason)](https://github.com/dmhendricks/image-mason/blob/main/LICENSE)
-
-![Image Mason](https://github.com/dmhendricks/image-mason/raw/main/assets/logo.png)
-
 # Image Mason
+
+![Image Mason web interface](https://github.com/dmhendricks/image-mason/raw/main/assets/screenshot.webp)
 
 A self-hosted HTTP API that makes JPEG, PNG, WebP and AVIF images smaller, converts between those formats,
 and can host the results temporarily.

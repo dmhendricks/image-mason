@@ -5,7 +5,7 @@
 import type { Limits } from './api/types'
 import { formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
-import { type ImageFormat, type Settings, type Tool, chosenFormat } from './settings'
+import { type ImageFormat, type Settings, type Tool, chosenFormat, effectiveQuality } from './settings'
 
 /** Largest width or height the API accepts (ResizeParameters.MaxSide). */
 export const maxSide = 65535
@@ -40,8 +40,9 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
   const errors: JobPlan['errors'] = {}
   const query = new URLSearchParams()
   const lossless = settings.lossless
+  const quality = effectiveQuality(settings.quality, limits?.defaultQuality)
 
-  query.set('quality', lossless ? 'lossless' : settings.quality)
+  query.set('quality', lossless ? 'lossless' : quality)
   if (settings.customScore && !lossless) {
     if (Number.isFinite(settings.minScore) && settings.minScore >= 0 && settings.minScore <= 100)
       query.set('minScore', String(settings.minScore))
@@ -130,7 +131,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
     action: actionName(tool, output, settings),
     working: workingNames[tool],
     label: [
-      lossless ? 'Lossless' : settings.customScore ? `Score ${settings.minScore}` : qualityNames[settings.quality],
+      lossless ? 'Lossless' : settings.customScore ? `Score ${settings.minScore}` : qualityNames[quality],
       format !== null && format !== image?.format ? formatName(format) : null,
       output && image && (output.width !== image.width || output.height !== image.height) ? formatSize(output.width, output.height) : null,
     ].filter(Boolean).join(', '),

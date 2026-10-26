@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { usePlan } from '../../composables/usePlan'
 import { useServer } from '../../composables/useServer'
 import { useSettings } from '../../composables/useSettings'
-import type { Quality } from '../../settings'
+import { type Quality, effectiveQuality } from '../../settings'
 import HelpTip from '../controls/HelpTip.vue'
 import NumberField from '../controls/NumberField.vue'
 import SegmentedControl from '../controls/SegmentedControl.vue'
@@ -24,8 +24,11 @@ const options: { value: Level, label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ]
 
+// Until a preset is chosen, the server's default is shown (and sent).
+const quality = computed(() => effectiveQuality(settings.quality, limits.value?.defaultQuality))
+
 const level = computed<Level>({
-  get: () => settings.customScore ? 'custom' : settings.quality,
+  get: () => settings.customScore ? 'custom' : quality.value,
   set: value => {
     settings.customScore = value === 'custom'
     if (value !== 'custom')
@@ -40,9 +43,9 @@ const hint = computed(() => {
   if (settings.customScore)
     return 'Results must score at least this, from 0 to 100. 90 and up is hard to tell from the original.'
 
-  const floor = limits.value?.presets[settings.quality]
+  const floor = limits.value?.presets[quality.value]
   const score = floor == null ? '' : `Score ${floor} or better: `
-  switch (settings.quality) {
+  switch (quality.value) {
     case 'high':
       return `${score}no visible difference when viewed normally.`
     case 'medium':

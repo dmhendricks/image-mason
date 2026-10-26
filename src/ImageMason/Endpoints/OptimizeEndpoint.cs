@@ -113,7 +113,7 @@ internal static class OptimizeEndpoint
         bool preferJpeg,
         bool keepOriginal)
     {
-        if (!TryParseQuality(quality, out var preset))
+        if (!TryParseQuality(quality, options.DefaultQuality, out var preset))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "quality must be 'lossless', 'high', 'medium' or 'low'.");
 
         if (minScore is < 0 or > 100)
@@ -276,11 +276,14 @@ internal static class OptimizeEndpoint
         }
     }
 
-    private static bool TryParseQuality(string? value, out QualityPreset preset)
+    private static bool TryParseQuality(string? value, QualityPreset fallback, out QualityPreset preset)
     {
         switch (value?.ToLowerInvariant())
         {
-            case null or "" or "high":
+            case null or "":
+                preset = fallback;
+                return true;
+            case "high":
                 preset = QualityPreset.High;
                 return true;
             case "medium":

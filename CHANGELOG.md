@@ -13,6 +13,8 @@ All notable changes to this project are documented here. The format is based on
   server's limits before anything is sent. The interface asks for the API key on servers that need one,
   retries while the server is busy, and can cancel a running job. It's a Vue 3 app built into the image.
 - `IMAGE_MASON_UI_ENABLED`: `false` turns the web interface off, and `/` redirects to `/docs`.
+- `IMAGE_MASON_DEFAULT_QUALITY`: the preset (`high`, `medium` or `low`) for requests that don't send `quality`,
+  also the web interface's starting choice. `GET /api/v1/limits` reports it as `defaultQuality`.
 - JPEG XL, as input and output (`format=jxl`): lossy and lossless encoding with `cjxl`, and lossless
   recompression of JPEGs (`cjxl-jpeg`), typically 20% smaller with the same pixels. libjxl is now built as a
   shared library, so its four tools share one copy of the codec; the image grows by about 1 MB.
@@ -24,6 +26,8 @@ All notable changes to this project are documented here. The format is based on
   header is now `X-Image-Mason-Size-Change-Percent`. The sign is flipped: negative when the result is smaller,
   positive when it's larger.
 - The optimize log line says "larger" instead of a negative "smaller".
+- **Breaking:** the default `quality` is now `medium` (was `high`), in the API and the web interface. Set
+  `IMAGE_MASON_DEFAULT_QUALITY=high`, or send `quality=high`, for the previous results.
 
 ## [0.2.1] - 2026-10-25
 

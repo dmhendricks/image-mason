@@ -7,6 +7,8 @@ export interface Limits {
   maxPixels: number
   /** Each preset's minimum SSIMULACRA2 score; null for lossless. */
   presets: Record<string, number | null>
+  /** Preset used when a request sends no quality: high, medium or low. */
+  defaultQuality: string
   defaultMaxWidth: number
   imageTtlMinutes: number
   timeoutSeconds: number

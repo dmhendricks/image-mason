@@ -18,7 +18,8 @@ export interface Settings {
   tool: Tool
   /** Send quality=lossless; the preset and custom score are kept for when it's turned off. */
   lossless: boolean
-  quality: Quality
+  /** null uses the server's default (IMAGE_MASON_DEFAULT_QUALITY) until a preset is chosen. */
+  quality: Quality | null
   /** Send minScore instead of the preset's floor ("Custom" in the quality switch). */
   customScore: boolean
   minScore: number
@@ -46,11 +47,16 @@ export function chosenFormat(format: ImageFormat | null, input: ImageFormat | un
   return format === input ? null : format
 }
 
+/** The preset in effect: the chosen one, else the server's default, else medium (as the server's own default). */
+export function effectiveQuality(quality: Quality | null, serverDefault: string | undefined): Quality {
+  return quality ?? (qualities.includes(serverDefault as Quality) ? serverDefault as Quality : 'medium')
+}
+
 export function defaultSettings(): Settings {
   return {
     tool: 'optimize',
     lossless: false,
-    quality: 'high',
+    quality: null,
     customScore: false,
     minScore: 80,
     format: null,
@@ -100,7 +106,7 @@ export function sanitize(value: unknown): Settings {
   settings.tool = pick(tools, 'tool', settings.tool)
   // Earlier versions saved lossless as a quality.
   settings.lossless = saved.quality === 'lossless' || bool('lossless', settings.lossless)
-  settings.quality = pick(qualities, 'quality', settings.quality)
+  settings.quality = qualities.includes(saved.quality as Quality) ? saved.quality as Quality : null
   settings.customScore = bool('customScore', settings.customScore)
   if (typeof saved.minScore === 'number' && saved.minScore >= 0 && saved.minScore <= 100)
     settings.minScore = saved.minScore

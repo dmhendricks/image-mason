@@ -156,12 +156,12 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o square.avif \
 | Preset | Minimum score | Result |
 |---|---|---|
 | `lossless` | | Identical pixels; only the encoding is optimized (see [JPEG output](#how-each-format-is-handled)) |
-| `high` (default) | 85 | No visible difference in place at 1:1 |
-| `medium` | 80 | No visible difference side by side at 1:1 |
+| `high` | 85 | No visible difference in place at 1:1 |
+| `medium` (default) | 80 | No visible difference side by side at 1:1 |
 | `low` | 70 | Barely visible difference side by side |
 
 Scores are SSIMULACRA2, from 0 to 100, where 100 is identical. Use `minScore` for a custom floor, or change
-the preset floors with [environment variables](#configuration).
+the default preset and the preset floors with [environment variables](#configuration).
 
 ### Store and Share an Image
 
@@ -183,10 +183,10 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @graphic.png \
   "originalHeight": 320,
   "width": 480,
   "height": 320,
-  "quality": "high",
+  "quality": "medium",
   "method": "pngquant+oxipng",
   "score": 90.31,
-  "minScore": 85,
+  "minScore": 80,
   "isPhoto": false,
   "expiresAt": "2026-10-24T16:32:24-04:00",
   "durationMs": 668
@@ -248,7 +248,7 @@ The image is the request body, or the file at `url`.
 
 | Parameter | Default | Description |
 |---|---|---|
-| `quality` | `high` | `lossless`, `high`, `medium` or `low` |
+| `quality` | `medium` (`IMAGE_MASON_DEFAULT_QUALITY`) | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
 | `rect` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
 | `maxWidth` | `0` | Downscale images wider than this, keeping the aspect ratio. `0` keeps the original size. Can't be combined with `width` or `height`. |
@@ -403,6 +403,7 @@ for one.
   "maxInputSize": 26214400,
   "maxPixels": 50000000,
   "presets": { "lossless": null, "high": 85, "medium": 80, "low": 70 },
+  "defaultQuality": "medium",
   "defaultMaxWidth": 0,
   "imageTtlMinutes": 60,
   "timeoutSeconds": 120,
@@ -450,6 +451,7 @@ comments. An invalid value stops the container at startup with a message naming 
 | `IMAGE_MASON_TIMEOUT_SECONDS` | `120` | Time before a request stops with 504 |
 | `IMAGE_MASON_MEMORY_LIMIT` | container limit | Memory the service may use. See [Memory](#memory). |
 | `IMAGE_MASON_DEFAULT_MAX_WIDTH` | `0` | `maxWidth` for requests that don't send one. `0` keeps the original size. |
+| `IMAGE_MASON_DEFAULT_QUALITY` | `medium` | `quality` for requests that don't send one, and the web interface's starting choice: `high`, `medium` or `low` |
 | `IMAGE_MASON_HIGH_MIN_SCORE` | `85` | Floor for `high` |
 | `IMAGE_MASON_MEDIUM_MIN_SCORE` | `80` | Floor for `medium` |
 | `IMAGE_MASON_LOW_MIN_SCORE` | `70` | Floor for `low` |

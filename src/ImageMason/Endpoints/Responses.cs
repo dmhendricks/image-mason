@@ -84,6 +84,7 @@ public sealed class ImageInfoResponse
 /// <param name="MaxInputSize">Largest accepted file, in bytes (IMAGE_MASON_MAX_INPUT_SIZE).</param>
 /// <param name="MaxPixels">Largest accepted image, and largest result, in pixels (IMAGE_MASON_MAX_PIXELS).</param>
 /// <param name="Presets">Each quality preset's minimum SSIMULACRA2 score; null for lossless.</param>
+/// <param name="DefaultQuality">Preset used when a request sends no quality (IMAGE_MASON_DEFAULT_QUALITY).</param>
 /// <param name="DefaultMaxWidth">Width optimize and convert downscale to when a request sends no maxWidth; 0 is off.</param>
 /// <param name="ImageTtlMinutes">How long stored images are served.</param>
 /// <param name="TimeoutSeconds">How long a request may take before 504.</param>
@@ -94,6 +95,7 @@ public sealed record LimitsResponse(
     long MaxInputSize,
     long MaxPixels,
     IReadOnlyDictionary<string, double?> Presets,
+    string DefaultQuality,
     int DefaultMaxWidth,
     int ImageTtlMinutes,
     int TimeoutSeconds,

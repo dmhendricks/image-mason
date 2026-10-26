@@ -1,4 +1,5 @@
 using System.Globalization;
+using ImageMason.Imaging;
 
 namespace ImageMason.Configuration;
 
@@ -43,6 +44,9 @@ public sealed class ImageMasonOptions
     /// resizes when a request passes maxWidth.
     /// </summary>
     public int DefaultMaxWidth { get; init; }
+
+    /// <summary>Preset for requests that send no quality: High, Medium or Low.</summary>
+    public QualityPreset DefaultQuality { get; init; } = QualityPreset.Medium;
 
     // Minimum SSIMULACRA2 score per preset. Tiers from the SSIMULACRA2 README:
     // 90 = not noticeable in a flicker test, 85 = not noticeable in place at 1:1,
@@ -143,6 +147,7 @@ public sealed class ImageMasonOptions
             TimeoutSeconds = settings.Int("TIMEOUT_SECONDS", defaults.TimeoutSeconds, min: 1),
             MemoryLimitBytes = settings.String("MEMORY_LIMIT") is null ? null : settings.Size("MEMORY_LIMIT", 0, allowZero: false),
             DefaultMaxWidth = settings.Int("DEFAULT_MAX_WIDTH", defaults.DefaultMaxWidth, min: 0),
+            DefaultQuality = settings.Quality("DEFAULT_QUALITY", defaults.DefaultQuality),
             HighMinScore = settings.Score("HIGH_MIN_SCORE", defaults.HighMinScore),
             MediumMinScore = settings.Score("MEDIUM_MIN_SCORE", defaults.MediumMinScore),
             LowMinScore = settings.Score("LOW_MIN_SCORE", defaults.LowMinScore),
@@ -201,6 +206,20 @@ public sealed class ImageMasonOptions
                     : "a byte count or a size such as 25m");
 
             return bytes;
+        }
+
+        public QualityPreset Quality(string name, QualityPreset fallback)
+        {
+            if (String(name) is not { } text)
+                return fallback;
+
+            return text.ToLowerInvariant() switch
+            {
+                "high" => QualityPreset.High,
+                "medium" => QualityPreset.Medium,
+                "low" => QualityPreset.Low,
+                _ => throw Invalid(name, text, "high, medium or low"),
+            };
         }
 
         public bool Bool(string name, bool fallback)

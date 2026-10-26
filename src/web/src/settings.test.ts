@@ -20,6 +20,12 @@ describe('settings', () => {
     expect(settings).toEqual({ ...defaultSettings(), quality: 'medium', fit: 'cover' })
   })
 
+  it('keeps a chosen quality, and follows the server\'s default without one', () => {
+    expect(defaultSettings().quality).toBeNull()
+    expect(sanitize({ quality: 'high' }).quality).toBe('high')
+    expect(sanitize({ quality: null }).quality).toBeNull()
+  })
+
   it('turns a saved lossless quality into the lossless setting', () => {
     expect(sanitize({ quality: 'lossless' })).toEqual({ ...defaultSettings(), lossless: true })
     expect(sanitize({ lossless: true, quality: 'low' })).toEqual({ ...defaultSettings(), lossless: true, quality: 'low' })

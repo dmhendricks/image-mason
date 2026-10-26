@@ -1,4 +1,5 @@
 using ImageMason.Configuration;
+using ImageMason.Imaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -21,6 +22,7 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(defaults.MaxInputBytes, options.MaxInputBytes);
         Assert.Equal(defaults.MaxPixels, options.MaxPixels);
         Assert.Equal(0, options.DefaultMaxWidth);
+        Assert.Equal(QualityPreset.Medium, options.DefaultQuality);
         Assert.Equal(120, options.TimeoutSeconds);
         Assert.Null(options.MemoryLimitBytes);
         Assert.True(options.UrlFetchEnabled);
@@ -42,6 +44,7 @@ public sealed class ImageMasonOptionsTests
             ("TIMEOUT_SECONDS", "30"),
             ("MEMORY_LIMIT", "4g"),
             ("DEFAULT_MAX_WIDTH", "2000"),
+            ("DEFAULT_QUALITY", "High"),
             ("HIGH_MIN_SCORE", "88.5"),
             ("STORE_PATH", "/tmp/store"),
             ("IMAGE_TTL_MINUTES", "5"),
@@ -61,6 +64,7 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(30, options.TimeoutSeconds);
         Assert.Equal(4L * 1024 * 1024 * 1024, options.MemoryLimitBytes);
         Assert.Equal(2000, options.DefaultMaxWidth);
+        Assert.Equal(QualityPreset.High, options.DefaultQuality);
         Assert.Equal(88.5, options.HighMinScore);
         Assert.Equal("/tmp/store", options.StorePath);
         Assert.Equal(5, options.ImageTtlMinutes);
@@ -81,6 +85,8 @@ public sealed class ImageMasonOptionsTests
     [InlineData("MEMORY_LIMIT", "plenty")]
     [InlineData("MAX_STORE_SIZE", "huge")]
     [InlineData("HIGH_MIN_SCORE", "101")]
+    [InlineData("DEFAULT_QUALITY", "lossless")]
+    [InlineData("DEFAULT_QUALITY", "best")]
     [InlineData("URL_FETCH_ENABLED", "maybe")]
     [InlineData("URL_ALLOWED_HOSTS", "cdn.example.com, not a host")]
     [InlineData("PUBLIC_BASE_URL", "images.example.com")]

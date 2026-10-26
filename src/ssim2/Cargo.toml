@@ -1,0 +1,20 @@
+[package]
+name = "ssim2"
+version = "0.1.0"
+edition = "2024"
+description = "SSIMULACRA2 scorer for Image Mason: fast-ssim2 with libjxl-compatible decoding and color handling"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+fast-ssim2 = "0.9.0"
+lcms2 = "6.2.0"
+png = "0.18.1"
+# The system libjpeg-turbo, linked statically: the same decoder libjxl's ssimulacra2 uses.
+turbojpeg-sys = { version = "1.2.0", default-features = false, features = ["pkg-config"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

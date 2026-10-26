@@ -83,8 +83,9 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     /// <param name="Cropped">Cropped; method names start with "crop+".</param>
     /// <param name="Resized">Resized; method names start with "resize+" (after "crop+").</param>
     /// <param name="Icc">The reference embeds an ICC profile, which the encoders copy.</param>
+    /// <param name="Scorer">Scores candidates against the reference.</param>
     private sealed record Job(string Work, string Source, string Reference, string Input, ImageInfo Info, bool Cropped, bool Resized,
-        double? MinScore, bool Icc);
+        double? MinScore, bool Icc, Scorer Scorer);
 
     /// <summary>One encoder setting searched for the smallest result that meets the floor.</summary>
     /// <param name="Smaller">+1 when a higher value gives a smaller file (jpegli distance), -1 when lower does (quality).</param>
@@ -156,7 +157,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             var source = Path.Combine(work.FullName, "source" + format.Extension());
             await File.WriteAllBytesAsync(source, input, ct);
 
-            // The encoders and ssimulacra2 read PNG and JPEG; oxipng and pngquant read PNG only.
+            // The encoders and the scorer read PNG and JPEG; oxipng and pngquant read PNG only.
             var normalize = resize || rotate
                 || format is ImageFormat.WebP or ImageFormat.Avif or ImageFormat.Jxl
                 || (target == ImageFormat.Png && format != ImageFormat.Png);
@@ -188,15 +189,17 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                 hasAlpha = false;
             }
 
-            // Scoring an image with alpha takes two to three times as long (ssimulacra2 also scores it on a dark and a light
+            // Scoring an image with alpha takes two to three times as long (it is also scored on a dark and a light
             // background), so an alpha channel that is opaque everywhere is dropped from what results are scored
             // against; the scores are the same. The encoders keep their input, so the results don't change.
             var encoderInput = reference;
             if (hasAlpha && scored && await IsOpaqueAsync(reference, work.FullName, ImageHeader.PngBitDepth(head), ct))
                 reference = await FlattenAsync(reference, work.FullName, ImageHeader.PngBitDepth(head), ct);
 
+            // Ends with the try block, so the scorer has exited before the work folder is deleted.
+            await using var scorer = new Scorer(tools, reference, logger);
             var job = new Job(work.FullName, source, reference, encoderInput, info, crop, resize, minScore,
-                ImageHeader.HasIccProfile(head, referenceFormat));
+                ImageHeader.HasIccProfile(head, referenceFormat), scorer);
 
             // Size guard: unless the image must be cropped, resized or converted, the original is a candidate and wins ties.
             List<Candidate> candidates = crop || resize || converting ? [] : [new(Original, source, input.Length, null)];
@@ -336,8 +339,8 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var input = source;
         if (format == ImageFormat.Avif)
         {
-            // avifdec applies the irot/imir transforms. Its PNG can carry a cICP chunk that ssimulacra2 can't read
-            // (an "unspecified" transfer function), so vipsthumbnail rewrites it either way.
+            // avifdec applies the irot/imir transforms. Its PNG can carry a cICP chunk with an "unspecified"
+            // transfer function that some tools can't read, so vipsthumbnail rewrites it either way.
             input = Path.Combine(work, "decoded.png");
             var avifdec = await tools.RunAsync("avifdec", ["--png-compress", "0", source, input], ct);
             EnsureOutput("avifdec", avifdec, input, $"Could not decode the {format.DisplayName()} image. It may be damaged.");
@@ -482,7 +485,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             return null;
         }
 
-        var score = await ScoreAsync(job.Reference, output, ct);
+        var score = await job.Scorer.ScoreAsync(output, ct);
         return new(MethodName(job, $"jpegli-d{d}"), output, new FileInfo(output).Length, score);
     }
 
@@ -530,10 +533,10 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             return null;
         }
 
-        // ssimulacra2 can't read WebP; vips decodes it and keeps the ICC profile (dwebp drops it).
+        // The scorer can't read WebP; vips decodes it and keeps the ICC profile (dwebp drops it).
         var decoded = Path.Combine(job.Work, $"webp-{suffix}.png");
         var vips = await tools.RunAsync("vips", ["copy", output, $"{decoded}[keep=icc,compression=0]"], ct);
-        var score = vips.ExitCode == 0 && File.Exists(decoded) ? await ScoreAsync(job.Reference, decoded, ct) : null;
+        var score = vips.ExitCode == 0 && File.Exists(decoded) ? await job.Scorer.ScoreAsync(decoded, ct) : null;
         return new(MethodName(job, $"cwebp-q{q}"), output, new FileInfo(output).Length, score);
     }
 
@@ -567,7 +570,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
 
         var decoded = Path.Combine(job.Work, $"avif-{suffix}.png");
         var avifdec = await tools.RunAsync("avifdec", ["--png-compress", "0", output, decoded], ct);
-        var score = avifdec.ExitCode == 0 && File.Exists(decoded) ? await ScoreAsync(job.Reference, decoded, ct) : null;
+        var score = avifdec.ExitCode == 0 && File.Exists(decoded) ? await job.Scorer.ScoreAsync(decoded, ct) : null;
         return new(MethodName(job, $"avifenc-q{q}"), output, new FileInfo(output).Length, score);
     }
 
@@ -576,7 +579,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         List<string> args = ["-s", options.AvifSpeed.ToString(CultureInfo.InvariantCulture), "--ignore-exif", "--ignore-xmp", .. quality];
 
         // Without an ICC profile the pixels are sRGB: say so, or the decoded PNG has an "unspecified" transfer
-        // function that ssimulacra2 (and some viewers) can't interpret. Lossless needs the identity matrix (0).
+        // function that some viewers can't interpret. Lossless needs the identity matrix (0).
         if (!job.Icc)
             args.AddRange(["--cicp", lossless ? "1/13/0" : "1/13/6"]);
 
@@ -643,10 +646,10 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         if (!await RunCjxlAsync(job.Input, output, ["-d", d, "--lossless_jpeg=0"], ct))
             return null;
 
-        // Scored from djxl's PNG, the pixels a viewer shows; ssimulacra2 reading the .jxl itself scores a little higher.
+        // Scored from djxl's PNG, the pixels a viewer shows.
         var decoded = Path.Combine(job.Work, $"jxl-{suffix}.png");
         var djxl = await tools.RunAsync("djxl", [output, decoded, "--quiet"], ct);
-        var score = djxl.ExitCode == 0 && File.Exists(decoded) ? await ScoreAsync(job.Reference, decoded, ct) : null;
+        var score = djxl.ExitCode == 0 && File.Exists(decoded) ? await job.Scorer.ScoreAsync(decoded, ct) : null;
         return new(MethodName(job, $"cjxl-d{d}"), output, new FileInfo(output).Length, score);
     }
 
@@ -786,7 +789,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                 break;
             }
 
-            var score = await ScoreAsync(job.Reference, output, ct);
+            var score = await job.Scorer.ScoreAsync(output, ct);
             logger.LogDebug("pngquant 0-{MaxQuality}: {Bytes} bytes, score {Score:F2}", maxQuality, new FileInfo(output).Length, score);
 
             if (!(score >= minScore))
@@ -825,18 +828,6 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             return output;
 
         logger.LogWarning("oxipng exited {ExitCode}: {StdErr}", oxipng.ExitCode, oxipng.StdErr);
-        return null;
-    }
-
-    /// <summary>SSIMULACRA2 score of candidate vs. reference (100 = identical, 90+ = visually lossless).</summary>
-    private async Task<double?> ScoreAsync(string reference, string candidate, CancellationToken ct)
-    {
-        var result = await tools.RunAsync("ssimulacra2", [reference, candidate], ct);
-        if (result.ExitCode == 0
-            && double.TryParse(result.StdOut.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var score))
-            return score;
-
-        logger.LogWarning("ssimulacra2 exited {ExitCode}: {StdErr}", result.ExitCode, result.StdErr);
         return null;
     }
 }

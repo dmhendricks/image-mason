@@ -31,6 +31,9 @@ watch(() => result.value?.id, () => {
     cropView.value = { ...rect }
 })
 
+/** The result the browser couldn't display (JPEG XL, in browsers without it); it can still be downloaded. */
+const undisplayable = ref<number | null>(null)
+
 /** The part of the original on the board, in image pixels. */
 const view = computed<Rect | null>(() => {
   if (!image.value)
@@ -236,7 +239,17 @@ function onDividerKey(event: KeyboardEvent) {
       >
         <div class="pic">
           <img v-if="!result || compare" :src="image.url" :alt="`${image.name}, original`" :style="viewStyle">
-          <img v-if="result" class="result" :src="result.url" :alt="`${image.name}, ${result.label}`">
+          <img
+            v-if="result && undisplayable !== result.id"
+            class="result"
+            :src="result.url"
+            :alt="`${image.name}, ${result.label}`"
+            @error="undisplayable = result.id"
+          >
+          <p v-if="result && undisplayable === result.id" class="no-preview">
+            {{ result.format === 'jxl' ? "Your browser can't display JPEG XL." : "Your browser couldn't display the result." }}
+            Download it to view it.
+          </p>
 
           <span v-if="result && compare" class="tag a">Original<span>{{ formatBytes(image.size) }}</span></span>
           <span v-if="result" class="tag b">{{ result.label }}<span>{{ formatBytes(result.stats.size) }}</span></span>
@@ -283,7 +296,7 @@ function onDividerKey(event: KeyboardEvent) {
         </div>
 
         <div
-          v-if="result && compare"
+          v-if="result && compare && undisplayable !== result.id"
           class="divider"
           role="slider"
           tabindex="0"
@@ -363,6 +376,23 @@ function onDividerKey(event: KeyboardEvent) {
 
 .top { top: -30px; }
 .left { left: -34px; }
+
+.no-preview {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  left: 16px;
+  width: fit-content;
+  margin: 0 auto;
+  translate: 0 -50%;
+  padding: 8px 12px;
+  border-radius: 3px;
+  background: rgb(0 0 0 / 0.66);
+  color: #fff;
+  font: 500 14px var(--font-cond);
+  text-align: center;
+  pointer-events: none;
+}
 
 .tag {
   position: absolute;

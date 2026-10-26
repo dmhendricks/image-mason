@@ -1,9 +1,18 @@
 version: 2
 
 # The Dockerfile's base images and source-built tools are pinned with ARGs, which Dependabot can't update.
-# Check those by hand: alpine, the .NET images, NODE_VERSION, LIBVIPS_VERSION, MOZJPEG_VERSION, LIBJXL_VERSION,
-# JPEGLI_COMMIT, LIBAVIF_VERSION, AOM_VERSION, DAV1D_VERSION and OXIPNG_VERSION (with its SHA-256 sums).
+# Check those by hand: alpine, the .NET images, NODE_VERSION, RUST_VERSION, LIBVIPS_VERSION, MOZJPEG_VERSION,
+# LIBJXL_VERSION, JPEGLI_COMMIT, LIBAVIF_VERSION, AOM_VERSION, DAV1D_VERSION and OXIPNG_VERSION (with its SHA-256 sums).
 updates:
+  # The scorer's crates (src/ssim2). A crate that ships no license file fails the image build (src/ssim2/notices.sh).
+  - package-ecosystem: cargo
+    directory: /src/ssim2
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+
   - package-ecosystem: nuget
     directory: /
     schedule:

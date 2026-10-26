@@ -16,17 +16,21 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels its older run. Runs on main all finish, since they write the tools cache.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
     runs-on: ubuntu-26.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -41,6 +45,7 @@ jobs:
 
   web:
     runs-on: ubuntu-26.04
+    timeout-minutes: 15
 
     defaults:
       run:
@@ -49,6 +54,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -58,7 +65,8 @@ jobs:
           cache-dependency-path: src/web/package-lock.json
 
       - name: Install
-        run: npm ci --no-audit --no-fund
+        # No install scripts: the only packages with any are optional file watchers the build doesn't use.
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
       - name: Lint
         run: npm run lint
@@ -83,10 +91,14 @@ jobs:
             runner: ubuntu-26.04-arm
 
     runs-on: ${{ matrix.runner }}
+    # About 13 minutes when the tools stage has to compile; a few with the cache.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4

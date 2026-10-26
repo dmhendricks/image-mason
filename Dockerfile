@@ -3,19 +3,39 @@
 # Image Mason: JPEG, PNG, WebP, AVIF and JPEG XL optimization API (oxipng, pngquant, mozjpeg, jpegli, cwebp,
 # avifenc, cjxl, SSIMULACRA2).
 #
-# Four stages:
-#   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (ssimulacra2, cjxl, djxl), jpegli
-#                (cjpegli) and libavif (avifenc, avifdec), which Alpine doesn't package or packages at older versions,
-#                and fetches oxipng's checksummed release build. Uses the same Alpine release as the runtime (musl ABI).
-#   2. web     - builds the web interface (src/web, Vue + Vite) into static files. Node exists only here.
-#   3. app     - Native AOT publish of the .NET minimal API, with the web interface embedded, so the runtime
+# Five stages:
+#   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (cjxl, djxl), jpegli (cjpegli)
+#                and libavif (avifenc, avifdec), which Alpine doesn't package or packages at older versions, and
+#                fetches oxipng's checksummed release build. Uses the same Alpine release as the runtime (musl ABI).
+#   2. scorer  - builds ssim2 (src/ssim2, Rust), the SSIMULACRA2 scorer. Rust exists only here.
+#   3. web     - builds the web interface (src/web, Vue + Vite) into static files. Node exists only here.
+#   4. app     - Native AOT publish of the .NET minimal API, with the web interface embedded, so the runtime
 #                needs no .NET installation and no web root.
-#   4. runtime - runtime-deps:alpine + pngquant and cwebp from Alpine + the tools from stage 1.
+#   5. runtime - runtime-deps:alpine + pngquant and cwebp from Alpine + the tools from stages 1 and 2.
 
+# Versions, all set here. A stage sees one only where it names it again (ARG NAME, without a value), and each
+# stage does that just before the step that uses it: a changed ARG rebuilds every step after that line, so bumping
+# one library leaves the steps above it cached.
 ARG ALPINE_VERSION=3.24
 ARG DOTNET_VERSION=10.0
 # Node LTS, for building the web interface only.
 ARG NODE_VERSION=26
+# Rust, for building the scorer only.
+ARG RUST_VERSION=1.99
+ARG LIBVIPS_VERSION=v8.18.7
+ARG MOZJPEG_VERSION=v4.1.5
+ARG LIBJXL_VERSION=v0.12.0
+# jpegli left libjxl in 0.12 for github.com/google/jpegli, which has no tagged releases yet: pinned to a commit.
+ARG JPEGLI_COMMIT=031a0077f5799a6041004267fc12b956c1f52a20
+# Alpine packages oxipng 9; 10 comes from the project's static musl builds, checked against these SHA-256 sums.
+ARG OXIPNG_VERSION=10.2.1
+ARG OXIPNG_SHA256_AMD64=1813750ef592c5350ca79c88f98b2c0876d05c826dc7156245256d4255c1ad17
+ARG OXIPNG_SHA256_ARM64=ff21aa2a005b324c8dfbdf13cd2f469fb6728b27dacded82635824ecd12e3b35
+ARG DAV1D_VERSION=1.5.4
+ARG AOM_VERSION=v3.15.2
+ARG LIBAVIF_VERSION=v1.4.2
+# The release workflow passes the tag's version.
+ARG VERSION=0.0.0-dev
 
 # ---------------------------------------------------------------------------
 # 1. Native tools
@@ -24,20 +44,6 @@ ARG NODE_VERSION=26
 # layers in the GitHub Actions cache (see ci.yml), which has a 10 GB limit.
 FROM alpine:${ALPINE_VERSION} AS tools
 
-ARG LIBJXL_VERSION=v0.12.0
-# jpegli left libjxl in 0.12 for github.com/google/jpegli, which has no tagged releases yet: pinned to a commit.
-ARG JPEGLI_COMMIT=031a0077f5799a6041004267fc12b956c1f52a20
-ARG MOZJPEG_VERSION=v4.1.5
-ARG LIBVIPS_VERSION=v8.18.7
-ARG LIBAVIF_VERSION=v1.4.2
-ARG AOM_VERSION=v3.15.2
-ARG DAV1D_VERSION=1.5.4
-# Alpine packages oxipng 9; 10 comes from the project's static musl builds, checked against these SHA-256 sums.
-ARG OXIPNG_VERSION=10.2.1
-ARG OXIPNG_SHA256_AMD64=1813750ef592c5350ca79c88f98b2c0876d05c826dc7156245256d4255c1ad17
-ARG OXIPNG_SHA256_ARM64=ff21aa2a005b324c8dfbdf13cd2f469fb6728b27dacded82635824ecd12e3b35
-ARG TARGETARCH
-
 RUN apk add --no-cache build-base cmake ninja meson git nasm perl pkgconf \
     zlib-dev libpng-dev giflib-dev libjpeg-turbo-dev lcms2-dev brotli-dev highway-dev \
     glib-dev expat-dev libexif-dev libwebp-dev
@@ -45,6 +51,7 @@ RUN apk add --no-cache build-base cmake ninja meson git nasm perl pkgconf \
 # libvips: vipsthumbnail downscales and applies EXIF orientation; the vips CLI flattens alpha and decodes WebP.
 # Alpine's vips package pulls in cairo, pango, librsvg, OpenEXR and more (+55 MB), so build it with JPEG,
 # PNG, WebP, ICC, EXIF and SIMD only, linked statically.
+ARG LIBVIPS_VERSION
 RUN git clone --depth 1 --branch ${LIBVIPS_VERSION} https://github.com/libvips/libvips.git /src/libvips \
     && meson setup /build/libvips /src/libvips \
         --buildtype=release \
@@ -74,6 +81,7 @@ RUN git clone --depth 1 --branch ${LIBVIPS_VERSION} https://github.com/libvips/l
 # mozjpeg: only jpegtran is used (the lossless JPEG step). Static libjpeg, so it never collides with
 # the system libjpeg-turbo that libjxl links against.
 # CMAKE_POLICY_VERSION_MINIMUM: mozjpeg declares cmake 2.8.12, which CMake 4 rejects.
+ARG MOZJPEG_VERSION
 RUN git clone --depth 1 --branch ${MOZJPEG_VERSION} https://github.com/mozilla/mozjpeg.git /src/mozjpeg \
     && cmake -S /src/mozjpeg -B /build/mozjpeg -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
@@ -85,15 +93,16 @@ RUN git clone --depth 1 --branch ${MOZJPEG_VERSION} https://github.com/mozilla/m
     && install -D -s /build/mozjpeg/jpegtran-static /out/bin/jpegtran \
     && rm -rf /src/mozjpeg /build/mozjpeg
 
-# libjxl: builds only ssimulacra2, cjxl (JPEG XL encoder) and djxl (decoder). libjxl is shared, so the three
-# tools share one copy of the codec. Third-party libraries come from Alpine packages.
+# libjxl: builds only cjxl (JPEG XL encoder) and djxl (decoder). libjxl is shared, so the two tools share one copy
+# of the codec. Third-party libraries come from Alpine packages.
+ARG LIBJXL_VERSION
 RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/libjxl.git /src/libjxl \
     && cmake -S /src/libjxl -B /build/libjxl -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_SHARED_LIBS=ON \
         -DBUILD_TESTING=OFF \
         -DJPEGXL_ENABLE_TOOLS=ON \
-        -DJPEGXL_ENABLE_DEVTOOLS=ON \
+        -DJPEGXL_ENABLE_DEVTOOLS=OFF \
         -DJPEGXL_ENABLE_SKCMS=OFF \
         -DJPEGXL_FORCE_SYSTEM_LCMS2=ON \
         -DJPEGXL_FORCE_SYSTEM_BROTLI=ON \
@@ -107,8 +116,8 @@ RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/lib
         -DJPEGXL_ENABLE_DOXYGEN=OFF \
         -DJPEGXL_ENABLE_PLUGINS=OFF \
         -DJPEGXL_ENABLE_VIEWERS=OFF \
-    && cmake --build /build/libjxl --target ssimulacra2 cjxl djxl \
-    && for tool in ssimulacra2 cjxl djxl; do install -D -s /build/libjxl/tools/$tool /out/bin/$tool; done \
+    && cmake --build /build/libjxl --target cjxl djxl \
+    && for tool in cjxl djxl; do install -D -s /build/libjxl/tools/$tool /out/bin/$tool; done \
     && mkdir -p /out/lib && cp -P /build/libjxl/lib/libjxl.so* /build/libjxl/lib/libjxl_cms.so* \
         /build/libjxl/lib/libjxl_threads.so* /out/lib/ \
     && strip /out/lib/libjxl*.so.*.* \
@@ -116,6 +125,7 @@ RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/lib
 
 # jpegli: cjpegli, with jpegli linked in statically. Third-party libraries come from Alpine packages; the
 # libjpeg-turbo submodule is needed only for jpegli's API headers. Fetched by commit, since there are no tags.
+ARG JPEGLI_COMMIT
 RUN git init -q /src/jpegli \
     && git -C /src/jpegli fetch -q --depth 1 https://github.com/google/jpegli.git ${JPEGLI_COMMIT} \
     && git -C /src/jpegli checkout -q FETCH_HEAD \
@@ -140,6 +150,10 @@ RUN git init -q /src/jpegli \
     && rm -rf /src/jpegli /build/jpegli
 
 # oxipng: the release's static musl binary for this architecture, verified before it's unpacked.
+ARG OXIPNG_VERSION
+ARG OXIPNG_SHA256_AMD64
+ARG OXIPNG_SHA256_ARM64
+ARG TARGETARCH
 RUN case "$TARGETARCH" in \
         amd64) arch=x86_64 sha="$OXIPNG_SHA256_AMD64" ;; \
         arm64) arch=aarch64 sha="$OXIPNG_SHA256_ARM64" ;; \
@@ -155,6 +169,7 @@ RUN case "$TARGETARCH" in \
 # libavif: avifenc and avifdec share one libavif.so, with aom (encoder), dav1d (decoder) and libyuv linked into
 # it, so the codecs are on disk once. libyuv is the version libavif pins (Alpine's has no linkable library);
 # libsharpyuv, libpng and libjpeg come from Alpine.
+ARG DAV1D_VERSION
 RUN git clone --depth 1 --branch ${DAV1D_VERSION} https://code.videolan.org/videolan/dav1d.git /src/dav1d \
     && meson setup /build/dav1d /src/dav1d \
         --buildtype=release \
@@ -167,6 +182,7 @@ RUN git clone --depth 1 --branch ${DAV1D_VERSION} https://code.videolan.org/vide
     && rm -rf /src/dav1d /build/dav1d
 
 # _GNU_SOURCE: aom's apps call fseeko/ftello, which musl declares only with it.
+ARG AOM_VERSION
 RUN git clone --depth 1 --branch ${AOM_VERSION} https://aomedia.googlesource.com/aom /src/aom \
     && cmake -S /src/aom -B /build/aom -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
@@ -184,6 +200,7 @@ RUN git clone --depth 1 --branch ${AOM_VERSION} https://aomedia.googlesource.com
     && cmake --install /build/aom \
     && rm -rf /src/aom /build/aom
 
+ARG LIBAVIF_VERSION
 RUN git clone --depth 1 --branch ${LIBAVIF_VERSION} https://github.com/AOMediaCodec/libavif.git /src/libavif \
     && PKG_CONFIG_PATH=/opt/av1/lib/pkgconfig cmake -S /src/libavif -B /build/libavif -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
@@ -206,24 +223,54 @@ RUN git clone --depth 1 --branch ${LIBAVIF_VERSION} https://github.com/AOMediaCo
     && rm -rf /src/libavif /build/libavif /opt/av1
 
 # ---------------------------------------------------------------------------
-# 2. Web interface
+# 2. Scorer
+# ---------------------------------------------------------------------------
+# ssim2 scores candidates with fast-ssim2, reading PNG and JPEG the way libjxl's ssimulacra2 does. libjpeg-turbo
+# and lcms2 come from Alpine's static libraries, so the binary needs nothing at run time.
+ARG RUST_VERSION
+FROM rust:${RUST_VERSION}-alpine${ALPINE_VERSION} AS scorer
+
+RUN apk add --no-cache musl-dev pkgconf libjpeg-turbo-dev libjpeg-turbo-static lcms2-dev lcms2-static
+ENV PKG_CONFIG_ALL_STATIC=1
+WORKDIR /src/ssim2
+
+# The dependencies first, in their own layer, so a change to the scorer's code doesn't rebuild them.
+COPY src/ssim2/Cargo.toml src/ssim2/Cargo.lock ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs \
+    && cargo build --release --locked \
+    && rm -rf src
+
+COPY src/ssim2/src/ src/
+RUN touch src/main.rs \
+    && cargo build --release --locked \
+    && install -D target/release/ssim2 /out/bin/ssim2
+
+# The licenses of the crates in the binary and of Rust's standard library, for the image's license folder.
+COPY src/ssim2/notices.sh ./
+COPY src/ssim2/licenses/ licenses/
+RUN mkdir -p /out/notices \
+    && sh notices.sh /out/notices/ssim2-THIRD-PARTY-NOTICES.txt \
+    && cp "$(rustc --print sysroot)/share/doc/rust/COPYRIGHT-library.html" /out/notices/rust-std-COPYRIGHT.html
+
+# ---------------------------------------------------------------------------
+# 3. Web interface
 # ---------------------------------------------------------------------------
 # The output is the same on every architecture, so it builds once, on the build machine's platform.
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS web
 
 WORKDIR /src/web
 COPY src/web/package.json src/web/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# No install scripts: the only packages with any are optional file watchers the build doesn't use.
+RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY src/web/ ./
 RUN npm run build
 
 # ---------------------------------------------------------------------------
-# 3. .NET app (Native AOT)
+# 4. .NET app (Native AOT)
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine${ALPINE_VERSION}-aot AS app
 
 ARG TARGETARCH
-ARG VERSION=0.0.0-dev
 WORKDIR /build
 
 COPY Directory.Build.props Directory.Packages.props ./
@@ -242,24 +289,17 @@ RUN mkdir -p /notices \
 COPY src/ImageMason/ src/ImageMason/
 # ImageMason.csproj embeds ../web/dist as the web interface.
 COPY --from=web /src/web/dist/ src/web/dist/
+# Here, after restore, so a new version doesn't download the packages again.
+ARG VERSION
 RUN RID=linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \
     && dotnet publish src/ImageMason/ImageMason.csproj -c Release -r "$RID" --no-restore \
         -p:Version="$VERSION" -o /app \
     && rm -f /app/*.dbg
 
 # ---------------------------------------------------------------------------
-# 4. Runtime
+# 5. Runtime
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}-alpine${ALPINE_VERSION}
-
-ARG VERSION=0.0.0-dev
-
-LABEL org.opencontainers.image.title="Image Mason" \
-      org.opencontainers.image.description="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP, AVIF and JPEG XL images" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.authors="Daniel Hendricks" \
-      org.opencontainers.image.source="https://github.com/dmhendricks/image-mason" \
-      org.opencontainers.image.licenses="Apache-2.0"
 
 # pngquant and cwebp from Alpine; the rest are shared libraries the compiled tools link against.
 # tzdata supplies IANA zones so TZ can move the clock off UTC.
@@ -269,14 +309,16 @@ RUN apk add --no-cache pngquant libwebp-tools tzdata \
 
 COPY --from=tools /out/bin/ /usr/local/bin/
 COPY --from=tools /out/lib/ /usr/local/lib/
+COPY --from=scorer /out/bin/ /usr/local/bin/
 COPY --from=app /app/ /app/
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/licenses/image-mason/
 COPY licenses/ /usr/share/licenses/image-mason/licenses/
 COPY --from=app /notices/ /usr/share/licenses/image-mason/licenses/
+COPY --from=scorer /out/notices/ /usr/share/licenses/image-mason/licenses/
 
 # Fail the build if any tool is missing a shared library.
 RUN cjpegli --version >/dev/null 2>&1 || cjpegli --help >/dev/null \
-    && ssimulacra2 2>&1 | grep -qi usage \
+    && ssim2 2>&1 | grep -qi usage \
     && cjxl --version | grep -qi cjxl \
     && djxl --version | grep -qi djxl \
     && jpegtran -version 2>&1 | grep -qi mozjpeg \
@@ -294,11 +336,21 @@ VOLUME /data
 # UTC instant of this image build. A cached layer keeps the previous stamp, which is the last time the image contents changed.
 RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/build-date
 
+# Last, so a new version reuses every layer above that didn't change.
+ARG VERSION
+LABEL org.opencontainers.image.title="Image Mason" \
+      org.opencontainers.image.description="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP, AVIF and JPEG XL images" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.authors="Daniel Hendricks" \
+      org.opencontainers.image.source="https://github.com/dmhendricks/image-mason" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 
+# The first port in ASPNETCORE_HTTP_PORTS (a list separated by ; or ,), so the check follows a changed port.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-    CMD wget -qO- http://127.0.0.1:8080/health || exit 1
+    CMD port="${ASPNETCORE_HTTP_PORTS%%[;,]*}"; wget -qO- "http://127.0.0.1:${port:-8080}/health" || exit 1
 
 USER $APP_UID
 WORKDIR /app

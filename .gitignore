@@ -13,6 +13,9 @@ publish/
 node_modules/
 src/web/dist/
 
+# Scorer (src/ssim2)
+src/ssim2/target/
+
 # Local configuration
 .env
 .env.*

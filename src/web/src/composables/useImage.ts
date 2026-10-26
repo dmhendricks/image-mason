@@ -207,7 +207,10 @@ export function useImage() {
       await element.decode()
     } catch {
       URL.revokeObjectURL(url)
-      return `Your browser couldn't display “${name}”. The file may be damaged.`
+      // Not every browser decodes JPEG XL yet; the file is most likely fine.
+      return format === 'jxl'
+        ? `Your browser can't display JPEG XL, so “${name}” can't be opened here. Try a browser that shows JPEG XL.`
+        : `Your browser couldn't display “${name}”. The file may be damaged.`
     }
 
     const { naturalWidth: width, naturalHeight: height } = element

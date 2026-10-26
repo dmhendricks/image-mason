@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format is based on 
 - libjxl 0.12.0 (`cjxl`, `djxl`, `ssimulacra2`; was 0.11.2), with about 30 security and hardening fixes to the decoder. jpegli moved out of libjxl in 0.12, so `cjpegli` is built from [google/jpegli](https://github.com/google/jpegli), pinned to a commit since it has no releases yet.
 - oxipng 10.2.1 (was 9.1.5), from the project's static release build, since Alpine still packages 9.1.5.
 - `IMAGE_MASON_MAX_CONCURRENT_JOBS` defaults to the container's CPU count (was 2). Scoring and most encoders use one core, so two jobs left half of a 4-CPU container idle; 20 small photos now optimize in 1.1 s instead of about 2 s. Large images still wait for memory.
+- `latest`, on Docker Hub and on GitHub's releases, moves only to the highest version, so releasing a fix for an older line no longer takes it over.
 - A PNG (or a WebP, AVIF or JPEG XL) whose alpha channel is opaque everywhere is scored without it, since ssimulacra2 scores images with alpha on two backgrounds. Results are byte for byte the same; jobs on such images are 25–35% faster (WebP, AVIF and JPEG XL output) and about 10% faster to PNG.
 
 ### Fixed
@@ -29,6 +30,9 @@ All notable changes to this project are documented here. The format is based on 
 - `upload`, `info` and `fetch` no longer run without a limit (or, for `upload`, wait behind optimization jobs): they share their own, sized so the images they hold fit in the memory the service keeps back from jobs (5 at once with the default 25 MB input limit). Request and download bodies with a known length are read into one buffer instead of being grown and copied.
 - A download that broke off partway (`url`) returned 500; it now gets 502.
 - A crafted JPEG could be measured as smaller than the tools decode it, getting past `IMAGE_MASON_MAX_PIXELS` and the memory check: markers that carry no length (TEM, RST) were read as if they had one. JPEG headers are now read the way libjpeg reads them, in one place instead of four. A PNG whose first chunk isn't its header is no longer measured from whatever is there.
+- In browsers that can't display JPEG XL, the web interface said a `.jxl` file "may be damaged", and JPEG XL results showed as broken images. It now says the browser can't display JPEG XL, and a result it can't show carries a note to download it.
+- The image's health check always used port 8080, so a container that moved the service with `ASPNETCORE_HTTP_PORTS` showed as unhealthy. It now checks the first port listed.
+- The image's labels said `image-mason`, an old description and a version with a `v` (`v0.2.1`). They now give the title, description and version from the Dockerfile.
 - A cancelled or timed-out job could leave its files in `/tmp` (which is memory in the compose files): the work folder was deleted before the killed tool had exited. The tool is now waited for first. Tool output kept for the log is capped at 64 KB.
 - A stored image whose save failed left a partial file behind until cleanup, and a relative `IMAGE_MASON_STORE_PATH` made `GET /images/{name}` return 404. Saves no longer list the whole store each time to check its size.
 - `IMAGE_MASON_TIMEOUT_SECONDS` above about 4.3 million made every request fail, and a very large `IMAGE_MASON_IMAGE_TTL_MINUTES` broke cleanup. They're now limited to a day (`86400`) and a year (`525600`), and larger values stop the service at startup with a message.

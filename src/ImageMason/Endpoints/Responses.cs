@@ -70,7 +70,7 @@ public sealed class ImageInfoResponse
     public required bool HasIccProfile { get; init; }
     public required bool Animated { get; init; }
 
-    /// <summary>Whether the PNG looks like a photo with no transparency. Only for PNG.</summary>
+    /// <summary>Whether the PNG looks like a photo with no transparency. Only for PNG within the pixel limit.</summary>
     public bool? IsPhoto { get; init; }
 
     /// <summary>The image is within IMAGE_MASON_MAX_PIXELS, so optimize and convert accept it.</summary>

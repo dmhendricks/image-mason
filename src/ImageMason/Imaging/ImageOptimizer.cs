@@ -23,8 +23,10 @@ public enum QualityPreset
 /// <param name="Format">Output format. Null keeps the input's format.</param>
 /// <param name="Resize">Resize to a box; see <see cref="ResizeRequest"/>. Applies to the cropped area when <paramref name="Rect"/> is set.</param>
 /// <param name="Rect">The area to keep, cut out before any resize.</param>
+/// <param name="IsPhoto">For a PNG input, <see cref="PngPhoto.IsPhoto"/> when the caller already checked; checked when
+/// needed otherwise.</param>
 public sealed record OptimizeRequest(QualityPreset Quality, double? MinScore = null, int? MaxWidth = null, ImageFormat? Format = null,
-    ResizeRequest? Resize = null, CropRect? Rect = null);
+    ResizeRequest? Resize = null, CropRect? Rect = null, bool? IsPhoto = null);
 
 /// <param name="Score">SSIMULACRA2 vs. the original, or vs. the cropped or resized original when the image was changed.</param>
 /// <param name="MinScore">The floor the result had to meet; null for lossless.</param>
@@ -43,6 +45,12 @@ public sealed class UnsupportedImageException(string message) : Exception(messag
 public sealed class ImageTooLargeException(string message) : Exception(message);
 
 public sealed class CropOutsideImageException(string message) : Exception(message);
+
+/// <summary>
+/// A recognized image the tools couldn't decode or encode, usually because it's damaged. The message is safe to
+/// return; the tool's output is logged instead.
+/// </summary>
+public sealed class ImageProcessingException(string message) : Exception(message);
 
 public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, ImageMasonOptions options, ILogger<ImageOptimizer> logger)
 {
@@ -131,6 +139,10 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             minScore = null;
         }
 
+        // A PNG graphic is also tried losslessly. Checked at most once, and only now that the pixel limit has passed.
+        var isPhoto = request.IsPhoto;
+        bool IsPngGraphic() => format == ImageFormat.Png && !(isPhoto ??= PngPhoto.IsPhoto(input, options.MaxPixels, ct));
+
         var scored = minScore is not null;
         var outputPixels = (long)outputWidth * outputHeight;
         using var reservation = await memory.ReserveAsync(EstimateMemory(format, target, info.PixelCount, outputPixels, scored), ct);
@@ -185,14 +197,14 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                     break;
                 case ImageFormat.WebP:
                     await OptimizeWebPAsync(job, candidates, lossless,
-                        tryLossless: lossless || (format == ImageFormat.Png && !PngPhoto.IsPhoto(input)), ct);
+                        tryLossless: lossless || IsPngGraphic(), ct);
                     break;
                 case ImageFormat.Avif:
                     await OptimizeAvifAsync(job, candidates, lossless, ct);
                     break;
                 case ImageFormat.Jxl:
                     await OptimizeJxlAsync(job, candidates, lossless,
-                        tryLossless: format == ImageFormat.Png && !PngPhoto.IsPhoto(input),
+                        tryLossless: IsPngGraphic(),
                         recompressJpeg: format == ImageFormat.Jpeg && !crop && !resize, ct);
                     break;
                 default:
@@ -203,11 +215,11 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             if (best is null)
             {
                 if (converting)
-                    throw new InvalidOperationException($"Could not encode the {format.Name()} image as {target.Name()}.");
+                    throw new ImageProcessingException($"Could not encode the {format.DisplayName()} image as {target.DisplayName()}. It may be damaged.");
 
                 // The original would ignore the requested area.
                 if (crop)
-                    throw new InvalidOperationException($"Could not encode the cropped {format.Name()} image.");
+                    throw new ImageProcessingException($"Could not encode the cropped {format.DisplayName()} image. It may be damaged.");
 
                 logger.LogWarning("No resized result was produced; returning the original");
                 best = new(Original, source, input.Length, null);
@@ -313,24 +325,20 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             // (an "unspecified" transfer function), so vipsthumbnail rewrites it either way.
             input = Path.Combine(work, "decoded.png");
             var avifdec = await tools.RunAsync("avifdec", ["--png-compress", "0", source, input], ct);
-            if (avifdec.ExitCode != 0 || !File.Exists(input))
-                throw new UnsupportedImageException("Could not decode the AVIF image.");
+            EnsureOutput("avifdec", avifdec, input, $"Could not decode the {format.DisplayName()} image. It may be damaged.");
         }
         else if (format == ImageFormat.Jxl)
         {
             // djxl applies the codestream orientation and writes no EXIF, so vipsthumbnail doesn't rotate it again.
             input = Path.Combine(work, "decoded.png");
             var djxl = await tools.RunAsync("djxl", [source, input, "--quiet"], ct);
-            if (djxl.ExitCode != 0 || !File.Exists(input))
-                throw new UnsupportedImageException("Could not decode the JPEG XL image.");
+            EnsureOutput("djxl", djxl, input, $"Could not decode the {format.DisplayName()} image. It may be damaged.");
         }
 
         var output = Path.Combine(work, name);
         var vips = await tools.RunAsync("vipsthumbnail",
             [input, .. sizeArguments, "-o", $"{output}[keep=icc,compression=0]"], ct);
-
-        if (vips.ExitCode != 0 || !File.Exists(output))
-            throw new InvalidOperationException($"vipsthumbnail exited {vips.ExitCode}: {vips.StdErr}");
+        EnsureOutput("vipsthumbnail", vips, output, $"Could not decode the {format.DisplayName()} image. It may be damaged.");
 
         return output;
     }
@@ -350,9 +358,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var output = Path.Combine(work, "cropped.png");
         var vips = await tools.RunAsync("vips",
             ["extract_area", input, $"{output}[keep=icc,compression=0]", .. rect.VipsArguments()], ct);
-
-        if (vips.ExitCode != 0 || !File.Exists(output))
-            throw new InvalidOperationException($"vips extract_area exited {vips.ExitCode}: {vips.StdErr}");
+        EnsureOutput("vips extract_area", vips, output, $"Could not crop the {format.DisplayName()} image. It may be damaged.");
 
         return output;
     }
@@ -364,11 +370,20 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var white = bitDepth == 16 ? "65535" : "255";
         var vips = await tools.RunAsync("vips",
             ["flatten", reference, $"{output}[keep=icc,compression=0]", "--background", white], ct);
-
-        if (vips.ExitCode != 0 || !File.Exists(output))
-            throw new InvalidOperationException($"vips flatten exited {vips.ExitCode}: {vips.StdErr}");
+        EnsureOutput("vips flatten", vips, output, "Could not remove the image's transparency for JPEG.");
 
         return output;
+    }
+
+    /// <summary>Throws <paramref name="message"/> to the caller when a step the job can't do without fails, and logs why.</summary>
+    /// <exception cref="ImageProcessingException">The tool failed or wrote no output.</exception>
+    private void EnsureOutput(string tool, ToolResult result, string output, string message)
+    {
+        if (result.ExitCode == 0 && File.Exists(output))
+            return;
+
+        logger.LogWarning("{Tool} exited {ExitCode}: {StdErr}", tool, result.ExitCode, result.StdErr);
+        throw new ImageProcessingException(message);
     }
 
     private static async Task<byte[]> ReadHeadAsync(string path, CancellationToken ct)

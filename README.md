@@ -201,7 +201,7 @@ Errors are returned as [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc
 | 401 | Missing or wrong `X-Api-Key` |
 | 413 | Image larger than `IMAGE_MASON_MAX_INPUT_SIZE` |
 | 415 | Not a JPEG, PNG, WebP, AVIF or JPEG XL, or an animated image (only `upload` accepts those) |
-| 422 | Too many pixels, or more memory needed than the service has |
+| 422 | Too many pixels, more memory needed than the service has, or an image too damaged to decode |
 | 502 | The `url` download failed or redirected too many times |
 | 503 | The queue is full, or an image tool ran out of memory (sent with `Retry-After`) |
 | 504 | The request took longer than `IMAGE_MASON_TIMEOUT_SECONDS` |
@@ -324,7 +324,7 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg http://localhost:808
 }
 ```
 
-`orientation` is the EXIF orientation (1 is upright), and `displayWidth` and `displayHeight` apply it. `hasAlpha` means the image has an alpha channel, even if every pixel is opaque. PNGs also report `isPhoto`. `withinPixelLimit` says whether `optimize` and `convert` accept the image under `IMAGE_MASON_MAX_PIXELS`.
+`orientation` is the EXIF orientation (1 is upright), and `displayWidth` and `displayHeight` apply it. `hasAlpha` means the image has an alpha channel, even if every pixel is opaque. PNGs within the pixel limit also report `isPhoto`. `withinPixelLimit` says whether `optimize` and `convert` accept the image under `IMAGE_MASON_MAX_PIXELS`.
 
 When a JPEG, PNG or WebP carries EXIF, `exif` summarizes it. Fields the image doesn't have are left out:
 
@@ -345,7 +345,7 @@ When a JPEG, PNG or WebP carries EXIF, `exif` summarizes it. Fields the image do
 }
 ```
 
-`gps` is where the photo was taken. `optimize` and `convert` remove it, along with the rest of the EXIF data.
+`gps` is where the photo was taken.
 
 ### `GET /api/v1/limits`
 

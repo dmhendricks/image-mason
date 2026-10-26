@@ -287,6 +287,12 @@ check "info without the API key is 401" [ "$code" = 401 ]
 code=$(request badformat "${auth[@]}" --data-binary "not an image" "$api/optimize")
 check "a non-image is 415" [ "$code" = 415 ]
 
+# The headers are intact, so it's recognized as a JPEG, but there's too little left to encode.
+head -c 2000 "$fixtures/photo.jpg" > "$work/damaged.jpg"
+code=$(request damaged "${auth[@]}" --data-binary @"$work/damaged.jpg" "$api/optimize?format=webp")
+check "a damaged image is 422" [ "$code" = 422 ]
+check "  saying it may be damaged" grep -q "may be damaged" "$work/damaged.body"
+
 code=$(request badquality "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?quality=ultra")
 check "an unknown quality is 400" [ "$code" = 400 ]
 

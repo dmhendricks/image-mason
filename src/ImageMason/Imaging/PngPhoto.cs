@@ -11,14 +11,20 @@ public static class PngPhoto
     private const int SampleAxis = 128;
     private const int PhotoColorCount = 4096;
 
-    public static bool IsPhoto(ReadOnlySpan<byte> data)
+    // Rows decoded between cancellation checks.
+    private const int RowsPerCheck = 64;
+
+    /// <param name="maxPixels">Images over this (IMAGE_MASON_MAX_PIXELS) are rejected before any pixels are decoded,
+    /// since the check inflates every row of an RGBA image.</param>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled while rows were decoded.</exception>
+    public static bool IsPhoto(ReadOnlySpan<byte> data, long maxPixels, CancellationToken ct)
     {
         if (!data.StartsWith((ReadOnlySpan<byte>)[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
             return false;
 
         try
         {
-            return CountColors(data);
+            return CountColors(data, maxPixels, ct);
         }
         catch (InvalidDataException)
         {
@@ -30,7 +36,7 @@ public static class PngPhoto
         }
     }
 
-    private static bool CountColors(ReadOnlySpan<byte> png)
+    private static bool CountColors(ReadOnlySpan<byte> png, long maxPixels, CancellationToken ct)
     {
         int width = 0, height = 0, bitDepth = 0, colorType = 0, interlace = 0;
         var hasTransparency = false;
@@ -71,8 +77,11 @@ public static class PngPhoto
             offset += 12 + length;
         }
 
-        // Indexed, grayscale, interlaced, or an explicit transparency key. JPEG cannot keep transparency.
-        if (width is <= 0 or > 20_000 || height is <= 0 or > 20_000 || interlace != 0 || hasTransparency || colorType is not (2 or 6))
+        // Over the pixel limit (optimize rejects it anyway), indexed, grayscale, interlaced, or an explicit
+        // transparency key. JPEG cannot keep transparency.
+        if (width <= 0 || height <= 0 || (long)width * height > maxPixels)
+            return false;
+        if (interlace != 0 || hasTransparency || colorType is not (2 or 6))
             return false;
         if (bitDepth is not (8 or 16))
             return false;
@@ -98,6 +107,9 @@ public static class PngPhoto
 
         for (var y = 0; y < height; y++)
         {
+            if (y % RowsPerCheck == 0)
+                ct.ThrowIfCancellationRequested();
+
             var filterByte = pixels.ReadByte();
             if (filterByte < 0 || !ReadExactly(pixels, row))
                 return false;

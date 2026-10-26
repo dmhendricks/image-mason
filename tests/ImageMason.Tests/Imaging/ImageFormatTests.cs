@@ -201,6 +201,18 @@ public sealed class ImageFormatTests
     }
 
     [Theory]
+    [InlineData(0x7FFFFFFEu)]
+    [InlineData(0x7FFFFFFFu)]
+    [InlineData(0xFFFFFFFFu)]
+    public void ExifOrientation_IgnoresAnIfdOffsetPastTheEnd(uint offset)
+    {
+        // "II", 42, then the first IFD's offset; nothing follows, so any offset past 8 is out of range.
+        byte[] tiff = [(byte)'I', (byte)'I', 42, 0, (byte)offset, (byte)(offset >> 8), (byte)(offset >> 16), (byte)(offset >> 24), 0, 0];
+
+        Assert.Equal(1, ExifOrientation.ReadTiff(tiff));
+    }
+
+    [Theory]
     [InlineData(1, 4032)]
     [InlineData(3, 4032)]
     [InlineData(6, 3024)]

@@ -18,6 +18,12 @@ All notable changes to this project are documented here. The format is based on 
 - The optimize log line says "larger" instead of a negative "smaller".
 - **Breaking:** the default `quality` is now `medium` (was `high`), in the API and the web interface. Set `IMAGE_MASON_DEFAULT_QUALITY=high`, or send `quality=high`, for the previous results.
 
+### Fixed
+
+- A damaged JPEG, PNG or WebP that had to be converted, resized or cropped returned 500. It now gets 422 with a plain message, and the tool's output goes to the log only. Damaged AVIF and JPEG XL images get 422 too (they got 415, which means an unsupported format).
+- An EXIF block with an out-of-range offset could make `info`, `upload` and `optimize` fail with 500.
+- The check for PNG photos (`preferJpeg`, and `isPhoto` from `info`) ran before the pixel limit and ignored the request timeout. It now skips images over `IMAGE_MASON_MAX_PIXELS`, stops at the timeout, and runs once per request instead of up to twice.
+
 ## [0.2.1] - 2026-10-25
 
 ### Added

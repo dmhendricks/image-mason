@@ -32,6 +32,7 @@ internal static class InfoEndpoint
                 return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, "Could not read the image dimensions.");
 
             var details = ImageHeader.ReadDetails(input, format);
+            var withinLimit = info.PixelCount <= options.MaxPixels;
             return Results.Ok(new ImageInfoResponse
             {
                 Format = format.Name(),
@@ -47,8 +48,8 @@ internal static class InfoEndpoint
                 HasAlpha = details.HasAlpha,
                 HasIccProfile = details.HasIccProfile,
                 Animated = info.Animated,
-                IsPhoto = format == ImageFormat.Png ? PngPhoto.IsPhoto(input) : null,
-                WithinPixelLimit = info.PixelCount <= options.MaxPixels,
+                IsPhoto = format == ImageFormat.Png && withinLimit ? PngPhoto.IsPhoto(input, options.MaxPixels, timeout.Token) : null,
+                WithinPixelLimit = withinLimit,
                 Exif = ExifReader.Read(input, format),
             });
         }

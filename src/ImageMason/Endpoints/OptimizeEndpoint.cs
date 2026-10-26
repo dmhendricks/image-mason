@@ -154,7 +154,7 @@ internal static class OptimizeEndpoint
             input = await ApiRequest.ReadImageAsync(http.Request, downloader, url, timeout.Token);
 
             var detected = ImageFormatDetector.Detect(input);
-            bool? isPhoto = detected == ImageFormat.Png ? PngPhoto.IsPhoto(input) : null;
+            bool? isPhoto = detected == ImageFormat.Png ? PngPhoto.IsPhoto(input, options.MaxPixels, timeout.Token) : null;
             target ??= preferJpeg && isPhoto == true ? ImageFormat.Jpeg : null;
 
             if (storedName is not null)
@@ -164,7 +164,7 @@ internal static class OptimizeEndpoint
                     return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {stored.Extension()}.");
             }
 
-            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, minScore, maxWidth, target, resize, rect), timeout.Token);
+            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, minScore, maxWidth, target, resize, rect, isPhoto), timeout.Token);
             var elapsedMs = (long)stopwatch.Elapsed.TotalMilliseconds;
             var qualityName = preset.ToString().ToLowerInvariant();
             var score = result.Score?.ToString("F2", CultureInfo.InvariantCulture);
@@ -252,6 +252,10 @@ internal static class OptimizeEndpoint
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, ex.Message);
         }
         catch (ImageTooLargeException ex)
+        {
+            return ApiRequest.Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
+        }
+        catch (ImageProcessingException ex)
         {
             return ApiRequest.Problem(StatusCodes.Status422UnprocessableEntity, ex.Message);
         }

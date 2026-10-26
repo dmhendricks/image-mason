@@ -16,7 +16,7 @@ public static class ImageFormatDetector
 {
     /// <summary>Every format the API reads and writes.</summary>
     public static readonly ImageFormat[] Supported =
-        [ImageFormat.Jpeg, ImageFormat.Png, ImageFormat.WebP, ImageFormat.Avif, ImageFormat.Jxl];
+        [ImageFormat.Png, ImageFormat.WebP, ImageFormat.Jpeg, ImageFormat.Jxl, ImageFormat.Avif];
 
     /// <summary>"JPEG, PNG, WebP, AVIF or JPEG XL", for error messages.</summary>
     public const string SupportedNames = "JPEG, PNG, WebP, AVIF or JPEG XL";
@@ -94,6 +94,17 @@ public static class ImageFormatDetector
 
     /// <summary>Lowercase name used in responses and logs: jpeg, png, webp, avif, jxl.</summary>
     public static string Name(this ImageFormat format) => format.ToString().ToLowerInvariant();
+
+    /// <summary>The name people write, for error messages: JPEG, PNG, WebP, AVIF, JPEG XL.</summary>
+    public static string DisplayName(this ImageFormat format) => format switch
+    {
+        ImageFormat.Png => "PNG",
+        ImageFormat.Jpeg => "JPEG",
+        ImageFormat.WebP => "WebP",
+        ImageFormat.Avif => "AVIF",
+        ImageFormat.Jxl => "JPEG XL",
+        _ => "unknown"
+    };
 
     // ISO BMFF: the first box is ftyp, with "avif" (still image) or "avis" (sequence) as a brand.
     private static bool IsAvif(ReadOnlySpan<byte> data)
@@ -857,9 +868,12 @@ public static class ExifOrientation
         else
             return 1;
 
-        var ifd = (int)ReadUInt32(tiff, 4, littleEndian);
-        if (ifd < 8 || ifd + 2 > tiff.Length)
+        // Compared unsigned: an offset near uint.MaxValue or int.MaxValue must not wrap past the bounds check.
+        var offset = ReadUInt32(tiff, 4, littleEndian);
+        if (offset < 8 || offset > (uint)tiff.Length - 2)
             return 1;
+
+        var ifd = (int)offset;
 
         var count = ReadUInt16(tiff, ifd, littleEndian);
         for (var n = 0; n < count; n++)

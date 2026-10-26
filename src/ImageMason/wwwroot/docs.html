@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Image Mason</title>
-  <meta name="description" content="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP and AVIF images.">
+  <meta name="description" content="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP, AVIF and JPEG XL images.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -287,7 +287,7 @@
       </div>
     </header>
 
-    <p class="lede">Send a JPEG, PNG, WebP or AVIF and get a smaller one back, in the same format or another. Lossy results are held to a perceptual quality score, so a preset describes how the image looks, not an encoder setting.</p>
+    <p class="lede">Send a JPEG, PNG, WebP, AVIF or JPEG XL and get a smaller one back, in the same format or another. Lossy results are held to a perceptual quality score, so a preset describes how the image looks, not an encoder setting.</p>
 
     <section>
       <h2>Optimize</h2>
@@ -302,7 +302,7 @@
       <h2>Convert</h2>
       <pre>curl -sS --data-binary @photo.jpg -o photo.webp \
   "{{origin}}/api/v1/convert?format=webp"</pre>
-      <p class="note"><code>format</code> is <code>jpeg</code>, <code>png</code>, <code>webp</code> or <code>avif</code>. The result is optimized with the same quality presets and parameters as <code>optimize</code>.</p>
+      <p class="note"><code>format</code> is <code>jpeg</code>, <code>png</code>, <code>webp</code>, <code>avif</code> or <code>jxl</code>. The result is optimized with the same quality presets and parameters as <code>optimize</code>.</p>
     </section>
 
     <section>

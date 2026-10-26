@@ -6,7 +6,7 @@ using ImageMason.Storage;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/convert?format=webp: returns the image in another format (JPEG, PNG, WebP or AVIF), optimized with
+/// POST /api/v1/convert?format=webp: returns the image in another format (JPEG, PNG, WebP, AVIF or JPEG XL), optimized with
 /// the same quality presets and parameters as optimize.
 /// </summary>
 internal static class ConvertEndpoint

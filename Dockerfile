@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 
-# Image Mason: JPEG, PNG, WebP and AVIF optimization API (oxipng, pngquant, mozjpeg, jpegli, cwebp, avifenc,
-# SSIMULACRA2).
+# Image Mason: JPEG, PNG, WebP, AVIF and JPEG XL optimization API (oxipng, pngquant, mozjpeg, jpegli, cwebp,
+# avifenc, cjxl, SSIMULACRA2).
 #
 # Four stages:
-#   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (cjpegli, ssimulacra2) and
+#   1. tools   - compiles libvips (vips, vipsthumbnail), mozjpeg (jpegtran), libjxl (cjpegli, ssimulacra2, cjxl, djxl) and
 #                libavif (avifenc, avifdec), which Alpine doesn't package or packages at older versions. Uses
 #                the same Alpine release as the runtime (musl ABI).
 #   2. web     - builds the web interface (src/web, Vue + Vite) into static files. Node exists only here.
@@ -76,13 +76,14 @@ RUN git clone --depth 1 --branch ${MOZJPEG_VERSION} https://github.com/mozilla/m
     && cmake --build /build/mozjpeg --target jpegtran-static \
     && install -D -s /build/mozjpeg/jpegtran-static /out/bin/jpegtran
 
-# libjxl: builds only the cjpegli and ssimulacra2 targets. Third-party libraries come from Alpine
-# packages; the libjpeg-turbo submodule is needed only for jpegli's API headers.
+# libjxl: builds only cjpegli, ssimulacra2, cjxl (JPEG XL encoder) and djxl (decoder). libjxl is shared, so the
+# four tools share one copy of the codec: 8.2 MB in all, against 14 MB statically linked. Third-party libraries
+# come from Alpine packages; the libjpeg-turbo submodule is needed only for jpegli's API headers.
 RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/libjxl.git /src/libjxl \
     && git -C /src/libjxl submodule update --init --depth 1 third_party/libjpeg-turbo \
     && cmake -S /src/libjxl -B /build/libjxl -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
         -DBUILD_TESTING=OFF \
         -DJPEGXL_ENABLE_TOOLS=ON \
         -DJPEGXL_ENABLE_DEVTOOLS=ON \
@@ -100,9 +101,11 @@ RUN git clone --depth 1 --branch ${LIBJXL_VERSION} https://github.com/libjxl/lib
         -DJPEGXL_ENABLE_OPENEXR=OFF \
         -DJPEGXL_ENABLE_DOXYGEN=OFF \
         -DJPEGXL_ENABLE_PLUGINS=OFF \
-    && cmake --build /build/libjxl --target cjpegli ssimulacra2 \
-    && install -D -s /build/libjxl/tools/cjpegli /out/bin/cjpegli \
-    && install -D -s /build/libjxl/tools/ssimulacra2 /out/bin/ssimulacra2
+    && cmake --build /build/libjxl --target cjpegli ssimulacra2 cjxl djxl \
+    && for tool in cjpegli ssimulacra2 cjxl djxl; do install -D -s /build/libjxl/tools/$tool /out/bin/$tool; done \
+    && mkdir -p /out/lib && cp -P /build/libjxl/lib/libjxl.so* /build/libjxl/lib/libjxl_cms.so* \
+        /build/libjxl/lib/libjxl_threads.so* /out/lib/ \
+    && strip /out/lib/libjxl*.so.*.*
 
 # libavif: avifenc and avifdec share one libavif.so, with aom (encoder), dav1d (decoder) and libyuv linked into
 # it, so the codecs are on disk once. libyuv is the version libavif pins (Alpine's has no linkable library);
@@ -196,7 +199,7 @@ FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}-alpine${ALPINE_VERS
 ARG VERSION=0.0.0-dev
 
 LABEL org.opencontainers.image.title="Image Mason" \
-      org.opencontainers.image.description="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP and AVIF images" \
+      org.opencontainers.image.description="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP, AVIF and JPEG XL images" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.authors="Daniel Hendricks" \
       org.opencontainers.image.source="https://github.com/dmhendricks/image-mason" \
@@ -217,6 +220,8 @@ COPY licenses/ /usr/share/licenses/image-mason/licenses/
 # Fail the build if any tool is missing a shared library.
 RUN cjpegli --version >/dev/null 2>&1 || cjpegli --help >/dev/null \
     && ssimulacra2 2>&1 | grep -qi usage \
+    && cjxl --version | grep -qi cjxl \
+    && djxl --version | grep -qi djxl \
     && jpegtran -version 2>&1 | grep -qi mozjpeg \
     && vipsthumbnail --vips-version \
     && vips -l foreign | grep -q webpload \

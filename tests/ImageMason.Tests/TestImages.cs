@@ -143,6 +143,144 @@ internal static class TestImages
         return [.. ftyp, .. meta];
     }
 
+    /// <summary>
+    /// A JPEG XL codestream header (FF 0A, SizeHeader, ImageMetadata), written field by field in libjxl's order: the
+    /// sizes stored in full, then the optional fields asked for. There is always a named spot-color extra channel,
+    /// and with <paramref name="alpha"/> a named alpha channel after it, so the reader has to skip a whole
+    /// non-default channel to find the alpha.
+    /// </summary>
+    public static byte[] JxlCodestream(int width, int height, int orientation = 1, bool preview = false,
+        bool animated = false, int bitDepth = 8, bool alpha = false, bool icc = false)
+    {
+        var bits = new BitWriter();
+        bits.Bool(false); // small
+        bits.U32(3, (uint)height - 1, 30); // BitsOffset(30, 1)
+        bits.Bits(0, 3); // ratio 0: the width is stored
+        bits.U32(3, (uint)width - 1, 30);
+
+        bits.Bool(false); // all_default
+        var extraFields = orientation != 1 || preview || animated;
+        bits.Bool(extraFields);
+        if (extraFields)
+        {
+            bits.Bits((uint)orientation - 1, 3);
+            bits.Bool(false); // intrinsic size
+            bits.Bool(preview);
+            if (preview)
+            {
+                bits.Bool(false); // div8
+                bits.U32(0, 40 - 1, 6); // height 40: BitsOffset(6, 1)
+                bits.Bits(1, 3); // ratio 1:1
+            }
+
+            bits.Bool(animated);
+            if (animated)
+            {
+                bits.U32(0, 0, 0); // 100 ticks per second
+                bits.U32(0, 0, 0); // over 1
+                bits.U32(0, 0, 0); // loop forever
+                bits.Bool(false); // have_timecodes
+            }
+        }
+
+        WriteJxlBitDepth(bits, bitDepth);
+        bits.Bool(true); // modular_16_bit_buffer_sufficient
+
+        if (alpha)
+            bits.U32(2, 0, 4); // 2 extra channels: BitsOffset(4, 2)
+        else
+            bits.U32(1, 0, 0); // 1 extra channel
+
+        // A spot color named "spot": type 2, then its four 16-bit color values.
+        bits.Bool(false);
+        bits.U32(2, 0, 4);
+        WriteJxlBitDepth(bits, 8);
+        bits.U32(0, 0, 0); // dim_shift 0
+        WriteJxlName(bits, "spot");
+        for (var i = 0; i < 4; i++)
+            bits.Bits(0x3C00, 16);
+
+        if (alpha)
+        {
+            bits.Bool(false);
+            bits.U32(0, 0, 0); // type 0: alpha
+            WriteJxlBitDepth(bits, 8);
+            bits.U32(0, 0, 0);
+            WriteJxlName(bits, "alpha");
+            bits.Bool(false); // alpha_associated
+        }
+
+        bits.Bool(true); // xyb_encoded
+        bits.Bool(!icc); // color encoding all_default (sRGB)
+        if (icc)
+            bits.Bool(true); // want_icc
+
+        return [0xFF, 0x0A, .. bits.ToArray(), 0, 0, 0, 0];
+    }
+
+    /// <summary>
+    /// A codestream in the JPEG XL container: the signature box and ftyp, then one jxlc box, or with
+    /// <paramref name="partial"/> two jxlp boxes that split the codestream after its first 3 bytes.
+    /// </summary>
+    public static byte[] JxlContainer(byte[] codestream, bool partial = false)
+    {
+        byte[] signature = [0, 0, 0, 0x0C, .. "JXL "u8, 0x0D, 0x0A, 0x87, 0x0A];
+        var ftyp = Box("ftyp", [.. "jxl "u8, 0, 0, 0, 0, .. "jxl "u8]);
+        byte[] boxes = partial
+            ? [.. Box("jxlp", [.. U32(0), .. codestream[..3]]), .. Box("jxlp", [.. U32(unchecked((int)0x80000001)), .. codestream[3..]])]
+            : Box("jxlc", codestream);
+        return [.. signature, .. ftyp, .. Box("Exif", new byte[10]), .. boxes];
+    }
+
+    private static void WriteJxlBitDepth(BitWriter bits, int depth)
+    {
+        bits.Bool(false); // integer samples
+        switch (depth)
+        {
+            case 8: bits.U32(0, 0, 0); break;
+            case 10: bits.U32(1, 0, 0); break;
+            case 12: bits.U32(2, 0, 0); break;
+            default: bits.U32(3, (uint)depth - 1, 6); break;
+        }
+    }
+
+    private static void WriteJxlName(BitWriter bits, string name)
+    {
+        bits.U32(1, (uint)name.Length, 4); // Bits(4)
+        foreach (var c in name)
+            bits.Bits(c, 8);
+    }
+
+    /// <summary>Writes bits least significant first, as JPEG XL stores them.</summary>
+    private sealed class BitWriter
+    {
+        private readonly List<byte> _bytes = [];
+        private int _count;
+
+        public void Bits(uint value, int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                if (_count % 8 == 0)
+                    _bytes.Add(0);
+                if ((value >> i & 1) != 0)
+                    _bytes[^1] |= (byte)(1 << (_count % 8));
+                _count++;
+            }
+        }
+
+        public void Bool(bool value) => Bits(value ? 1u : 0u, 1);
+
+        /// <summary>A U32 field: the 2-bit selector, then <paramref name="count"/> bits of <paramref name="raw"/>.</summary>
+        public void U32(uint selector, uint raw, int count)
+        {
+            Bits(selector, 2);
+            Bits(raw, count);
+        }
+
+        public byte[] ToArray() => [.. _bytes];
+    }
+
     /// <summary>Inserts a chunk just before IEND, where older writers put eXIf.</summary>
     public static byte[] WithPngChunk(byte[] png, string type, byte[] data)
     {

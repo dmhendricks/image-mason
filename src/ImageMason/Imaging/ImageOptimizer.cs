@@ -5,7 +5,7 @@ namespace ImageMason.Imaging;
 
 public enum QualityPreset
 {
-    /// <summary>Pixels stay identical: oxipng for PNG, jpegtran for JPEG, lossless WebP and AVIF.</summary>
+    /// <summary>Pixels stay identical: oxipng for PNG, jpegtran for JPEG, lossless WebP, AVIF and JPEG XL.</summary>
     Lossless,
 
     /// <summary>Not noticeable in place at 1:1 (SSIMULACRA2 85+ by default).</summary>
@@ -55,6 +55,10 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     internal const long JpegLosslessBytesPerPixel = 16;
     internal const long WebPLosslessBytesPerPixel = 32;
     internal const long AvifLosslessBytesPerPixel = 40;
+
+    // cjxl alone peaked at 23 bytes per pixel lossless and 33 lossy (effort 7, 12 MP), djxl at 8; a whole lossless
+    // JPEG-to-JPEG XL job at 15.6 MP came to 22. Lossy encodes run between scoring passes, which dominate.
+    internal const long JxlLosslessBytesPerPixel = 32;
     internal const long JobOverheadBytes = 64L * 1024 * 1024;
 
     // pngquant --quality caps, gentlest first
@@ -80,7 +84,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     {
         var format = ImageFormatDetector.Detect(input);
         if (format == ImageFormat.Unknown)
-            throw new UnsupportedImageException("Unsupported image format; expected JPEG, PNG, WebP or AVIF.");
+            throw new UnsupportedImageException($"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
 
         var info = ReadInfo(input, format, options.MaxPixels);
         if (info.Animated)
@@ -139,7 +143,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
 
             // The encoders and ssimulacra2 read PNG and JPEG; oxipng and pngquant read PNG only.
             var normalize = resize || rotate
-                || format is ImageFormat.WebP or ImageFormat.Avif
+                || format is ImageFormat.WebP or ImageFormat.Avif or ImageFormat.Jxl
                 || (target == ImageFormat.Png && format != ImageFormat.Png);
             string reference;
             if (crop)
@@ -185,6 +189,11 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
                     break;
                 case ImageFormat.Avif:
                     await OptimizeAvifAsync(job, candidates, lossless, ct);
+                    break;
+                case ImageFormat.Jxl:
+                    await OptimizeJxlAsync(job, candidates, lossless,
+                        tryLossless: format == ImageFormat.Png && !PngPhoto.IsPhoto(input),
+                        recompressJpeg: format == ImageFormat.Jpeg && !crop && !resize, ct);
                     break;
                 default:
                     throw new UnsupportedImageException($"Unsupported output format {target}.");
@@ -237,6 +246,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         ImageFormat.Png => PngLosslessBytesPerPixel,
         ImageFormat.WebP => WebPLosslessBytesPerPixel,
         ImageFormat.Avif => AvifLosslessBytesPerPixel,
+        ImageFormat.Jxl => JxlLosslessBytesPerPixel,
         _ => JpegLosslessBytesPerPixel
     };
 
@@ -289,8 +299,8 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     /// <summary>
     /// Writes the pixels the encoders start from as a lossless PNG, resized by <paramref name="sizeArguments"/> (a
     /// no-op size just bakes in the orientation), keeping only the ICC profile.
-    /// AVIF is decoded by avifdec first; vipsthumbnail reads the other formats. Work PNGs are uncompressed:
-    /// they are read on every attempt, and compressed ones made scoring a third slower.
+    /// AVIF is decoded by avifdec and JPEG XL by djxl first; vipsthumbnail reads the other formats. Work PNGs are
+    /// uncompressed: they are read on every attempt, and compressed ones made scoring a third slower.
     /// </summary>
     /// <param name="name">The output file in <paramref name="work"/>.</param>
     private async Task<string> NormalizeAsync(string source, ImageFormat format, string work, IEnumerable<string> sizeArguments,
@@ -306,6 +316,14 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             if (avifdec.ExitCode != 0 || !File.Exists(input))
                 throw new UnsupportedImageException("Could not decode the AVIF image.");
         }
+        else if (format == ImageFormat.Jxl)
+        {
+            // djxl applies the codestream orientation and writes no EXIF, so vipsthumbnail doesn't rotate it again.
+            input = Path.Combine(work, "decoded.png");
+            var djxl = await tools.RunAsync("djxl", [source, input, "--quiet"], ct);
+            if (djxl.ExitCode != 0 || !File.Exists(input))
+                throw new UnsupportedImageException("Could not decode the JPEG XL image.");
+        }
 
         var output = Path.Combine(work, name);
         var vips = await tools.RunAsync("vipsthumbnail",
@@ -320,12 +338,12 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     /// <summary>
     /// Cuts <paramref name="rect"/> out of the upright image as a lossless PNG, keeping only the ICC profile. The
     /// vips CLI reads JPEG, PNG and WebP but doesn't apply the orientation tag, and the rectangle is in display
-    /// pixels, so an AVIF or a rotated image is made upright first.
+    /// pixels, so an AVIF, a JPEG XL or a rotated image is made upright first.
     /// </summary>
     private async Task<string> CropAsync(string source, ImageFormat format, ImageInfo info, CropRect rect, string work,
         CancellationToken ct)
     {
-        var input = info.Orientation == 1 && format != ImageFormat.Avif
+        var input = info.Orientation == 1 && format is not (ImageFormat.Avif or ImageFormat.Jxl)
             ? source
             : await NormalizeAsync(source, format, work, ["--size", $"{info.DisplayWidth}x"], ct, "upright.png");
 
@@ -519,6 +537,77 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             return true;
 
         logger.LogWarning("avifenc exited {ExitCode}: {StdErr}", avifenc.ExitCode, avifenc.StdErr);
+        return false;
+    }
+
+    /// <param name="tryLossless">Also encode losslessly and keep it if smaller; graphics often compress better that way.</param>
+    /// <param name="recompressJpeg">
+    /// The source is a JPEG at its original size: cjxl can recompress its DCT data without loss, typically about 20%
+    /// smaller with identical pixels.
+    /// </param>
+    private async Task OptimizeJxlAsync(Job job, List<Candidate> candidates, bool lossless, bool tryLossless,
+        bool recompressJpeg, CancellationToken ct)
+    {
+        Candidate? recompressed = null;
+        if (recompressJpeg)
+        {
+            // EXIF and XMP are dropped, as for the other formats; stripping them means the original JPEG file can't be
+            // rebuilt byte for byte, but the pixels are the same. cjxl moves the EXIF orientation into the codestream.
+            var output = Path.Combine(job.Work, "recompressed.jxl");
+            if (await RunCjxlAsync(job.Source, output,
+                    ["--lossless_jpeg=1", "-x", "strip=exif", "-x", "strip=xmp", "--allow_jpeg_reconstruction=0"], ct))
+            {
+                recompressed = new("cjxl-jpeg", output, new FileInfo(output).Length, null);
+                candidates.Add(recompressed);
+            }
+        }
+
+        Candidate? found = null;
+        if (!lossless && job.MinScore is { } minScore)
+        {
+            var range = new SearchRange(
+                Start: Math.Clamp(0.9 + (90 - minScore) * 0.1, options.MinJxlDistance, options.MaxJxlDistance),
+                Min: options.MinJxlDistance, Max: options.MaxJxlDistance,
+                Step: options.SearchStep, Precision: options.SearchPrecision, Smaller: 1, Integer: false);
+            found = await SearchAsync("cjxl", range, minScore, (d, suffix) => EncodeJxlAsync(job, d, suffix, ct), ct);
+            if (found is not null)
+                candidates.Add(found);
+        }
+
+        // Lossless from the pixels: asked for, worth a try for graphics, or the fallback when nothing else worked.
+        if (tryLossless || (found is null && recompressed is null))
+        {
+            var output = Path.Combine(job.Work, "lossless.jxl");
+            if (await RunCjxlAsync(job.Reference, output, ["-d", "0"], ct))
+                candidates.Add(new(MethodName(job, "cjxl-lossless"), output, new FileInfo(output).Length, null));
+        }
+    }
+
+    private async Task<Candidate?> EncodeJxlAsync(Job job, double distance, string suffix, CancellationToken ct)
+    {
+        var d = distance.ToString("0.###", CultureInfo.InvariantCulture);
+        var output = Path.Combine(job.Work, $"jxl-{suffix}.jxl");
+
+        // cjxl recompresses a JPEG input losslessly unless told not to, whatever the distance; the reference is the
+        // source JPEG itself when nothing else changes.
+        if (!await RunCjxlAsync(job.Reference, output, ["-d", d, "--lossless_jpeg=0"], ct))
+            return null;
+
+        // Scored from djxl's PNG, the pixels a viewer shows; ssimulacra2 reading the .jxl itself scores a little higher.
+        var decoded = Path.Combine(job.Work, $"jxl-{suffix}.png");
+        var djxl = await tools.RunAsync("djxl", [output, decoded, "--quiet"], ct);
+        var score = djxl.ExitCode == 0 && File.Exists(decoded) ? await ScoreAsync(job.Reference, decoded, ct) : null;
+        return new(MethodName(job, $"cjxl-d{d}"), output, new FileInfo(output).Length, score);
+    }
+
+    private async Task<bool> RunCjxlAsync(string input, string output, string[] arguments, CancellationToken ct)
+    {
+        var cjxl = await tools.RunAsync("cjxl",
+            [input, output, .. arguments, "-e", options.JxlEffort.ToString(CultureInfo.InvariantCulture), "--quiet"], ct);
+        if (cjxl.ExitCode == 0 && File.Exists(output))
+            return true;
+
+        logger.LogWarning("cjxl exited {ExitCode}: {StdErr}", cjxl.ExitCode, cjxl.StdErr);
         return false;
     }
 

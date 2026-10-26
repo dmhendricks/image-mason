@@ -14,6 +14,8 @@ describe('sniffFormat', () => {
     expect(sniffFormat(bytes([0xFF, 0xD8, 0xFF, 0xE0]))).toBe('jpeg')
     expect(sniffFormat(bytes('RIFF', [0, 0, 0, 0], 'WEBPVP8 '))).toBe('webp')
     expect(sniffFormat(ftyp('avif', 'mif1'))).toBe('avif')
+    expect(sniffFormat(bytes([0xFF, 0x0A, 0xFA, 0x1F]))).toBe('jxl')
+    expect(sniffFormat(bytes([0, 0, 0, 0x0C], 'JXL ', [0x0D, 0x0A, 0x87, 0x0A]))).toBe('jxl')
   })
 
   it('finds AVIF among the compatible brands', () => {

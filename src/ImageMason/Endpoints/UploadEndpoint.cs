@@ -7,7 +7,7 @@ using ImageMason.Storage;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/upload: stores a JPEG, PNG, WebP or AVIF unchanged and returns the same JSON as optimize?output=json.
+/// POST /api/v1/upload: stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged and returns the same JSON as optimize?output=json.
 /// The file is served at /images/{name} until IMAGE_MASON_IMAGE_TTL_MINUTES, then deleted.
 /// </summary>
 internal static class UploadEndpoint
@@ -37,7 +37,7 @@ internal static class UploadEndpoint
             input = await ApiRequest.ReadImageAsync(http.Request, downloader, url, timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
-                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, "Unsupported image format; expected JPEG, PNG, WebP or AVIF.");
+                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
 
             if (storedName is not null && !storedName.EndsWith(format.Extension(), StringComparison.Ordinal))
                 return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {format.Extension()}.");

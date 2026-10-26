@@ -92,6 +92,13 @@ public sealed class ImageMasonOptions
     /// <summary>avifenc -s (0 slowest, 10 fastest); 6 is libavif's default.</summary>
     public int AvifSpeed { get; init; } = 6;
 
+    /// <summary>cjxl butteraugli distance range searched for the smallest JPEG XL that meets the floor (0 is lossless).</summary>
+    public double MinJxlDistance { get; init; } = 0.1;
+    public double MaxJxlDistance { get; init; } = 6.0;
+
+    /// <summary>cjxl -e (1 fastest, 10 slowest); 7 is libjxl's default.</summary>
+    public int JxlEffort { get; init; } = 7;
+
     /// <summary>Directory for stored images, served at GET /images/{name}.</summary>
     public string StorePath { get; init; } = "/data/images";
 

@@ -2,7 +2,7 @@
 
 ![Image Mason web interface](https://github.com/dmhendricks/image-mason/raw/main/assets/screenshot.webp)
 
-A self-hosted HTTP API that makes JPEG, PNG, WebP and AVIF images smaller, converts between those formats,
+A self-hosted HTTP API that makes JPEG, PNG, WebP, AVIF and JPEG XL images smaller, converts between those formats,
 and can host the results temporarily.
 
 Send an image and get a smaller one back, in the same format or another. Lossy results are held to a
@@ -15,7 +15,8 @@ settings, and returns the smallest result that meets the score, or the original 
 - **PNG:** lossless recompression with `oxipng`, and palette quantization with `pngquant`.
 - **WebP:** lossy and lossless encoding with `cwebp` (libwebp).
 - **AVIF:** lossy and lossless encoding with `avifenc` (libavif, with the aom AV1 encoder).
-- **Conversion:** any of the four formats to any other, with the same quality presets.
+- **JPEG XL:** lossy and lossless encoding with `cjxl` (libjxl), and lossless recompression of JPEGs.
+- **Conversion:** any of the five formats to any other, with the same quality presets.
 - **Resizing:** fit into a box, fill it and crop (centered or on the most interesting area), or stretch, with
   libvips.
 - **Cropping:** keep an exact area, then resize or convert it in the same call.
@@ -111,8 +112,8 @@ X-Image-Mason-Duration-Ms: 209
 
 ### Convert an Image
 
-`convert` takes the same parameters as `optimize`, plus the output `format`: `jpeg`, `png`, `webp` or
-`avif`.
+`convert` takes the same parameters as `optimize`, plus the output `format`: `jpeg`, `png`, `webp`,
+`avif` or `jxl`.
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo.webp \
@@ -205,7 +206,7 @@ Errors are returned as [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc
   "type": "https://tools.ietf.org/html/rfc9110#section-15.5.16",
   "title": "Unsupported Media Type",
   "status": 415,
-  "detail": "Unsupported image format; expected JPEG, PNG, WebP or AVIF.",
+  "detail": "Unsupported image format; expected JPEG, PNG, WebP, AVIF or JPEG XL.",
   "traceId": "00-2505c8a26cb460e47d2be04e45c74d8c-9d260fe1868f535e-00"
 }
 ```
@@ -215,7 +216,7 @@ Errors are returned as [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc
 | 400 | Invalid parameter, empty body, both a body and `url`, or a `url` that isn't allowed |
 | 401 | Missing or wrong `X-Api-Key` |
 | 413 | Image larger than `IMAGE_MASON_MAX_INPUT_SIZE` |
-| 415 | Not a JPEG, PNG, WebP or AVIF, or an animated image (only `upload` accepts those) |
+| 415 | Not a JPEG, PNG, WebP, AVIF or JPEG XL, or an animated image (only `upload` accepts those) |
 | 422 | Too many pixels, or more memory needed than the service has |
 | 502 | The `url` download failed or redirected too many times |
 | 503 | The queue is full, or an image tool ran out of memory (sent with `Retry-After`) |
@@ -256,11 +257,11 @@ The image is the request body, or the file at `url`.
 | `fit` | `contain` | `contain`: fit inside the box, keeping the aspect ratio (either side may be left out). `cover`: fill the box and crop what overflows. `fill`: stretch to exactly the box. `cover` and `fill` need both sides. |
 | `crop` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
 | `upscale` | `false` | Enlarge images smaller than the box. Without it, `contain` leaves them as they are and `cover` only crops. `fill` always reaches the exact size. |
-| `format` | the input's | `jpeg` (or `jpg`), `png`, `webp` or `avif`, to convert while optimizing. Overrides `preferJpeg`. |
+| `format` | the input's | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl`, to convert while optimizing. Overrides `preferJpeg`. |
 | `preferJpeg` | `false` | Return a JPEG when the input is a PNG photo with no transparency. Ignored when `format` is sent. |
 | `url` | | Download the image from this URL instead of reading the body |
 | `output` | | `json` stores the result and returns its URL and statistics |
-| `outputFilename` | random | Stored file name, such as `banner.jpg`: letters, digits, `_` or `-`, then the output format's extension (`.jpg`, `.png`, `.webp` or `.avif`). Replaces an existing file with the same name. Requires `output=json`. |
+| `outputFilename` | random | Stored file name, such as `banner.jpg`: letters, digits, `_` or `-`, then the output format's extension (`.jpg`, `.png`, `.webp`, `.avif` or `.jxl`). Replaces an existing file with the same name. Requires `output=json`. |
 | `keepOriginal` | `false` | Also store the input, returned as `input`. Requires `output=json`. |
 
 Response headers:
@@ -273,7 +274,7 @@ Response headers:
 | `X-Image-Mason-Size-Change-Percent` | Percent change from the input size: negative if smaller, positive if larger |
 | `X-Image-Mason-Original-Dimensions` | Input width x height |
 | `X-Image-Mason-Dimensions` | Output width x height |
-| `X-Image-Mason-Method` | How the result was produced, such as `jpegtran`, `jpegli-d1.15`, `oxipng`, `pngquant+oxipng`, `cwebp-q93`, `cwebp-lossless`, `avifenc-q80` or `original`. Cropped results start with `crop+` and resized ones with `resize+` (`crop+resize+` when both). |
+| `X-Image-Mason-Method` | How the result was produced, such as `jpegtran`, `jpegli-d1.15`, `oxipng`, `pngquant+oxipng`, `cwebp-q93`, `cwebp-lossless`, `avifenc-q80`, `cjxl-d1.2`, `cjxl-jpeg` or `original`. Cropped results start with `crop+` and resized ones with `resize+` (`crop+resize+` when both). |
 | `X-Image-Mason-Score` | SSIMULACRA2 score of a lossy result |
 | `X-Image-Mason-Min-Score` | The floor the result had to meet |
 | `X-Image-Mason-Is-Photo` | For PNG inputs: whether it looks like a photo with no transparency |
@@ -293,17 +294,19 @@ attempt against the input.
 - **WebP:** `cwebp` encodes lossy, and also lossless when the input is a PNG graphic or the preset is
   `lossless`. Lossy WebP can't reach every floor on detailed photos; lossless is then the fallback.
 - **AVIF:** `avifenc` encodes lossy, or lossless under the `lossless` preset.
+- **JPEG XL:** `cjxl` encodes lossy, and also lossless when the input is a PNG graphic or the preset is
+  `lossless`. A JPEG at its original size is also recompressed without loss (`cjxl-jpeg`), typically 20% smaller.
 - **Orientation:** every re-encoded result is rotated upright, so it displays correctly without an
   orientation tag. Metadata other than the ICC color profile is removed.
 - **Cropped and resized images** start from the cut-out or downscaled pixels, and are scored against them.
 
 When the output format matches the input, the original is always a candidate, so the response is never
-larger than the input unless a crop or resize asked for a different image. Animated WebP and AVIF are rejected.
+larger than the input unless a crop or resize asked for a different image. Animated WebP, AVIF and JPEG XL are rejected.
 
 ### `POST /api/v1/convert`
 
 The same parameters and response as [`optimize`](#post-apiv1optimize), except that `format` is required:
-`jpeg` (or `jpg`), `png`, `webp` or `avif`. `preferJpeg` doesn't apply. Converting to JPEG or WebP reduces 16-bit
+`jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl`. `preferJpeg` doesn't apply. Converting to JPEG or WebP reduces 16-bit
 images to 8 bits per channel.
 
 ### `POST /api/v1/resize`
@@ -326,7 +329,7 @@ reports the whole input. The score compares the result with the cropped area.
 
 ### `POST /api/v1/upload`
 
-Stores a JPEG, PNG, WebP or AVIF unchanged, animated ones included, and returns the same JSON as
+Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as
 `optimize?output=json`. Accepts the image as the body or `url`, and `outputFilename`.
 
 ### `POST /api/v1/info`
@@ -394,7 +397,8 @@ for one.
     { "name": "jpeg", "mimeType": "image/jpeg", "extension": ".jpg", "maxSide": 65535 },
     { "name": "png", "mimeType": "image/png", "extension": ".png" },
     { "name": "webp", "mimeType": "image/webp", "extension": ".webp", "maxSide": 16383 },
-    { "name": "avif", "mimeType": "image/avif", "extension": ".avif" }
+    { "name": "avif", "mimeType": "image/avif", "extension": ".avif" },
+    { "name": "jxl", "mimeType": "image/jxl", "extension": ".jxl" }
   ],
   "maxInputSize": 26214400,
   "maxPixels": 50000000,
@@ -453,7 +457,7 @@ comments. An invalid value stops the container at startup with a message naming 
 | `IMAGE_MASON_MAX_STORE_SIZE` | `10g` | Total stored size; past it, the oldest images are deleted. `0` turns the cap off. |
 | `IMAGE_MASON_URL_FETCH_ENABLED` | `true` | `false` accepts uploaded images only |
 | `IMAGE_MASON_URL_ALLOWED_HOSTS` | | Comma-separated hosts `url` may point to. `*.example.com` matches subdomains. Empty allows any host. |
-| `IMAGE_MASON_URL_ALLOWED_EXTENSIONS` | | Comma-separated extensions the `url` path must end in, such as `png,jpg,jpeg,webp,avif`. Empty allows any. |
+| `IMAGE_MASON_URL_ALLOWED_EXTENSIONS` | | Comma-separated extensions the `url` path must end in, such as `png,jpg,jpeg,webp,avif,jxl`. Empty allows any. |
 | `IMAGE_MASON_UI_ENABLED` | `true` | `false` turns the web interface off: `/` redirects to the usage examples at `/docs`. The API is unaffected. |
 | `IMAGE_MASON_LOG_LEVEL` | `Information` | `Trace`, `Debug`, `Information`, `Warning` or `Error` |
 | `TZ` | `UTC` | Timezone for logs and timestamps, such as `America/New_York` |
@@ -465,7 +469,7 @@ restarts; they still expire after `IMAGE_MASON_IMAGE_TTL_MINUTES`.
 
 Scoring a lossy result takes far more memory than encoding it: about **150 MB per megapixel**. A 12 MP
 phone photo needs about 2 GB at `high`, `medium` or `low`, whatever the output format. Lossless jobs need much
-less: up to about 16 MB per megapixel for JPEG, 32 MB for WebP, 40 MB for AVIF and 48 MB for PNG.
+less: up to about 16 MB per megapixel for JPEG, 32 MB for WebP and JPEG XL, 40 MB for AVIF and 48 MB for PNG.
 
 Time grows with size the same way. With 4 CPUs, a 15 MP photo at `high` takes about 10 seconds as JPEG and
 10 to 20 seconds as AVIF or WebP, which need more encoding attempts. Raise `IMAGE_MASON_TIMEOUT_SECONDS` if

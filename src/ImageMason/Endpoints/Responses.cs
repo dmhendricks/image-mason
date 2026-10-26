@@ -46,7 +46,7 @@ public sealed class HostedImageResponse
 /// <summary>Returned by info. Read from the file header; nothing is decoded. Null properties are omitted.</summary>
 public sealed class ImageInfoResponse
 {
-    /// <summary>jpeg, png, webp or avif.</summary>
+    /// <summary>jpeg, png, webp, avif or jxl.</summary>
     public required string Format { get; init; }
 
     public required string MimeType { get; init; }

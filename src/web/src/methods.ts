@@ -9,6 +9,9 @@ const encoders: [RegExp, (match: RegExpMatchArray) => string][] = [
   [/^cwebp-q(\d+)$/, m => `WebP (cwebp, quality ${m[1]})`],
   [/^avifenc-lossless$/, () => 'Lossless AVIF (avifenc)'],
   [/^avifenc-q(\d+)$/, m => `AVIF (avifenc, quality ${m[1]})`],
+  [/^cjxl-jpeg$/, () => 'Lossless JPEG recompression into JPEG XL (cjxl)'],
+  [/^cjxl-lossless$/, () => 'Lossless JPEG XL (cjxl)'],
+  [/^cjxl-d([\d.]+)$/, m => `JPEG XL (cjxl, distance ${m[1]})`],
   [/^pngquant\+oxipng$/, () => 'PNG with fewer colors (pngquant, then oxipng)'],
   [/^oxipng$/, () => 'Lossless PNG (oxipng)'],
 ]

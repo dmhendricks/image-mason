@@ -13,6 +13,9 @@ All notable changes to this project are documented here. The format is based on
   server's limits before anything is sent. The interface asks for the API key on servers that need one,
   retries while the server is busy, and can cancel a running job. It's a Vue 3 app built into the image.
 - `IMAGE_MASON_UI_ENABLED`: `false` turns the web interface off, and `/` redirects to `/docs`.
+- JPEG XL, as input and output (`format=jxl`): lossy and lossless encoding with `cjxl`, and lossless
+  recompression of JPEGs (`cjxl-jpeg`), typically 20% smaller with the same pixels. libjxl is now built as a
+  shared library, so its four tools share one copy of the codec; the image grows by about 1 MB.
 
 ### Changed
 

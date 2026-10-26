@@ -4,7 +4,7 @@ Image Mason is licensed under the [Apache License 2.0](LICENSE). The Docker imag
 third-party software, distributed under the licenses listed below. Those licenses apply to those
 components only.
 
-The image tools (`cjpegli`, `ssimulacra2`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`,
+The image tools (`cjpegli`, `ssimulacra2`, `cjxl`, `djxl`, `jpegtran`, `vips`, `vipsthumbnail`, `avifenc`, `avifdec`, `cwebp`,
 `oxipng`, `pngquant`) run as separate programs. None of them is linked into the Image Mason application. The application binary
 contains the .NET runtime and ASP.NET Core, compiled in ahead of time, and the web interface's files (Vue and the
 Barlow fonts), embedded as resources.
@@ -16,7 +16,7 @@ Full license texts are in the [`licenses/`](licenses/) directory. In the image, 
 
 | Component | Version | License | Included as | Source |
 |---|---|---|---|---|
-| libjxl (`cjpegli`, `ssimulacra2`) | 0.11.2 | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/libjxl/libjxl/tree/v0.11.2> |
+| libjxl (`cjpegli`, `ssimulacra2`, `cjxl`, `djxl`) | 0.11.2 | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/libjxl/libjxl/tree/v0.11.2> |
 | mozjpeg (`jpegtran`) | 4.1.5 | IJG AND BSD-3-Clause AND Zlib | Built from source | <https://github.com/mozilla/mozjpeg/tree/v4.1.5> |
 | libvips (`vips`, `vipsthumbnail`) | 8.18.7 | LGPL-2.1-or-later | Built from source | <https://github.com/libvips/libvips/tree/v8.18.7> |
 | libavif (`avifenc`, `avifdec`) | 1.4.2 | BSD-2-Clause | Built from source | <https://github.com/AOMediaCodec/libavif/tree/v1.4.2> |

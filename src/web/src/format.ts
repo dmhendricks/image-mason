@@ -23,11 +23,16 @@ export function formatMegapixels(pixels: number): string {
   return `${Number.isInteger(megapixels) ? megapixels : megapixels.toFixed(1)} megapixels`
 }
 
-const formatNames: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', avif: 'AVIF' }
+const formatNames: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', avif: 'AVIF', jxl: 'JPEG XL' }
 
 /** "webp" → "WebP". */
 export function formatName(format: string): string {
   return formatNames[format] ?? format.toUpperCase()
+}
+
+/** Format names in the order they're listed: alphabetical by the name shown, so the API's order doesn't leak into menus. */
+export function sortFormats<T extends string>(formats: readonly T[]): T[] {
+  return [...formats].sort((a, b) => formatName(a).localeCompare(formatName(b), 'en', { sensitivity: 'base' }))
 }
 
 /** 640, 480 → "640 × 480". */

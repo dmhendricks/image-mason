@@ -17,6 +17,9 @@ export function sniffFormat(bytes: Uint8Array): ImageFormat | null {
     return 'webp'
   if (isAvif(bytes))
     return 'avif'
+  // JPEG XL: a bare codestream, or the container's signature box.
+  if (startsWith([0xFF, 0x0A]) || startsWith([0, 0, 0, 0x0C, 0x4A, 0x58, 0x4C, 0x20, 0x0D, 0x0A, 0x87, 0x0A]))
+    return 'jxl'
   return null
 }
 
@@ -40,13 +43,14 @@ export function isHeif(bytes: Uint8Array): boolean {
   return bytes.length >= 12 && ascii(bytes, 4, 4) === 'ftyp' && /^(heic|heix|hevc|heim|heis|mif1|msf1)$/.test(ascii(bytes, 8, 4))
 }
 
-export const extensions: Record<ImageFormat, string> = { jpeg: '.jpg', png: '.png', webp: '.webp', avif: '.avif' }
+export const extensions: Record<ImageFormat, string> = { jpeg: '.jpg', png: '.png', webp: '.webp', avif: '.avif', jxl: '.jxl' }
 
 const formatsByType: Record<string, ImageFormat> = {
   'image/jpeg': 'jpeg',
   'image/png': 'png',
   'image/webp': 'webp',
   'image/avif': 'avif',
+  'image/jxl': 'jxl',
 }
 
 export function formatFromContentType(contentType: string | null): ImageFormat | null {

@@ -12,6 +12,8 @@ public sealed class ImageFormatTests
         Assert.Equal(ImageFormat.WebP, ImageFormatDetector.Detect(TestImages.WebPLossy(4, 4)));
         Assert.Equal(ImageFormat.Avif, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4)));
         Assert.Equal(ImageFormat.Avif, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "avis")));
+        Assert.Equal(ImageFormat.Jxl, ImageFormatDetector.Detect(TestImages.JxlCodestream(4, 4)));
+        Assert.Equal(ImageFormat.Jxl, ImageFormatDetector.Detect(TestImages.JxlContainer(TestImages.JxlCodestream(4, 4))));
         Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "heic")[..16]));
         Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect("GIF89a"u8));
         Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect("RIFF\0\0\0\0WAVE"u8));
@@ -24,6 +26,8 @@ public sealed class ImageFormatTests
     [InlineData("png", ImageFormat.Png)]
     [InlineData(" webp ", ImageFormat.WebP)]
     [InlineData("avif", ImageFormat.Avif)]
+    [InlineData("jxl", ImageFormat.Jxl)]
+    [InlineData("JPEGXL", ImageFormat.Jxl)]
     public void TryParse_AcceptsFormatNames(string value, ImageFormat expected)
     {
         Assert.True(ImageFormatDetector.TryParse(value, out var format));
@@ -212,6 +216,69 @@ public sealed class ImageFormatTests
         var info = ImageInfo.Read(TestImages.JpegHeader(10, 10, orientation: 9), ImageFormat.Jpeg);
 
         Assert.Equal(1, info.Orientation);
+    }
+
+    // The first bytes of real cjxl 0.11.2 files, with jxlinfo's reading of them: a photo, the same photo
+    // recompressed from a JPEG tagged as rotated, a 2-frame animation from a GIF, a 160x107 image (whose width is
+    // stored as a ratio of the height) and a photo in a custom color space, which cjxl stores without an ICC profile.
+    [Theory]
+    [InlineData("ff0a50cd01001388020060545e07dd89746d7f35317152e1", 640, 427, 1, false, 8, false)]
+    [InlineData("ff0a504d0bc404e05b001000c8d2d447b275e601e8c56afd", 640, 427, 6, false, 8, false)]
+    [InlineData("ff0ac1050158130810a002000048004b188b15805de0ff00", 16, 8, 1, true, 8, true)]
+    [InlineData("ff0a50c3010013880200a532b59f200000152aa38c1bbc9c", 160, 107, 1, false, 8, false)]
+    [InlineData("ff0a504d9090a079cea402a61002227f9d00ae4bd0b2547f", 640, 427, 1, false, 8, false)]
+    public void ReadJxl_ReadsRealEncoderHeaders(string hex, int width, int height, int orientation, bool animated,
+        int bitDepth, bool alpha)
+    {
+        var data = Convert.FromHexString(hex.Replace(" ", ""));
+
+        Assert.Equal(new ImageInfo(width, height, orientation, animated), ImageInfo.Read(data, ImageFormat.Jxl));
+        Assert.Equal(new ImageDetails(bitDepth, alpha, false), ImageHeader.ReadDetails(data, ImageFormat.Jxl));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadJxl_FindsTheCodestreamInTheContainer(bool partial)
+    {
+        // A real 480x320 lossless image with alpha, 16 bits per channel, from cjxl's jxlc box.
+        var codestream = Convert.FromHexString("ff0af849fc087e800408081000b40c000080ad6c0a1ec401");
+        var data = TestImages.JxlContainer(codestream, partial);
+
+        Assert.Equal(ImageFormat.Jxl, ImageFormatDetector.Detect(data));
+        Assert.Equal(new ImageInfo(480, 320, 1), ImageInfo.Read(data, ImageFormat.Jxl));
+        Assert.Equal(new ImageDetails(16, true, false), ImageHeader.ReadDetails(data, ImageFormat.Jxl));
+    }
+
+    [Fact]
+    public void ReadJxl_SkipsThePreviewAndAnimationHeaders()
+    {
+        var data = TestImages.JxlCodestream(5000, 3000, orientation: 8, preview: true, animated: true);
+
+        Assert.Equal(new ImageInfo(5000, 3000, 8, Animated: true), ImageInfo.Read(data, ImageFormat.Jxl));
+        Assert.Equal(3000, ImageInfo.Read(data, ImageFormat.Jxl).DisplayWidth);
+    }
+
+    [Theory]
+    [InlineData(false, false, 8)]
+    [InlineData(true, false, 16)]
+    [InlineData(true, true, 12)]
+    public void ReadJxl_ReadsTheDetailsAfterNamedExtraChannels(bool alpha, bool icc, int bitDepth)
+    {
+        var data = TestImages.JxlCodestream(64, 64, bitDepth: bitDepth, alpha: alpha, icc: icc);
+
+        Assert.Equal(new ImageInfo(64, 64, 1), ImageInfo.Read(data, ImageFormat.Jxl));
+        Assert.Equal(new ImageDetails(bitDepth, alpha, icc), ImageHeader.ReadDetails(data, ImageFormat.Jxl));
+    }
+
+    [Fact]
+    public void ReadJxl_ReturnsNothingForATruncatedOrForeignFile()
+    {
+        var data = TestImages.JxlCodestream(64, 64, alpha: true);
+
+        Assert.Equal(default, ImageInfo.Read(data[..6], ImageFormat.Jxl));
+        Assert.Equal(default, ImageInfo.Read([0xFF, 0x0A], ImageFormat.Jxl));
+        Assert.Equal(default, ImageInfo.Read(TestImages.JpegHeader(4, 4), ImageFormat.Jxl));
     }
 
     [Fact]

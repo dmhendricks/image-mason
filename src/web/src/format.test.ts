@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatChange, formatMegapixels, formatName } from './format'
+import { formatBytes, formatChange, formatMegapixels, formatName, sortFormats } from './format'
 
 describe('formatBytes', () => {
   it.each([
@@ -38,5 +38,18 @@ describe('formatChange', () => {
 describe('formatName', () => {
   it('spells the formats as people write them', () => {
     expect(['jpeg', 'png', 'webp', 'avif'].map(formatName)).toEqual(['JPEG', 'PNG', 'WebP', 'AVIF'])
+  })
+})
+
+describe('sortFormats', () => {
+  it('orders formats alphabetically by the name shown, whatever order they come in', () => {
+    expect(sortFormats(['jpeg', 'png', 'webp', 'avif', 'jxl'])).toEqual(['avif', 'jpeg', 'jxl', 'png', 'webp'])
+    expect(sortFormats(['webp', 'jxl', 'jpeg'])).toEqual(['jpeg', 'jxl', 'webp'])
+  })
+
+  it('leaves the list it was given alone', () => {
+    const formats = ['png', 'avif']
+    sortFormats(formats)
+    expect(formats).toEqual(['png', 'avif'])
   })
 })

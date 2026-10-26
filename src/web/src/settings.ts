@@ -4,7 +4,7 @@
 export const tools = ['optimize', 'resize', 'crop', 'convert'] as const
 /** The lossy presets. Lossless is its own setting, since it allows no difference at all rather than a level of it. */
 export const qualities = ['high', 'medium', 'low'] as const
-export const imageFormats = ['jpeg', 'png', 'webp', 'avif'] as const
+export const imageFormats = ['jpeg', 'png', 'webp', 'avif', 'jxl'] as const
 export const fits = ['contain', 'cover', 'fill'] as const
 export const focuses = ['center', 'attention', 'entropy'] as const
 

@@ -25,7 +25,7 @@ internal static class InfoEndpoint
             var input = await ApiRequest.ReadImageAsync(http.Request, downloader, url, timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
-                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, "Unsupported image format; expected JPEG, PNG, WebP or AVIF.");
+                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
 
             var info = ImageInfo.Read(input, format);
             if (info.Width <= 0 || info.Height <= 0)

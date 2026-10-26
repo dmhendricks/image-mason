@@ -32,7 +32,7 @@ internal static class FetchEndpoint
             var input = await downloader.DownloadAsync(url.Trim(), timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
-                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, "That address isn't a JPEG, PNG, WebP or AVIF image.");
+                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"That address isn't a {ImageFormatDetector.SupportedNames} image.");
 
             http.Response.Headers.CacheControl = "no-store";
             return Results.Bytes(input, format.ContentType());

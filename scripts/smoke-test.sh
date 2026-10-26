@@ -163,6 +163,27 @@ code=$(request fromavif "${auth[@]}" --data-binary @"$fixtures/photo.avif" "$api
 check "convert AVIF to JPEG is 200" [ "$code" = 200 ]
 check "  returns a JPEG" [ "$(header fromavif content-type)" = image/jpeg ]
 
+code=$(request tojxl "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/convert?format=jxl")
+check "convert JPEG to JPEG XL is 200" [ "$code" = 200 ]
+check "  returns a JPEG XL" [ "$(header tojxl content-type)" = image/jxl ]
+check "  encodes lossy with cjxl" starts_with "$(header tojxl x-image-mason-method)" cjxl-d
+check "  scored at or above the floor" at_least "$(header tojxl x-image-mason-score)" "$(header tojxl x-image-mason-min-score)"
+check "  smaller than the input" smaller "$work/tojxl.body" "$fixtures/photo.jpg"
+
+code=$(request jxlrecompress "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/convert?format=jxl&quality=lossless")
+check "convert JPEG to JPEG XL losslessly is 200" [ "$code" = 200 ]
+check "  recompresses the JPEG data" [ "$(header jxlrecompress x-image-mason-method)" = cjxl-jpeg ]
+check "  smaller than the input" smaller "$work/jxlrecompress.body" "$fixtures/photo.jpg"
+
+code=$(request jxlgraphic "${auth[@]}" --data-binary @"$fixtures/graphic.png" "$api/convert?format=jxl")
+check "convert PNG to JPEG XL is 200" [ "$code" = 200 ]
+check "  smaller than the input" smaller "$work/jxlgraphic.body" "$fixtures/graphic.png"
+
+code=$(request fromjxl "${auth[@]}" --data-binary @"$fixtures/photo.jxl" "$api/convert?format=webp&quality=medium")
+check "convert JPEG XL to WebP is 200" [ "$code" = 200 ]
+check "  returns a WebP" [ "$(header fromjxl content-type)" = image/webp ]
+check "  keeps the 640x427 size" [ "$(header fromjxl x-image-mason-dimensions)" = 640x427 ]
+
 code=$(request topng "${auth[@]}" --data-binary @"$fixtures/photo.webp" "$api/convert?format=png&quality=lossless")
 check "convert WebP to PNG is 200" [ "$code" = 200 ]
 check "  returns a PNG" [ "$(header topng content-type)" = image/png ]
@@ -223,6 +244,11 @@ code=$(request cropavif "${auth[@]}" --data-binary @"$fixtures/photo.avif" "$api
 check "crop an AVIF is 200" [ "$code" = 200 ]
 check "  keeps the 100x100 area" [ "$(header cropavif x-image-mason-dimensions)" = 100x100 ]
 
+code=$(request cropjxl "${auth[@]}" --data-binary @"$fixtures/photo.jxl" "$api/crop?rect=20,20,100,100")
+check "crop a JPEG XL is 200" [ "$code" = 200 ]
+check "  keeps the 100x100 area" [ "$(header cropjxl x-image-mason-dimensions)" = 100x100 ]
+check "  returns a JPEG XL" [ "$(header cropjxl content-type)" = image/jxl ]
+
 code=$(request croppng "${auth[@]}" --data-binary @"$fixtures/graphic.png" "$api/crop?rect=40,40,400,240&quality=lossless")
 check "crop a PNG losslessly is 200" [ "$code" = 200 ]
 check "  uses oxipng" [ "$(header croppng x-image-mason-method)" = crop+oxipng ]
@@ -236,7 +262,7 @@ check "crop with a malformed rect is 400" [ "$code" = 400 ]
 
 code=$(request limits "$api/limits")
 check "GET limits without the API key is 200" [ "$code" = 200 ]
-check "  lists four formats" [ "$(json limits '.formats | length')" = 4 ]
+check "  lists five formats" [ "$(json limits '.formats | length')" = 5 ]
 check "  reports the API key" [ "$(json limits .apiKeyRequired)" = true ]
 
 code=$(request info "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/info")
@@ -247,6 +273,11 @@ check "  reports the dimensions" [ "$(json info '"\(.width)x\(.height)"')" = 640
 code=$(request infoavif "${auth[@]}" --data-binary @"$fixtures/photo.avif" "$api/info")
 check "info on AVIF is 200" [ "$code" = 200 ]
 check "  reports AVIF" [ "$(json infoavif .format)" = avif ]
+
+code=$(request infojxl "${auth[@]}" --data-binary @"$fixtures/photo.jxl" "$api/info")
+check "info on JPEG XL is 200" [ "$code" = 200 ]
+check "  reports JPEG XL" [ "$(json infojxl .format)" = jxl ]
+check "  reports the dimensions" [ "$(json infojxl '"\(.width)x\(.height)"')" = 640x427 ]
 
 code=$(request infonokey --data-binary @"$fixtures/photo.jpg" "$api/info")
 check "info without the API key is 401" [ "$code" = 401 ]

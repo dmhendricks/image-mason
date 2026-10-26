@@ -21,6 +21,9 @@ public sealed class MemoryEstimateTests
     [InlineData("15.6 MP AVIF to JPEG, high", ImageFormat.Avif, ImageFormat.Jpeg, 15_564_300, 15_564_300, true, 2335)]
     [InlineData("15.6 MP JPEG to WebP, lossless", ImageFormat.Jpeg, ImageFormat.WebP, 15_564_300, 15_564_300, false, 415)]
     [InlineData("15.6 MP JPEG to AVIF, lossless", ImageFormat.Jpeg, ImageFormat.Avif, 15_564_300, 15_564_300, false, 530)]
+    [InlineData("15.6 MP JPEG to JPEG XL, high", ImageFormat.Jpeg, ImageFormat.Jxl, 15_578_368, 15_578_368, true, 2294)]
+    [InlineData("15.6 MP JPEG XL to JPEG, high", ImageFormat.Jxl, ImageFormat.Jpeg, 15_578_368, 15_578_368, true, 2299)]
+    [InlineData("15.6 MP JPEG to JPEG XL, lossless", ImageFormat.Jpeg, ImageFormat.Jxl, 15_578_368, 15_578_368, false, 411)]
     public void Estimate_IsAtLeastTheMeasuredPeak_ButNotFarAbove(string job, ImageFormat format, ImageFormat target,
         long inputPixels, long outputPixels, bool scored, long measuredMiB)
     {

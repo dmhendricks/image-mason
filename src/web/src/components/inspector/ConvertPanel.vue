@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useServer } from '../../composables/useServer'
 import { useSettings } from '../../composables/useSettings'
-import { formatName } from '../../format'
+import { formatName, sortFormats } from '../../format'
 import { type ImageFormat, imageFormats } from '../../settings'
 import SegmentedControl from '../controls/SegmentedControl.vue'
 import MaxWidthField from './MaxWidthField.vue'
@@ -12,8 +12,8 @@ const { settings } = useSettings()
 const { limits } = useServer()
 
 const options = computed(() =>
-  (limits.value?.formats.map(f => f.name) ?? [...imageFormats])
-    .filter((f): f is ImageFormat => (imageFormats as readonly string[]).includes(f))
+  sortFormats((limits.value?.formats.map(f => f.name) ?? [...imageFormats])
+    .filter((f): f is ImageFormat => (imageFormats as readonly string[]).includes(f)))
     .map(value => ({ value, label: formatName(value) })))
 
 const hints: Record<ImageFormat, string> = {
@@ -21,6 +21,7 @@ const hints: Record<ImageFormat, string> = {
   png: 'Lossless, with transparency. Best for graphics and screenshots; large for photos.',
   webp: 'Usually smaller than JPEG, with transparency. Every current browser shows it.',
   avif: 'Usually the smallest, with transparency, but the slowest to make.',
+  jxl: 'As small as AVIF, with transparency, and Lossless repacks a JPEG about 20% smaller. Not every browser shows it yet.',
 }
 </script>
 

@@ -22,3 +22,27 @@ export function formatMegapixels(pixels: number): string {
   const megapixels = pixels / 1_000_000
   return `${Number.isInteger(megapixels) ? megapixels : megapixels.toFixed(1)} megapixels`
 }
+
+const formatNames: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', avif: 'AVIF' }
+
+/** "webp" → "WebP". */
+export function formatName(format: string): string {
+  return formatNames[format] ?? format.toUpperCase()
+}
+
+/** 640, 480 → "640 × 480". */
+export function formatSize(width: number, height: number): string {
+  return `${width} × ${height}`
+}
+
+/** Change from one size to another: 161713 → 109718 is "−32%", a larger result is "+5%". Under 1% shows a decimal. */
+export function formatChange(from: number, to: number): string {
+  if (from === 0)
+    return '0%'
+  const percent = (to - from) / from * 100
+  const magnitude = Math.abs(percent)
+  const shown = magnitude >= 1 || magnitude === 0 ? Math.round(magnitude).toString() : magnitude.toFixed(1)
+  if (shown === '0' || shown === '0.0')
+    return '0%'
+  return `${percent < 0 ? '−' : '+'}${shown}%`
+}

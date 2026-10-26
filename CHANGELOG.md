@@ -8,8 +8,10 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
-- The groundwork for a web interface at `/`: a Vue 3 app, built into the image, that for now shows what the
-  server accepts. The image tools come next.
+- A web interface at `/`. Open, drop or paste an image, then optimize, resize, crop or convert it with the
+  API's options, compare the result with the original, and download it. Settings are checked against the
+  server's limits before anything is sent. The interface asks for the API key on servers that need one,
+  retries while the server is busy, and can cancel a running job. It's a Vue 3 app built into the image.
 - `IMAGE_MASON_UI_ENABLED`: `false` turns the web interface off, and `/` redirects to `/docs`.
 
 ### Changed

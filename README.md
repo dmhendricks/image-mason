@@ -22,6 +22,8 @@ settings, and returns the smallest result that meets the score, or the original 
   libvips.
 - **Cropping:** keep an exact area, then resize or convert it in the same call.
 - **Hosting:** results can be stored and served from a URL for a limited time.
+- **Web interface:** open an image in the browser, try the options, compare the result with the original and
+  download it.
 
 The image is about 65 MB, runs as a non-root user with a read-only root filesystem, and is published for
 `linux/amd64` and `linux/arm64`.
@@ -47,7 +49,8 @@ docker run -d --name image-mason -p 8080:8080 \
   hendridm/image-mason
 ```
 
-Open <http://localhost:8080> for a summary of the API, or optimize an image:
+Open <http://localhost:8080> to use the web interface (it asks for the key), or
+<http://localhost:8080/docs> for usage examples. Or optimize an image from the command line:
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo.min.jpg \

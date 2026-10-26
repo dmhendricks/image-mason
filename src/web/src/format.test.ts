@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatMegapixels } from './format'
+import { formatBytes, formatChange, formatMegapixels, formatName } from './format'
 
 describe('formatBytes', () => {
   it.each([
@@ -23,5 +23,20 @@ describe('formatMegapixels', () => {
     [2_500_000, '2.5 megapixels'],
   ])('%i → %s', (pixels, expected) => {
     expect(formatMegapixels(pixels)).toBe(expected)
+  })
+})
+
+describe('formatChange', () => {
+  it('shows savings as a minus and growth as a plus', () => {
+    expect(formatChange(161713, 109718)).toBe('−32%')
+    expect(formatChange(100, 105)).toBe('+5%')
+    expect(formatChange(1000, 995)).toBe('−0.5%')
+    expect(formatChange(1000, 1000)).toBe('0%')
+  })
+})
+
+describe('formatName', () => {
+  it('spells the formats as people write them', () => {
+    expect(['jpeg', 'png', 'webp', 'avif'].map(formatName)).toEqual(['JPEG', 'PNG', 'WebP', 'AVIF'])
   })
 })

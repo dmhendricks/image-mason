@@ -2,8 +2,8 @@ import { computed, ref } from 'vue'
 import type { ResultStats } from '../api/types'
 import type { ImageFormat } from '../settings'
 
-// The results made from the current image, in the order they were made. Each holds its file as an object URL, revoked
-// when the result is replaced or the image is (useImage clears them).
+// The results made from the current image, in the order they were made. Each holds its file as an object URL (and a
+// large one a preview), released when the result is replaced or the image is (useImage clears them).
 
 export interface Result {
   id: number
@@ -12,6 +12,8 @@ export interface Result {
   label: string
   blob: Blob
   url: string
+  /** Shown instead of url when the result is much larger than the screen. */
+  preview: ImageBitmap | null
   format: ImageFormat
   fileName: string
   stats: ResultStats
@@ -34,7 +36,7 @@ export function useResults() {
     if (index === -1) {
       results.value.push(result)
     } else {
-      URL.revokeObjectURL(results.value[index]!.url)
+      release(results.value[index]!)
       results.value[index] = result
     }
   }
@@ -48,7 +50,7 @@ export function useResults() {
   /** Revokes every result's object URL and forgets them. */
   function clear() {
     for (const result of results.value)
-      URL.revokeObjectURL(result.url)
+      release(result)
     results.value = []
   }
 
@@ -59,4 +61,9 @@ export function useResults() {
     markDownloaded,
     clear,
   }
+}
+
+function release(result: Result) {
+  URL.revokeObjectURL(result.url)
+  result.preview?.close()
 }

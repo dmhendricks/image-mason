@@ -40,10 +40,13 @@ async function load() {
 }
 
 beforeEach(() => {
-  // jsdom has no object URLs and doesn't decode images.
+  // jsdom has no object URLs and doesn't load or decode images.
   let objectUrls = 0
   URL.createObjectURL = vi.fn(() => `blob:${++objectUrls}`)
   URL.revokeObjectURL = vi.fn()
+  vi.spyOn(HTMLImageElement.prototype, 'src', 'set').mockImplementation(function (this: HTMLImageElement) {
+    setTimeout(() => this.onload?.(new Event('load')))
+  })
   HTMLImageElement.prototype.decode = () => Promise.resolve()
   vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(40)
   vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(30)

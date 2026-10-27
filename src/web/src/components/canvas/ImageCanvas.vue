@@ -17,6 +17,7 @@ import {
 import CropFrame from './CropFrame.vue'
 import DimensionLine from './DimensionLine.vue'
 import EmptyCanvas from './EmptyCanvas.vue'
+import ShownImage from './ShownImage.vue'
 import SplitDivider from './SplitDivider.vue'
 
 // The drawing board: the image with its dimension lines; the output box or crop frame to scale before a run; the
@@ -147,14 +148,23 @@ const cropStyle = computed(() => {
     <div v-else ref="board" class="board">
       <div class="frame" :class="{ comparing: compare }" :style="frameStyle">
         <div class="pic">
-          <img v-if="!result || compare" :src="image.url" :alt="`${image.name}, original`" :style="viewStyle">
-          <img
+          <!-- Crop's view enlarges part of the original, so it shows the file rather than the preview. -->
+          <ShownImage
+            v-if="!result || compare"
+            :url="image.url"
+            :preview="image.preview"
+            :full="!!viewStyle"
+            :alt="`${image.name}, original`"
+            :style="viewStyle"
+          />
+          <ShownImage
             v-if="result && undisplayable !== result.id"
             class="result"
-            :src="result.url"
+            :url="result.url"
+            :preview="result.preview"
             :alt="`${image.name}, ${result.label}`"
             @error="undisplayable = result.id"
-          >
+          />
           <p v-if="result && undisplayable === result.id" class="no-preview">
             {{ result.format === 'jxl' ? "Your browser can't display JPEG XL." : "Your browser couldn't display the result." }}
             Download it to view it.
@@ -245,7 +255,8 @@ const cropStyle = computed(() => {
   background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 16px 16px;
   box-shadow: 0 0 0 1px var(--rule), 0 6px 24px rgb(0 0 0 / 0.18);
 
-  img {
+  img,
+  canvas {
     position: absolute;
     inset: 0;
     width: 100%;

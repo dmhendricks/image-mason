@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { Limits } from './api/types'
-import { baseName, fileNameFromUrl, formatFromContentType, isHeif, isWebUrl, limitProblem, resultFileName, sniffFormat } from './files'
+import {
+  baseName,
+  fileNameFromUrl,
+  formatFromContentType,
+  isHeif,
+  isWebUrl,
+  limitProblem,
+  previewSize,
+  resultFileName,
+  sniffFormat,
+} from './files'
 
 const bytes = (...parts: (number[] | string)[]) =>
   new Uint8Array(parts.flatMap(part => typeof part === 'string' ? [...part].map(c => c.charCodeAt(0)) : part))
@@ -103,5 +113,18 @@ describe('limitProblem', () => {
   it('accepts what fits, edges included', () => {
     expect(limitProblem('photo.jpg', 26214400, { width: 10000, height: 5000 }, limits)).toBeNull()
     expect(limitProblem('photo.jpg', 30 * 1024 ** 2, { width: 10000, height: 6000 }, null)).toBeNull()
+  })
+})
+
+describe('previewSize', () => {
+  it('scales the longest side to the screen\'s', () => {
+    expect(previewSize({ width: 8660, height: 5773 }, 2880)).toEqual({ width: 2880, height: 1920 })
+    expect(previewSize({ width: 3000, height: 9000 }, 2880)).toEqual({ width: 960, height: 2880 })
+  })
+
+  it('skips images within a quarter of the screen, and unknown screens', () => {
+    expect(previewSize({ width: 3600, height: 2400 }, 2880)).toBeNull()
+    expect(previewSize({ width: 640, height: 480 }, 2880)).toBeNull()
+    expect(previewSize({ width: 8000, height: 6000 }, 0)).toBeNull()
   })
 })

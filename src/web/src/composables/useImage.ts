@@ -10,7 +10,16 @@ import {
 } from '../api/client'
 import { retryWhileBusy } from '../api/retry'
 import { readStats } from '../api/types'
-import { fileNameFromUrl, formatFromContentType, isHeif, limitProblem, measure, resultFileName, sniffFormat } from '../files'
+import {
+  type Measured,
+  fileNameFromUrl,
+  formatFromContentType,
+  isHeif,
+  limitProblem,
+  measure,
+  resultFileName,
+  sniffFormat,
+} from '../files'
 import { type Rect, wholeImage } from '../geometry'
 import { type Job, type JobError, type JobPlan, type SourceImage, describeFailure } from '../jobs'
 import { useApiKey } from './useApiKey'
@@ -26,6 +35,8 @@ export interface OpenedImage extends SourceImage {
   size: number
   /** Object URL for <img>; revoked when the image is replaced. */
   url: string
+  /** Shown instead of url when the image is much larger than the screen; closed when the image is replaced. */
+  preview: ImageBitmap | null
   /** The web address it was opened from, so the server can download it again instead of the browser uploading it. */
   address?: string
 }
@@ -139,7 +150,7 @@ export function useImage() {
 
     // Asked here rather than when the open started: a result can arrive while a download or a large image is read.
     if (superseded || (hasUnsavedResults.value && confirmDiscard && !confirmDiscard())) {
-      URL.revokeObjectURL(checked.url)
+      discard(checked)
       return false
     }
 
@@ -152,7 +163,7 @@ export function useImage() {
   }
 
   /** The image's format and size, or why it can't be used. */
-  async function check(file: Blob, name: string): Promise<string | SourceImage & { url: string }> {
+  async function check(file: Blob, name: string): Promise<string | SourceImage & Measured> {
     const max = limits.value
     const sizeProblem = limitProblem(name, file.size, null, max)
     if (sizeProblem)
@@ -176,7 +187,7 @@ export function useImage() {
 
     const pixelProblem = limitProblem(name, file.size, measured, max)
     if (pixelProblem) {
-      URL.revokeObjectURL(measured.url)
+      discard(measured)
       return pixelProblem
     }
     return { format, ...measured }
@@ -243,11 +254,19 @@ export function useImage() {
         return
 
       const format = formatFromContentType(response.blob.type || response.header('Content-Type')) ?? plan.format ?? source.format
+      // Not decodable (JPEG XL in some browsers): the canvas says so, and it can still be downloaded.
+      const shown = await measure(response.blob)
+      if (image.value !== source) {
+        if (shown)
+          discard(shown)
+        return
+      }
       add({
         path: plan.path,
         label: plan.label,
         blob: response.blob,
-        url: URL.createObjectURL(response.blob),
+        url: shown?.url ?? URL.createObjectURL(response.blob),
+        preview: shown?.preview ?? null,
         format,
         fileName: resultFileName(source.name, plan.label, format),
         stats: readStats(response.header),
@@ -320,7 +339,7 @@ export function useImage() {
     }
     unstorable = null
     if (image.value)
-      URL.revokeObjectURL(image.value.url)
+      discard(image.value)
     clear()
     image.value = null
   }
@@ -339,6 +358,12 @@ export function useImage() {
     cancel,
     dismissError,
   }
+}
+
+/** Frees an image's object URL and preview. */
+function discard(shown: Pick<Measured, 'url' | 'preview'>) {
+  URL.revokeObjectURL(shown.url)
+  shown.preview?.close()
 }
 
 /** The job's path with source naming the stored image. */

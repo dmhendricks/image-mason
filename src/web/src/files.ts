@@ -64,21 +64,69 @@ export function limitProblem(name: string, bytes: number, dimensions: Size | nul
   return null
 }
 
+export interface Measured extends Size {
+  /** Object URL of the file, for downloads and full-size display; the caller revokes it. */
+  url: string
+  /** A screen-sized copy to display instead, when the image is much larger than any view of it; the caller closes it. */
+  preview: ImageBitmap | null
+}
+
 /**
- * The image's size as the browser shows it, with an object URL for <img> (the caller revokes it); null when the browser
+ * The image's size as the browser shows it, with an object URL and, for a large image, a preview; null when the browser
  * can't decode it. Browsers apply the EXIF orientation, so these are the display dimensions the server's rect uses.
  */
-export async function measure(file: Blob): Promise<Size & { url: string } | null> {
+export async function measure(file: Blob): Promise<Measured | null> {
   const url = URL.createObjectURL(file)
   const element = new Image()
   element.src = url
   try {
-    await element.decode()
+    // Loading gives the size without decoding the pixels; a large image is decoded once, for its preview.
+    await new Promise((resolve, reject) => {
+      element.onload = resolve
+      element.onerror = reject
+    })
+    const size = { width: element.naturalWidth, height: element.naturalHeight }
+    const preview = await makePreview(file, size)
+    if (!preview)
+      await element.decode()
+    return { ...size, url, preview }
   } catch {
     URL.revokeObjectURL(url)
     return null
   }
-  return { width: element.naturalWidth, height: element.naturalHeight, url }
+}
+
+/**
+ * A 43 MP photo shown as an <img> added about 200 MB to the browser, against about 125 MB for its preview, though the
+ * board shows it at about a screen's width. Null when the image is small enough, or the browser can't resize while
+ * decoding (then the full image is shown).
+ */
+async function makePreview(file: Blob, size: Size): Promise<ImageBitmap | null> {
+  const drawn = previewSize(size, Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1))
+  if (!drawn)
+    return null
+  try {
+    return await createImageBitmap(file, {
+      imageOrientation: 'from-image',
+      resizeWidth: drawn.width,
+      resizeHeight: drawn.height,
+      resizeQuality: 'high',
+    })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The size to preview an image at so its longest side is maxSide (a screen's longest side in device pixels), or null
+ * when it's within a quarter of that already, since the saving would be small.
+ */
+export function previewSize(size: Size, maxSide: number): Size | null {
+  const longest = Math.max(size.width, size.height)
+  if (!(maxSide > 0) || longest <= maxSide * 1.25)
+    return null
+  const scale = maxSide / longest
+  return { width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) }
 }
 
 /** Each format's media type and file extensions; results are saved with the first extension. */

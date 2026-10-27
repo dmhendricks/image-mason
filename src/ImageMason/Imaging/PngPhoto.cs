@@ -42,15 +42,19 @@ public static class PngPhoto
         var hasTransparency = false;
         using var idat = new MemoryStream();
 
-        var offset = 8;
-        while (offset + 12 <= png.Length)
+        var chunks = new PngChunks(png);
+        while (chunks.MoveNext())
         {
-            var length = BinaryPrimitives.ReadInt32BigEndian(png[offset..]);
-            if (length < 0 || offset + 12L + length > png.Length)
+            // A cut-off chunk means a damaged file, but fewer than 12 bytes left is just the end.
+            if (!chunks.Complete)
+            {
+                if (chunks.Offset + 12 > png.Length)
+                    break;
                 return false;
+            }
 
-            var type = png.Slice(offset + 4, 4);
-            var chunk = png.Slice(offset + 8, length);
+            var type = chunks.Type;
+            var chunk = chunks.Data;
             if (type.SequenceEqual("IHDR"u8))
             {
                 if (chunk.Length < 13)
@@ -73,8 +77,6 @@ public static class PngPhoto
             {
                 break;
             }
-
-            offset += 12 + length;
         }
 
         // Over the pixel limit (optimize rejects it anyway), indexed, grayscale, interlaced, or an explicit

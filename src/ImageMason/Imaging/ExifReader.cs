@@ -131,20 +131,13 @@ public static class ExifReader
     // eXIf holds a TIFF block. Older writers put it after the image data, so every chunk is checked.
     private static ReadOnlySpan<byte> PngExif(ReadOnlySpan<byte> png)
     {
-        var offset = 8;
-        while (offset + 12 <= png.Length)
+        var chunks = new PngChunks(png);
+        while (chunks.MoveNext() && chunks.Complete)
         {
-            var length = BinaryPrimitives.ReadUInt32BigEndian(png[offset..]);
-            if (length > (uint)(png.Length - offset - 12))
+            if (chunks.Type.SequenceEqual("eXIf"u8))
+                return chunks.Data;
+            if (chunks.Type.SequenceEqual("IEND"u8))
                 break;
-
-            var type = png.Slice(offset + 4, 4);
-            if (type.SequenceEqual("eXIf"u8))
-                return png.Slice(offset + 8, (int)length);
-            if (type.SequenceEqual("IEND"u8))
-                break;
-
-            offset += 12 + (int)length;
         }
 
         return default;
@@ -152,20 +145,11 @@ public static class ExifReader
 
     private static ReadOnlySpan<byte> WebPExif(ReadOnlySpan<byte> webp)
     {
-        var offset = 12;
-        while (offset + 8 <= webp.Length)
+        var chunks = new RiffChunks(webp);
+        while (chunks.MoveNext())
         {
-            var length = BinaryPrimitives.ReadUInt32LittleEndian(webp[(offset + 4)..]);
-            if (length > (uint)(webp.Length - offset - 8))
-                break;
-
-            if (webp.Slice(offset, 4).SequenceEqual("EXIF"u8))
-            {
-                var payload = webp.Slice(offset + 8, (int)length);
-                return payload.StartsWith("Exif\0\0"u8) ? payload[6..] : payload;
-            }
-
-            offset += 8 + (int)length + (int)(length & 1);
+            if (chunks.Type.SequenceEqual("EXIF"u8))
+                return chunks.Data.StartsWith("Exif\0\0"u8) ? chunks.Data[6..] : chunks.Data;
         }
 
         return default;

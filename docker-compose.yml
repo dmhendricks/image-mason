@@ -22,14 +22,13 @@ services:
       - /tmp:size=512m
     volumes:
       - image-mason-data:/data
-    # Jobs share this memory: lossy presets need about 150 MB per megapixel, so 4g runs one 12 MP photo
-    # alongside several small images. Larger jobs wait for memory, and jobs that could never fit get 422.
     deploy:
       resources:
         limits:
           cpus: "4"
           memory: 4g
     restart: unless-stopped
+    stop_grace_period: 30s
 
 volumes:
   image-mason-data:

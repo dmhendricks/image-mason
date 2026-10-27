@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useApiKey } from '../../composables/useApiKey'
 import { useImage } from '../../composables/useImage'
 import { usePlan } from '../../composables/usePlan'
 import { useResults } from '../../composables/useResults'
 import { useServer } from '../../composables/useServer'
 import { formatBytes, formatChange, formatName, formatSize } from '../../format'
-import { jobStatus } from '../../jobs'
+import { jobAnnouncement, jobStatus, resultAnnouncement } from '../../jobs'
 
 const emit = defineEmits<{ enterKey: [] }>()
 
@@ -80,10 +80,53 @@ function start() {
   dismissError()
   void run(plan.value)
 }
+
+// Run and Cancel replace each other, so focus would be lost with the one that goes. When it was in the panel, it
+// moves to the one that appears: Cancel while the job runs, then Run (or the panel, while Run is disabled).
+const panel = ref<HTMLElement | null>(null)
+const runButton = ref<HTMLButtonElement | null>(null)
+const cancelButton = ref<HTMLButtonElement | null>(null)
+
+// For screen readers, one region that stays on the page: each phase once (not the ticking status line), then the
+// result, or that the job was cancelled. Errors announce themselves (role="alert").
+const announcement = ref('')
+let resultBefore: number | undefined
+
+watch(() => job.value && jobAnnouncement(job.value), text => {
+  if (text)
+    announcement.value = text
+})
+
+watch(() => job.value !== null, async running => {
+  const active = document.activeElement
+  const hadFocus = !active || active === document.body || !!panel.value?.contains(active)
+  if (running)
+    resultBefore = result.value?.id
+
+  await nextTick()
+  if (hadFocus) {
+    const target = running ? cancelButton.value : runButton.value
+    if (target && !target.disabled)
+      target.focus()
+    else
+      panel.value?.focus()
+  }
+
+  if (running)
+    return
+  if (error.value)
+    announcement.value = ''
+  else if (result.value && result.value.id !== resultBefore)
+    announcement.value = resultAnnouncement(result.value.label, result.value.stats.originalSize, result.value.stats.size)
+  else
+    announcement.value = 'Cancelled.'
+})
 </script>
 
 <template>
-  <div class="run-panel">
+  <div ref="panel" class="run-panel" tabindex="-1">
+    <p class="visually-hidden" role="status">{{ announcement }}</p>
+
     <template v-if="job">
       <div
         class="progress"
@@ -96,8 +139,8 @@ function start() {
       >
         <i :style="{ width: job.phase === 'uploading' ? `${job.progress * 100}%` : undefined }" />
       </div>
-      <p class="status" aria-live="polite">{{ status }}</p>
-      <button class="button wide" type="button" @click="cancel">Cancel</button>
+      <p class="status">{{ status }}</p>
+      <button ref="cancelButton" class="button wide" type="button" @click="cancel">Cancel</button>
     </template>
 
     <template v-else>
@@ -131,7 +174,7 @@ function start() {
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
           Download
         </a>
-        <button class="button primary" type="button" :disabled="!canRun" @click="start">
+        <button ref="runButton" class="button primary" type="button" :disabled="!canRun" @click="start">
           {{ image ? plan.action : 'Open an image first' }}
         </button>
       </div>
@@ -146,6 +189,20 @@ function start() {
   padding: 12px 16px 16px;
   border-top: 1px solid var(--rule);
   background: var(--panel);
+
+  // Only focused by script, when the button that had focus goes away.
+  &:focus { outline: none; }
+}
+
+// Read by screen readers, not shown.
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .figures {

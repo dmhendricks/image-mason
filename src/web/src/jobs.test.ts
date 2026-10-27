@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Limits } from './api/types'
 import { wholeImage } from './geometry'
-import { type Job, type SourceImage, jobStatus, planJob, scoredPixelRange } from './jobs'
+import { type Job, type SourceImage, jobAnnouncement, jobStatus, planJob, resultAnnouncement, scoredPixelRange } from './jobs'
 import { type Settings, defaultSettings } from './settings'
 
 const limits: Limits = {
@@ -234,3 +234,22 @@ describe('jobStatus', () => {
     expect(jobStatus(waiting, 12_400)).toBe('The server is busy. Trying again in 0 s (try 2 of 3).')
   })
 })
+
+describe('announcements', () => {
+  const job = (changes: Partial<Job>): Job =>
+    ({ working: 'Optimizing', phase: 'processing', progress: 0, since: 1000, retryAt: null, attempt: 1, ...changes })
+
+  it('names each phase once, without the ticking time', () => {
+    expect(jobAnnouncement(job({ phase: 'uploading', progress: 0.4 }))).toBe('Uploading the image.')
+    expect(jobAnnouncement(job({}))).toBe('Optimizing.')
+    expect(jobAnnouncement(job({ phase: 'waiting', retryAt: 4000, attempt: 2 })))
+      .toBe('The server is busy. Trying again in 3 seconds (try 2 of 3).')
+  })
+
+  it('says how the result compares in words', () => {
+    expect(resultAnnouncement('Medium', 641_393, 390_144)).toBe('Done: Medium, 626 KB to 381 KB, 39% smaller.')
+    expect(resultAnnouncement('Lossless', 307_039, 705_995)).toBe('Done: Lossless, 300 KB to 689 KB, 130% larger.')
+    expect(resultAnnouncement('High', 1000, 1000)).toBe('Done: High, 1000 bytes to 1000 bytes, the same size.')
+  })
+})
+

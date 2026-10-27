@@ -10,6 +10,8 @@
 ### Fixed
 
 - Web interface: dropping or pasting an image while the API key dialog is open no longer opens it behind the dialog.
+- Web interface: a file that can't be read (moved, or a cloud file not on this device) says so instead of doing nothing, and an image over the server's pixel limit is refused before it's decoded.
+- Web interface: keyboard focus moves to Cancel while a job runs and back afterwards, and screen readers hear each step and the result once instead of a ticking timer.
 
 ## [0.3.0] - 2026-10-26
 

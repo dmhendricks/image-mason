@@ -6,7 +6,7 @@
 import { ApiError } from './api/client'
 import { maxAttempts } from './api/retry'
 import type { Limits } from './api/types'
-import { formatBytes, formatMegapixels, formatName, formatSize } from './format'
+import { formatBytes, formatChange, formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
 import { type ImageFormat, type Settings, type Tool, chosenFormat, effectiveQuality } from './settings'
 
@@ -252,6 +252,33 @@ export function jobStatus(job: Job, now: number): string {
     }
   }
   return ''
+}
+
+/**
+ * What a screen reader hears when a job changes phase: "Uploading the image.", "Optimizing.", or the wait. Unlike
+ * jobStatus it doesn't tick, so each phase is announced once.
+ */
+export function jobAnnouncement(job: Job): string {
+  switch (job.phase) {
+    case 'uploading':
+      return 'Uploading the image.'
+    case 'processing':
+      return `${job.working}.`
+    case 'waiting': {
+      const seconds = Math.max(0, Math.ceil(((job.retryAt ?? job.since) - job.since) / 1000))
+      return `The server is busy. Trying again in ${seconds} seconds (try ${job.attempt} of ${maxAttempts}).`
+    }
+  }
+  return ''
+}
+
+/** The finished job, for a screen reader: "Done: Medium, 626 KB to 381 KB, 39% smaller." */
+export function resultAnnouncement(label: string, originalSize: number, size: number): string {
+  const change = formatChange(originalSize, size)
+  const words = change.startsWith('−') ? `${change.slice(1)} smaller`
+    : change.startsWith('+') ? `${change.slice(1)} larger`
+      : 'the same size'
+  return `Done: ${label}, ${formatBytes(originalSize)} to ${formatBytes(size)}, ${words}.`
 }
 
 export interface JobError {

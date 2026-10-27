@@ -4,7 +4,7 @@ import type { JobPlan } from '../jobs'
 
 const client = vi.hoisted(() => ({
   // The server's limits never arrive, so the size checks are skipped.
-  getJson: vi.fn(() => new Promise(() => {})),
+  getJson: vi.fn<(path: string) => Promise<unknown>>(() => new Promise(() => {})),
   postForBlob: vi.fn<(path: string, init?: RequestInit) => Promise<Blob>>(),
   postImage: vi.fn<(path: string, body: Blob | null) => Promise<ImageResponse>>(),
   uploadImage: vi.fn<(path: string, body: Blob | null) => Promise<string>>(),
@@ -70,6 +70,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
+  client.getJson.mockImplementation(() => new Promise(() => {}))
   client.postForBlob.mockReset()
   client.postImage.mockReset()
   client.uploadImage.mockReset()
@@ -385,5 +386,33 @@ describe('useImage', () => {
 
     images.dismissError()
     expect(images.error.value).toBeNull()
+  })
+
+  it('checks the pixel limit before decoding', async () => {
+    client.getJson.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/limits')
+        return { maxInputSize: 26_214_400, maxPixels: 50_000_000, formats: [] }
+      throw new ApiError('Not Found', 404)
+    })
+    const images = await load()
+    await vi.waitFor(() => expect(client.getJson).toHaveBeenCalledTimes(2))
+    await new Promise(resolve => setTimeout(resolve))
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(12_000)
+    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(9_000)
+    const decode = vi.spyOn(HTMLImageElement.prototype, 'decode')
+
+    expect(await images.open(png('scan.png'), 'scan.png')).toBe(false)
+    expect(images.openError.value).toBe('“scan.png” is 12000 × 9000 (108 megapixels); this server accepts up to 50 megapixels.')
+    expect(decode).not.toHaveBeenCalled()
+    expect(URL.revokeObjectURL).toHaveBeenCalled()
+  })
+
+  it('says when a file can\'t be read', async () => {
+    const images = await load()
+    const file = png('moved.png')
+    vi.spyOn(file, 'slice').mockReturnValue({ arrayBuffer: () => Promise.reject(new DOMException('gone', 'NotReadableError')) } as unknown as Blob)
+
+    expect(await images.open(file, 'moved.png')).toBe(false)
+    expect(images.openError.value).toBe('Couldn\'t read “moved.png”. It may have been moved, or not be downloaded to this device yet.')
   })
 })

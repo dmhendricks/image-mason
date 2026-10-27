@@ -71,27 +71,54 @@ export interface Measured extends Size {
   preview: ImageBitmap | null
 }
 
+/** An image whose size is known but whose pixels aren't decoded yet, so its size can be checked first. */
+export interface LoadedImage extends Size {
+  /** Object URL of the file; the caller revokes it. */
+  url: string
+  /** Decodes it: the preview for a large image, else null once the browser has decoded it. Rejects when it can't. */
+  decode: () => Promise<ImageBitmap | null>
+}
+
 /**
- * The image's size as the browser shows it, with an object URL and, for a large image, a preview; null when the browser
- * can't decode it. Browsers apply the EXIF orientation, so these are the display dimensions the server's rect uses.
+ * The image's size as the browser shows it, read without decoding the pixels; null when the browser can't read it.
+ * Browsers apply the EXIF orientation, so these are the display dimensions the server's rect uses.
  */
-export async function measure(file: Blob): Promise<Measured | null> {
+export async function loadImage(file: Blob): Promise<LoadedImage | null> {
   const url = URL.createObjectURL(file)
   const element = new Image()
   element.src = url
   try {
-    // Loading gives the size without decoding the pixels; a large image is decoded once, for its preview.
     await new Promise((resolve, reject) => {
       element.onload = resolve
       element.onerror = reject
     })
-    const size = { width: element.naturalWidth, height: element.naturalHeight }
-    const preview = await makePreview(file, size)
-    if (!preview)
-      await element.decode()
-    return { ...size, url, preview }
   } catch {
     URL.revokeObjectURL(url)
+    return null
+  }
+  const size = { width: element.naturalWidth, height: element.naturalHeight }
+  return {
+    ...size,
+    url,
+    // A large image is decoded once, for its preview.
+    decode: async () => {
+      const preview = await makePreview(file, size)
+      if (!preview)
+        await element.decode()
+      return preview
+    },
+  }
+}
+
+/** Loads and decodes an image: its size, an object URL and, for a large image, a preview; null when it can't. */
+export async function measure(file: Blob): Promise<Measured | null> {
+  const loaded = await loadImage(file)
+  if (!loaded)
+    return null
+  try {
+    return { width: loaded.width, height: loaded.height, url: loaded.url, preview: await loaded.decode() }
+  } catch {
+    URL.revokeObjectURL(loaded.url)
     return null
   }
 }

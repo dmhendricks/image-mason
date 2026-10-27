@@ -16,6 +16,7 @@ import {
   formatFromContentType,
   isHeif,
   limitProblem,
+  loadImage,
   measure,
   resultFileName,
   sniffFormat,
@@ -169,7 +170,13 @@ export function useImage() {
     if (sizeProblem)
       return sizeProblem
 
-    const head = new Uint8Array(await file.slice(0, 64).arrayBuffer())
+    let head: Uint8Array
+    try {
+      head = new Uint8Array(await file.slice(0, 64).arrayBuffer())
+    } catch {
+      // Moved or deleted since it was chosen, or a cloud file that isn't on this device.
+      return `Couldn't read “${name}”. It may have been moved, or not be downloaded to this device yet.`
+    }
     const format = sniffFormat(head)
     if (!format) {
       return isHeif(head)
@@ -177,20 +184,28 @@ export function useImage() {
         : `“${name}” isn't a PNG, WebP, AVIF, JPEG or JPEG XL image.`
     }
 
-    const measured = await measure(file)
-    if (!measured) {
-      // Not every browser decodes JPEG XL yet; the file is most likely fine.
-      return format === 'jxl'
-        ? `Your browser can't display JPEG XL, so “${name}” can't be opened here. Try a browser that shows JPEG XL.`
-        : `Your browser couldn't display “${name}”. The file may be damaged.`
-    }
+    // Not every browser decodes JPEG XL yet; the file is most likely fine.
+    const undisplayable = format === 'jxl'
+      ? `Your browser can't display JPEG XL, so “${name}” can't be opened here. Try a browser that shows JPEG XL.`
+      : `Your browser couldn't display “${name}”. The file may be damaged.`
 
-    const pixelProblem = limitProblem(name, file.size, measured, max)
+    // The size is checked before the pixels are decoded: a 108 MP scan would take about 430 MB to decode.
+    const loaded = await loadImage(file)
+    if (!loaded)
+      return undisplayable
+    const pixelProblem = limitProblem(name, file.size, loaded, max)
     if (pixelProblem) {
-      discard(measured)
+      URL.revokeObjectURL(loaded.url)
       return pixelProblem
     }
-    return { format, ...measured }
+
+    try {
+      const { width, height, url } = loaded
+      return { format, width, height, url, preview: await loaded.decode() }
+    } catch {
+      URL.revokeObjectURL(loaded.url)
+      return undisplayable
+    }
   }
 
   /**

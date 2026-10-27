@@ -82,9 +82,10 @@ const minScore = computed({
         decimal
         aria-label="Minimum score"
         :aria-invalid="plan.errors.minScore ? 'true' : undefined"
+        :aria-describedby="plan.errors.minScore ? 'min-score-error' : undefined"
       />
     </div>
-    <p v-if="plan.errors.minScore" class="field-error">{{ plan.errors.minScore }}</p>
+    <p v-if="plan.errors.minScore" id="min-score-error" class="field-error">{{ plan.errors.minScore }}</p>
 
     <label class="check">
       <input v-model="settings.lossless" type="checkbox">

@@ -458,7 +458,15 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
             Min: options.MinJpegDistance, Max: options.MaxJpegDistance,
             Step: options.SearchStep, Precision: options.SearchPrecision, Smaller: 1, Integer: false);
 
-        var found = await SearchAsync("jpegli", range, minScore, (d, suffix) => EncodeJpegliAsync(job, d, suffix, ct), ct);
+        // A search where nothing passes always ends at the gentlest distance; that attempt is the fallback below.
+        Candidate? gentlest = null;
+        var found = await SearchAsync("jpegli", range, minScore, async (d, suffix) =>
+        {
+            var attempt = await EncodeJpegliAsync(job, d, suffix, ct);
+            if (d == options.MinJpegDistance)
+                gentlest = attempt;
+            return attempt;
+        }, ct);
         if (found is not null)
         {
             candidates.Add(found);
@@ -468,7 +476,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         // Without a lossless candidate (resized or converted), keep the gentlest encode even though it missed the floor.
         if (!keepSource)
         {
-            var fallback = await EncodeJpegliAsync(job, options.MinJpegDistance, "fallback", ct);
+            var fallback = gentlest ?? await EncodeJpegliAsync(job, options.MinJpegDistance, "fallback", ct);
             if (fallback is not null)
                 candidates.Add(fallback);
         }

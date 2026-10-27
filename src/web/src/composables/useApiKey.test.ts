@@ -46,6 +46,32 @@ describe('useApiKey', () => {
     expect(localStorage.getItem('image-mason.api-key')).toBeNull()
   })
 
+  it('forgetting the key clears the rejection too', async () => {
+    const apiKey = await load()
+    apiKey.save('old', true)
+    apiKey.reject()
+    apiKey.forget()
+
+    expect(apiKey.rejected.value).toBe(false)
+  })
+
+  it('drops a stored key the browser couldn\'t send', async () => {
+    localStorage.setItem('image-mason.api-key', 'clé')
+    const apiKey = await load()
+
+    expect(apiKey.key.value).toBeNull()
+    expect(apiKey.remembered.value).toBe(false)
+    expect(apiKey.headers()).toEqual({})
+  })
+
+  it('accepts printable ASCII keys only', async () => {
+    const { isSendableKey } = await import('./useApiKey')
+    expect(isSendableKey('abc-123_XYZ ~!')).toBe(true)
+    expect(isSendableKey('clé')).toBe(false)
+    expect(isSendableKey('key\n')).toBe(false)
+    expect(isSendableKey('')).toBe(false)
+  })
+
   it('keeps the key in memory when storage is blocked', async () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('denied', 'SecurityError') })
     const apiKey = await load()

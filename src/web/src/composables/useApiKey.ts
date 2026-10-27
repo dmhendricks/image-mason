@@ -24,11 +24,21 @@ function write(storage: () => Storage, value: string | null): void {
   }
 }
 
+/**
+ * Whether a key can be sent: printable ASCII, as HTTP headers carry. The browser refuses to send anything else, which
+ * would otherwise look like the server being unreachable.
+ */
+export function isSendableKey(value: string): boolean {
+  return /^[\x20-\x7e]+$/.test(value)
+}
+
 const local = () => localStorage
 const session = () => sessionStorage
 
-const key = ref<string | null>(read(local) ?? read(session))
-const remembered = ref(read(local) !== null)
+// A stored key the browser couldn't send (saved by an earlier version) is dropped.
+const stored = read(local) ?? read(session)
+const key = ref<string | null>(stored !== null && isSendableKey(stored) ? stored : null)
+const remembered = ref(key.value !== null && read(local) !== null)
 /** Set when the server answered 401 to the saved key, so the prompt can say why it's back. */
 const rejected = ref(false)
 
@@ -46,6 +56,7 @@ export function useApiKey() {
     write(session, null)
     key.value = null
     remembered.value = false
+    rejected.value = false
   }
 
   /** The server refused the key: forget it and say so. */

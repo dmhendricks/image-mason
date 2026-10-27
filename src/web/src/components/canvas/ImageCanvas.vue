@@ -28,7 +28,7 @@ import SplitDivider from './SplitDivider.vue'
 defineProps<{ fileOver: boolean }>()
 const emit = defineEmits<{ open: [] }>()
 
-const { image, rect, opening, openError, cancelOpen, dismissError } = useImage()
+const { image, rect, opening, openError, cancelOpen, dismissOpenError } = useImage()
 const { plan, result } = usePlan()
 const { settings } = useSettings()
 
@@ -138,7 +138,7 @@ const cropStyle = computed(() => {
 
     <div v-else-if="openError" class="notice" role="alert">
       <p>{{ openError }}</p>
-      <button class="button" type="button" @click="dismissError">Dismiss</button>
+      <button class="button" type="button" @click="dismissOpenError">Dismiss</button>
     </div>
 
     <div v-if="!image" class="empty-board">

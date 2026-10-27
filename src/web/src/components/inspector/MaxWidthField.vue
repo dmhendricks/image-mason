@@ -27,11 +27,12 @@ const serverDefault = computed(() =>
       unit="px"
       :placeholder="serverDefault > 0 ? `${serverDefault} (server default)` : 'No limit'"
       :aria-invalid="plan.errors.maxWidth ? 'true' : undefined"
-      :aria-describedby="`${id}-hint`"
+      :aria-describedby="`${id}-note`"
     />
   </div>
-  <p v-if="plan.errors.maxWidth" class="field-error">{{ plan.errors.maxWidth }}</p>
-  <p v-else :id="`${id}-hint`" class="hint">
+  <!-- The error or the hint, whichever shows, describes the field. -->
+  <p v-if="plan.errors.maxWidth" :id="`${id}-note`" class="field-error">{{ plan.errors.maxWidth }}</p>
+  <p v-else :id="`${id}-note`" class="hint">
     Wider images shrink to fit; smaller ones keep their size.<template v-if="serverDefault > 0"> 0 keeps the full width.</template>
   </p>
 </template>

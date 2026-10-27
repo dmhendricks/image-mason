@@ -57,13 +57,14 @@ const sides = (['left', 'top', 'width', 'height'] as const).map(side => ({
         <NumberField
           v-model="field.model.value"
           :disabled="!image"
+          aria-describedby="crop-area-note"
           :aria-invalid="plan.errors.rect ? 'true' : undefined"
         />
       </label>
     </div>
-    <p v-if="plan.errors.rect" class="field-error">{{ plan.errors.rect }}</p>
-    <p v-else-if="image" class="hint">Measured on the image as shown, {{ formatSize(image.width, image.height) }}.</p>
-    <p v-else class="hint">Open an image to set the area.</p>
+    <p v-if="plan.errors.rect" id="crop-area-note" class="field-error">{{ plan.errors.rect }}</p>
+    <p v-else-if="image" id="crop-area-note" class="hint">Measured on the image as shown, {{ formatSize(image.width, image.height) }}.</p>
+    <p v-else id="crop-area-note" class="hint">Open an image to set the area.</p>
   </div>
 
   <QualityGroup />

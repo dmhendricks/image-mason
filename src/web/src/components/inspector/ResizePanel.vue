@@ -43,6 +43,7 @@ const sizeError = computed(() => empty.value ? undefined : plan.value.errors.wid
         v-model="settings.width"
         placeholder="Auto"
         aria-label="Width"
+        aria-describedby="resize-size-note"
         :aria-invalid="plan.errors.width && !empty ? 'true' : undefined"
       />
       <span aria-hidden="true">×</span>
@@ -50,12 +51,13 @@ const sizeError = computed(() => empty.value ? undefined : plan.value.errors.wid
         v-model="settings.height"
         placeholder="Auto"
         aria-label="Height"
+        aria-describedby="resize-size-note"
         :aria-invalid="plan.errors.height ? 'true' : undefined"
       />
     </div>
-    <p v-if="sizeError" class="field-error">{{ sizeError }}</p>
-    <p v-else-if="empty" class="hint">Enter a width, a height or both. Leave one side empty to keep the shape.</p>
-    <p v-else class="hint">Leave one side empty to keep the shape.</p>
+    <p v-if="sizeError" id="resize-size-note" class="field-error">{{ sizeError }}</p>
+    <p v-else-if="empty" id="resize-size-note" class="hint">Enter a width, a height or both. Leave one side empty to keep the shape.</p>
+    <p v-else id="resize-size-note" class="hint">Leave one side empty to keep the shape.</p>
   </div>
 
   <div class="group">

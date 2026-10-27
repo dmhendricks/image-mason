@@ -49,12 +49,13 @@ function onFileChosen(event: Event) {
     void openFile(file, file.name)
 }
 
-// Drop an image anywhere on the page, or paste one or its web address.
+// Drop an image anywhere on the page, or paste one or its web address. Not while the key dialog is open: a drop is
+// refused (still cancelled, or the browser would open the file in place of the page) and a paste is left to its field.
 let dragDepth = 0
 const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') ?? false
 
 function onDragEnter(event: DragEvent) {
-  if (!carriesFiles(event))
+  if (!carriesFiles(event) || keyOpen.value)
     return
   dragDepth++
   fileOver.value = true
@@ -68,8 +69,11 @@ function onDragLeave(event: DragEvent) {
 }
 
 function onDragOver(event: DragEvent) {
-  if (carriesFiles(event))
-    event.preventDefault()
+  if (!carriesFiles(event))
+    return
+  event.preventDefault()
+  if (keyOpen.value && event.dataTransfer)
+    event.dataTransfer.dropEffect = 'none'
 }
 
 function onDrop(event: DragEvent) {
@@ -78,12 +82,16 @@ function onDrop(event: DragEvent) {
   event.preventDefault()
   dragDepth = 0
   fileOver.value = false
+  if (keyOpen.value)
+    return
   const file = event.dataTransfer?.files[0]
   if (file)
     void openFile(file, file.name)
 }
 
 function onPaste(event: ClipboardEvent) {
+  if (keyOpen.value)
+    return
   const file = event.clipboardData?.files[0]
   if (file) {
     event.preventDefault()

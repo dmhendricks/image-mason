@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useImage } from '../../composables/useImage'
 import { formatSize } from '../../format'
 import { type CropHandle, type Rect, dragRect } from '../../geometry'
@@ -12,7 +12,7 @@ const props = defineProps<{
   view: Rect
 }>()
 
-const { rect } = useImage()
+const { image, rect } = useImage()
 const box = ref<HTMLElement | null>(null)
 
 const handles: CropHandle[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se']
@@ -56,9 +56,12 @@ function move(event: PointerEvent) {
   Object.assign(rect, dragRect(drag.start, drag.handle, dx, dy, drag.bounds))
 }
 
+// Also when the capture is lost (the window loses focus, the element goes away) or another image opens, so the next
+// pointer move can't apply an old drag to the new area.
 function stop() {
   drag = null
 }
+watch(image, stop)
 </script>
 
 <template>
@@ -69,6 +72,7 @@ function stop() {
     @pointermove="move"
     @pointerup="stop"
     @pointercancel="stop"
+    @lostpointercapture="stop"
   >
     <i
       v-for="handle in handles"

@@ -326,8 +326,13 @@ export function useImage() {
     controller?.abort()
   }
 
+  /** Clears the last job's error. */
   function dismissError() {
     error.value = null
+  }
+
+  /** Clears the message about an image that couldn't be opened. */
+  function dismissOpenError() {
     openError.value = null
   }
 
@@ -357,6 +362,7 @@ export function useImage() {
     run,
     cancel,
     dismissError,
+    dismissOpenError,
   }
 }
 

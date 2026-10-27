@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
-import { useApiKey } from '../composables/useApiKey'
+import { isSendableKey, useApiKey } from '../composables/useApiKey'
 
 // Asks for the API key on servers that need one. A real form with a password field, so password managers can
 // save and fill the key.
@@ -13,6 +13,7 @@ const dialog = ref<HTMLDialogElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 const value = ref('')
 const remember = ref(false)
+const problem = ref<string | null>(null)
 const host = window.location.host
 
 function sync(open: boolean) {
@@ -21,6 +22,7 @@ function sync(open: boolean) {
     return
   if (open && !element.open) {
     value.value = ''
+    problem.value = null
     remember.value = apiKey.remembered.value
     element.showModal()
     void nextTick(() => input.value?.focus())
@@ -36,6 +38,11 @@ function save() {
   const key = value.value.trim()
   if (!key)
     return
+  if (!isSendableKey(key)) {
+    problem.value = 'A key can only use letters, digits, spaces and the symbols on a US keyboard.'
+    input.value?.focus()
+    return
+  }
   apiKey.save(key, remember.value)
   emit('close')
 }
@@ -69,8 +76,12 @@ function forget() {
           autocomplete="current-password"
           spellcheck="false"
           required
+          :aria-invalid="problem ? 'true' : undefined"
+          :aria-describedby="problem ? 'key-problem' : undefined"
+          @input="problem = null"
         >
       </label>
+      <p v-if="problem" id="key-problem" class="field-error">{{ problem }}</p>
 
       <label class="check">
         <input v-model="remember" type="checkbox">
@@ -117,7 +128,7 @@ h2 {
   font: 700 20px/1.2 var(--font-cond);
 }
 
-.lede, .hint { margin: 0; }
+.lede, .hint, .field-error { margin: 0; }
 .lede { color: var(--muted); }
 
 // The shared alert, a little tighter as the dialog's one line.

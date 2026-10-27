@@ -45,6 +45,7 @@ onMounted(() => {
   frame.addEventListener('pointermove', onPointerMove)
   frame.addEventListener('pointerup', stopSliding)
   frame.addEventListener('pointercancel', stopSliding)
+  frame.addEventListener('lostpointercapture', stopSliding)
 })
 
 onBeforeUnmount(() => {
@@ -52,6 +53,7 @@ onBeforeUnmount(() => {
   frame?.removeEventListener('pointermove', onPointerMove)
   frame?.removeEventListener('pointerup', stopSliding)
   frame?.removeEventListener('pointercancel', stopSliding)
+  frame?.removeEventListener('lostpointercapture', stopSliding)
 })
 
 function onKey(event: KeyboardEvent) {

@@ -6,12 +6,22 @@ name: CI
 #   web    - the web interface (src/web): lint, type check, unit tests, build and the JavaScript size budget.
 #   image  - one per architecture, each on a native runner: builds the image and runs scripts/smoke-test.sh
 #            against it.
+#
+# The release workflow calls this one on the tagged commit, without the image job: it builds, pushes and smoke
+# tests the image it publishes.
 
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      # Inverted, so pushes and pull requests (which have no inputs) run the image job.
+      skip-image:
+        description: Skip building and smoke testing the image.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -82,6 +92,8 @@ jobs:
         run: npm run size
 
   image:
+    if: ${{ !inputs.skip-image }}
+
     strategy:
       matrix:
         include:

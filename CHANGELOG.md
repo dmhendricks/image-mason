@@ -4,7 +4,12 @@
 
 ### Changed
 
-- The web interface shows a large image, and a large result, as a screen-sized preview instead of decoding it at full size: a 43 MP photo adds about 160 MB to the browser instead of about 280 MB (measured in Chrome on a 2× screen), and comparing two such images twice that. Crop's zoomed view still shows the full image.
+- Web interface: images and results larger than the screen are shown as screen-sized previews instead of at full size, reducing browser memory for a 43 MP photo from about 280 MB to about 160 MB (Chrome, 2× screen). Crop's zoomed view still uses the full image.
+- A resized, cropped or converted JPEG that can't reach its quality floor no longer encodes and scores its fallback twice, saving about 1.8 s on a 12.5 MP photo. The result is unchanged.
+
+### Fixed
+
+- Web interface: dropping or pasting an image while the API key dialog is open no longer opens it behind the dialog.
 
 ## [0.3.0] - 2026-10-26
 

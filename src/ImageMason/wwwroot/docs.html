@@ -220,6 +220,32 @@
       text-transform: uppercase;
     }
 
+    /* HTTP methods as pills in Swagger's hues, a shade deeper so the white text stays readable. */
+    .method {
+      display: inline-block;
+      min-width: 4.1rem;
+      margin-right: 0.5rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: var(--radius);
+      color: #fff;
+      font: 700 0.78rem/1.5 var(--font-cond);
+      letter-spacing: 0.04em;
+      text-align: center;
+      vertical-align: 0.05em;
+    }
+
+    .method.get { background: #1a73c8; }
+    .method.post { background: #13875a; }
+    .method.delete { background: #d03030; }
+
+    /* The pill and its path on one line; on phones, every pill above its path, so the rows match. */
+    td:has(> .method) { white-space: nowrap; }
+
+    @media (max-width: 575.98px) {
+      td:has(> .method) { white-space: normal; }
+      .method { display: block; width: fit-content; margin: 0 0 0.3rem; }
+    }
+
     footer {
       display: flex;
       flex-wrap: wrap;
@@ -346,13 +372,13 @@
       <h2>Endpoints</h2>
       <table>
         <tbody>
-          <tr><td><code>POST /api/v1/transform</code></td><td>Optimize an image, and optionally crop, resize or convert it</td></tr>
-          <tr><td><code>POST /api/v1/upload</code></td><td>Store an image unchanged</td></tr>
-          <tr><td><code>POST /api/v1/info</code></td><td>Describe an image without changing it</td></tr>
-          <tr><td><code>GET /api/v1/limits</code></td><td>Formats, size limits and presets</td></tr>
-          <tr><td><code>GET /images/{name}</code></td><td>Fetch a stored image</td></tr>
-          <tr><td><code>DELETE /images/{name}</code></td><td>Delete a stored image early</td></tr>
-          <tr><td><code>GET /health</code></td><td>Service status and version</td></tr>
+          <tr><td><span class="method post">POST</span><code>/api/v1/transform</code></td><td>Optimize an image, and optionally crop, resize or convert it</td></tr>
+          <tr><td><span class="method post">POST</span><code>/api/v1/upload</code></td><td>Store an image unchanged</td></tr>
+          <tr><td><span class="method post">POST</span><code>/api/v1/info</code></td><td>Describe an image without changing it</td></tr>
+          <tr><td><span class="method get">GET</span><code>/api/v1/limits</code></td><td>Formats, size limits and presets</td></tr>
+          <tr><td><span class="method get">GET</span><code>/images/{name}</code></td><td>Fetch a stored image</td></tr>
+          <tr><td><span class="method delete">DELETE</span><code>/images/{name}</code></td><td>Delete a stored image early</td></tr>
+          <tr><td><span class="method get">GET</span><code>/health</code></td><td>Service status and version</td></tr>
         </tbody>
       </table>
     </section>

@@ -19,7 +19,7 @@ vi.mock('../api/client', async importOriginal => ({
 const png = (name: string) =>
   new File([new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])], name, { type: 'image/png' })
 
-const plan = { path: '/api/v1/transform?quality=high', output: null, format: null, errors: {}, action: 'Optimize', working: 'Optimizing', label: 'High' } satisfies JobPlan
+const plan = { path: '/api/v1/transform?quality=high', source: null, output: null, cropped: false, format: null, errors: {}, label: 'High' } satisfies JobPlan
 
 /** A file of these bytes. */
 const bytes = (name: string, ...values: number[]) => new File([new Uint8Array(values)], name)
@@ -414,5 +414,28 @@ describe('useImage', () => {
 
     expect(await images.open(file, 'moved.png')).toBe(false)
     expect(images.openError.value).toBe('Couldn\'t read “moved.png”. It may have been moved, or not be downloaded to this device yet.')
+  })
+})
+
+describe('nextRect', () => {
+  const area = { left: 64, top: 48, width: 320, height: 240 }
+  const photo = { width: 640, height: 480 }
+  const tall = { width: 3072, height: 4080 }
+
+  it('takes the whole image while Crop is off', async () => {
+    const { nextRect } = await import('./useImage')
+    expect(nextRect({ crop: false, shape: '1:1' }, area, photo, tall)).toEqual({ left: 0, top: 0, width: 3072, height: 4080 })
+  })
+
+  it('carries a shape\'s centered area, or Free\'s area in proportion', async () => {
+    const { nextRect } = await import('./useImage')
+    expect(nextRect({ crop: true, shape: '1:1' }, area, photo, tall)).toEqual({ left: 0, top: 504, width: 3072, height: 3072 })
+    expect(nextRect({ crop: true, shape: 'free' }, area, photo, photo)).toEqual(area)
+    expect(nextRect({ crop: true, shape: 'free' }, area, photo, tall)).toEqual({ left: 307, top: 408, width: 1536, height: 2040 })
+  })
+
+  it('starts the frame inside the edges with no image before', async () => {
+    const { nextRect } = await import('./useImage')
+    expect(nextRect({ crop: true, shape: 'free' }, area, null, photo)).toEqual({ left: 48, top: 48, width: 544, height: 384 })
   })
 })

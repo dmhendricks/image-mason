@@ -37,6 +37,20 @@
   &:hover:not(:disabled) { color: var(--flag-ink); filter: brightness(1.07); }
 }
 
+// A quiet action in running text, such as Reset.
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover { color: var(--ink); }
+}
+
 .field {
   width: 100%;
   height: 32px;
@@ -156,7 +170,7 @@
   font-size: 13px;
 }
 
-// Inspector layout, shared by the tool panels: groups of settings, label-and-control rows, field pairs.
+// Inspector layout: groups of settings, optional steps, and rows of small fields.
 
 .group {
   border-top: 1px solid var(--rule);
@@ -169,25 +183,24 @@
   }
 }
 
-.prop {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+// A group that's off until its checkbox is ticked, such as Resize: shaded while on, its settings shown below.
+.step.on { background: color-mix(in srgb, var(--panel-2) 55%, var(--panel)); }
+
+.step-head {
+  display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: 22px;
+  cursor: pointer;
 
-  & + .prop, .seg + &, .hint + & { margin-top: 8px; }
-  > label, > span:first-child { color: var(--muted); }
+  input { width: 15px; height: 15px; margin: 0; accent-color: var(--flag); cursor: pointer; }
+  b { font: 600 15px var(--font-cond); }
+  small { margin-left: auto; color: var(--muted); font-size: 13px; text-align: right; }
+
+  &:has(input:disabled) { color: var(--muted); cursor: default; }
 }
 
-.pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr);
-  gap: 4px;
-  align-items: center;
-  color: var(--muted);
-  text-align: center;
-}
+.step-body { margin-top: 12px; }
 
 .quad {
   display: grid;

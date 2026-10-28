@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useImage } from '../../composables/useImage'
 import { useServer } from '../../composables/useServer'
-import { formatBytes, formatMegapixels, formatName } from '../../format'
+import { formatBytes, formatMegapixels, formatName, sortFormats } from '../../format'
 import { scoredPixelRange } from '../../jobs'
 
 // Before an image is open: the drop target, and what this server accepts.
@@ -15,7 +15,7 @@ const { opening } = useImage()
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
 const formats = computed(() => {
-  const names = (limits.value?.formats ?? []).map(f => formatName(f.name))
+  const names = sortFormats((limits.value?.formats ?? []).map(f => f.name)).map(formatName)
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names.join('')
 })
 
@@ -41,7 +41,7 @@ const floors = computed(() =>
 <template>
   <div class="empty">
     <button class="drop" type="button" :disabled="!!opening" @click="emit('open')">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16.5V3M6.5 8.5 12 3l5.5 5.5M3.5 14.5v2A4.5 4.5 0 0 0 8 21h8a4.5 4.5 0 0 0 4.5-4.5v-2" /></svg>
       <strong>{{ opening ? (opening.fromUrl ? 'Downloading the image…' : 'Reading the image…') : 'Open an image' }}</strong>
       <span>
         or drop it here, or paste it{{ limits?.urlFetch ? ' or its web address' : '' }} with {{ isMac ? '⌘V' : 'Ctrl+V' }}

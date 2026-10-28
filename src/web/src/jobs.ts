@@ -1,5 +1,5 @@
-// Turns the current tool, settings and image into a request, the size it should produce, and anything the server
-// would reject, in plain words. The rules mirror ResizeParameters, CropParameter, TransformEndpoint and
+// Turns the settings and image into a transform request, the size it should produce, and anything the server would
+// reject, in plain words. The rules mirror ResizeParameters, CropParameter, TransformEndpoint and
 // ImageOptimizer.CheckOutputSize and EstimateMemory, so a request the interface allows never comes back as a 400 or 422.
 // Once the job runs: its progress and what went wrong, in plain words too.
 
@@ -8,7 +8,7 @@ import { maxAttempts } from './api/retry'
 import type { Limits } from './api/types'
 import { formatBytes, formatChange, formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
-import { type ImageFormat, type Settings, type Tool, chosenFormat, effectiveQuality } from './settings'
+import { type ImageFormat, type Settings, chosenFormat, effectiveQuality } from './settings'
 
 /** Largest width or height the API accepts (ResizeParameters.MaxSide). */
 export const maxSide = 65535
@@ -17,29 +17,46 @@ export interface SourceImage extends Size {
   format: ImageFormat
 }
 
-export type Field = 'minScore' | 'maxWidth' | 'width' | 'height' | 'rect' | 'output'
+export type Field = 'minScore' | 'width' | 'height' | 'rect' | 'output'
 
 export interface JobPlan {
   /** Path and query to POST the image to. */
   path: string
-  /** The size the result should have, when the image is known. */
+  /** What Resize starts from: Crop's area when it crops, else the whole image; null without an image. */
+  source: Size | null
+  /** The size the result should have, when the image is known and Resize's sides are valid sizes. */
   output: Size | null
-  /** The result's format, when known (a PNG photo with preferJpeg may still become JPEG). */
+  /** Crop is on and its area isn't the whole image. */
+  cropped: boolean
+  /** The result's format, when the image is known. */
   format: ImageFormat | null
   /** What's wrong, per field; empty when the job can run. */
   errors: Partial<Record<Field, string>>
-  /** The run button: "Optimize", "Resize to 800 × 600", "Convert to WebP". */
-  action: string
-  /** While it runs: "Optimizing", "Resizing". */
-  working: string
   /** A short name for the result: "High", "Medium, WebP", "Low, 800 × 533". */
   label: string
 }
 
 const qualityNames = { high: 'High', medium: 'Medium', low: 'Low' }
-const workingNames = { optimize: 'Optimizing', resize: 'Resizing', crop: 'Cropping', convert: 'Converting' }
 
-export function planJob(tool: Tool, settings: Settings, image: SourceImage | null, rect: Rect | null, limits: Limits | null): JobPlan {
+const validSide = (value: number | null) => value === null || (Number.isInteger(value) && value >= 1 && value <= maxSide)
+
+/**
+ * Resize's output for a source: the typed sides, the other one following the shape while locked; the source's own
+ * size for a side nothing was typed in. Null while a typed side isn't 1 to 65535.
+ */
+export function resizedSize(settings: Pick<Settings, 'width' | 'height' | 'lock'>, source: Size): Size | null {
+  const { width, height, lock } = settings
+  if (!validSide(width) || !validSide(height))
+    return null
+  if (!lock)
+    return { width: width ?? source.width, height: height ?? source.height }
+  if (width === null && height === null)
+    return { width: source.width, height: source.height }
+  // As the server sizes it, from the side typed last (width, when a saved pair has both).
+  return resizeOutput({ width, height: width === null ? height : null, fit: 'contain', upscale: true }, source)
+}
+
+export function planJob(settings: Settings, image: SourceImage | null, rect: Rect | null, limits: Limits | null): JobPlan {
   const errors: JobPlan['errors'] = {}
   const query = new URLSearchParams()
   const lossless = settings.lossless
@@ -53,80 +70,54 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
       errors.minScore = 'Enter a score from 0 to 100.'
   }
 
-  // Output format: convert always sends one; the others keep the input's unless one is chosen.
-  const format = tool === 'convert' ? settings.convertTo : chosenFormat(settings.format, image?.format)
+  const format = chosenFormat(settings.format, image?.format)
   if (format !== null)
     query.set('format', format)
-  if (tool === 'optimize' && format === null && settings.preferJpeg)
-    query.set('format', 'auto')
 
-  // Resize takes a box; the other tools take a max width, sent as a width (it never enlarges).
-  let sizing: Parameters<typeof resizeOutput>[0] | null = null
-  if (tool === 'resize') {
-    const { width, height, fit } = settings
-    for (const side of ['width', 'height'] as const) {
-      const value = settings[side]
-      if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= maxSide))
-        errors[side] = `Enter 1 to ${maxSide} pixels.`
-    }
-    if (width === null && height === null)
-      errors.width = 'Enter a width, a height or both.'
-    else if (fit !== 'contain') {
-      const message = 'Fill box and Stretch need both a width and a height.'
-      if (width === null)
-        errors.width = message
-      if (height === null)
-        errors.height = message
-    }
-
-    if (width !== null)
-      query.set('width', String(width))
-    if (height !== null)
-      query.set('height', String(height))
-    if (fit !== 'contain')
-      query.set('fit', fit)
-    if (fit === 'cover' && settings.focus !== 'center')
-      query.set('position', settings.focus)
-    // Fill always reaches the exact size, so enlarging is implied.
-    const upscale = settings.upscale && fit !== 'fill'
-    if (upscale)
-      query.set('upscale', 'true')
-    sizing = { width, height, fit, upscale }
-  } else {
-    const value = settings.maxWidth
-    if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= maxSide))
-      errors.maxWidth = `Enter 1 to ${maxSide} pixels, or leave it empty.`
-    else if (value !== null) {
-      query.set('width', String(value))
-      sizing = { width: value, height: null, fit: 'contain', upscale: false }
-    }
-  }
-
-  // Crop's area, checked against the image as displayed.
-  let source: Size | null = image
+  // Crop's area, checked against the image as displayed. Resize then starts from it.
+  let source: Size | null = image && { width: image.width, height: image.height }
   let cropped = false
-  if (tool === 'crop' && image && rect) {
+  if (settings.crop && image && rect) {
     const whole = [rect.left, rect.top, rect.width, rect.height].every(Number.isInteger)
     if (!whole || !rectFits(rect, image))
       errors.rect = `The area must lie inside the image, which is ${formatSize(image.width, image.height)}.`
-    else {
+    else if (!rectCovers(rect, image)) {
       query.set('crop', rectParameter(rect))
-      if (!rectCovers(rect, image)) {
-        source = { width: rect.width, height: rect.height }
-        cropped = true
+      source = { width: rect.width, height: rect.height }
+      cropped = true
+    }
+  }
+
+  // Locked: the typed side, which the server scales the other to (enlarging only when it's larger). Unlocked: both,
+  // stretched. Nothing when the size is the source's own.
+  let output = source
+  if (settings.resize) {
+    for (const side of ['width', 'height'] as const) {
+      if (!validSide(settings[side]))
+        errors[side] = `Enter 1 to ${maxSide} pixels.`
+    }
+    output = source && resizedSize(settings, source)
+    if (source && output && (output.width !== source.width || output.height !== source.height)) {
+      if (settings.lock) {
+        const side = settings.width !== null ? 'width' : 'height'
+        query.set(side, String(output[side]))
+        if (output.width > source.width)
+          query.set('upscale', 'true')
+      } else {
+        query.set('width', String(output.width))
+        query.set('height', String(output.height))
+        query.set('fit', 'fill')
       }
     }
   }
 
-  const resultFormat = format ?? (settings.preferJpeg && tool === 'optimize' && image?.format === 'png' ? null : image?.format ?? null)
-  let output: Size | null = null
-  if (source && Object.keys(errors).length === 0) {
-    output = sizing ? resizeOutput(sizing, source) : { width: source.width, height: source.height }
+  const resultFormat = format ?? image?.format ?? null
+  if (output && image && Object.keys(errors).length === 0) {
     let problem = outputProblem(output, resultFormat, limits)
-    if (!problem && image) {
+    if (!problem) {
       // As in ImageOptimizer: lossy presets are scored, and so is lossless to JPEG once the pixels change.
       const target = resultFormat ?? image.format
-      const changed = cropped || output.width !== source.width || output.height !== source.height || target !== image.format
+      const changed = cropped || output.width !== image.width || output.height !== image.height || target !== image.format
       const scored = !lossless || (target === 'jpeg' && changed)
       problem = memoryProblem(image, output, target, scored, lossless, limits)
     }
@@ -136,14 +127,14 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
 
   return {
     path: `/api/v1/transform?${query}`,
+    source,
     output,
+    cropped,
     format: resultFormat,
     errors,
-    action: actionName(tool, output, settings),
-    working: workingNames[tool],
     label: [
       lossless ? 'Lossless' : settings.customScore ? `Score ${settings.minScore}` : qualityNames[quality],
-      format !== null && format !== image?.format ? formatName(format) : null,
+      format !== null ? formatName(format) : null,
       output && image && (output.width !== image.width || output.height !== image.height) ? formatSize(output.width, output.height) : null,
     ].filter(Boolean).join(', '),
   }
@@ -208,23 +199,8 @@ export function scoredPixelRange(limits: Limits | null): [number, number] | null
   return [Math.max(0, Math.min(...fits)), Math.max(0, Math.max(...fits))]
 }
 
-function actionName(tool: Tool, output: Size | null, settings: Settings): string {
-  switch (tool) {
-    case 'optimize':
-      return 'Optimize'
-    case 'resize':
-      return output ? `Resize to ${formatSize(output.width, output.height)}` : 'Resize'
-    case 'crop':
-      return output ? `Crop to ${formatSize(output.width, output.height)}` : 'Crop'
-    case 'convert':
-      return `Convert to ${formatName(settings.convertTo)}`
-  }
-}
-
 /** A job on its way: uploading the image, waiting for the server to make the result, or waiting to try again. */
 export interface Job {
-  /** "Optimizing", "Resizing". */
-  working: string
   phase: 'uploading' | 'processing' | 'waiting'
   /** Fraction of the image uploaded, 0 to 1. */
   progress: number
@@ -235,14 +211,14 @@ export interface Job {
   attempt: number
 }
 
-/** The line under the progress bar at the time now: "Uploading… 40%", "Optimizing… 3 s", or the retry countdown. */
+/** The line under the progress bar at the time now: "Uploading… 40%", "Transforming… 3 s", or the retry countdown. */
 export function jobStatus(job: Job, now: number): string {
   switch (job.phase) {
     case 'uploading':
       return `Uploading… ${Math.round(job.progress * 100)}%`
     case 'processing': {
       const seconds = Math.floor((now - job.since) / 1000)
-      return seconds < 1 ? `${job.working}…` : `${job.working}… ${seconds} s`
+      return seconds < 1 ? 'Transforming…' : `Transforming… ${seconds} s`
     }
     case 'waiting': {
       const seconds = Math.max(0, Math.ceil(((job.retryAt ?? now) - now) / 1000))
@@ -253,7 +229,7 @@ export function jobStatus(job: Job, now: number): string {
 }
 
 /**
- * What a screen reader hears when a job changes phase: "Uploading the image.", "Optimizing.", or the wait. Unlike
+ * What a screen reader hears when a job changes phase: "Uploading the image.", "Transforming.", or the wait. Unlike
  * jobStatus it doesn't tick, so each phase is announced once.
  */
 export function jobAnnouncement(job: Job): string {
@@ -261,7 +237,7 @@ export function jobAnnouncement(job: Job): string {
     case 'uploading':
       return 'Uploading the image.'
     case 'processing':
-      return `${job.working}.`
+      return 'Transforming.'
     case 'waiting': {
       const seconds = Math.max(0, Math.ceil(((job.retryAt ?? job.since) - job.since) / 1000))
       return `The server is busy. Trying again in ${seconds} seconds (try ${job.attempt} of ${maxAttempts}).`

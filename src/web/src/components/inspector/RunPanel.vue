@@ -39,12 +39,12 @@ const canRun = computed(() => image.value !== null && job.value === null && prob
 
 const status = computed(() => job.value ? jobStatus(job.value, now.value) : '')
 
+// What the run will make: "Result: WebP, 200 × 200, cropped".
 const expected = computed(() => {
-  const output = plan.value.output
-  if (!output)
+  const { output, format, cropped } = plan.value
+  if (!output || !format)
     return null
-  const format = plan.value.format ? `, ${formatName(plan.value.format)}` : ''
-  return `${formatSize(output.width, output.height)}${format}`
+  return { format: formatName(format), size: formatSize(output.width, output.height), cropped }
 })
 
 // The new size counts down from the original's when a result arrives: the one bit of motion that says "smaller".
@@ -135,7 +135,7 @@ watch(() => job.value !== null, async running => {
         :aria-valuenow="job.phase === 'uploading' ? Math.round(job.progress * 100) : undefined"
         aria-valuemin="0"
         aria-valuemax="100"
-        :aria-label="job.working"
+        aria-label="Transforming"
       >
         <i :style="{ width: job.phase === 'uploading' ? `${job.progress * 100}%` : undefined }" />
       </div>
@@ -151,7 +151,9 @@ watch(() => job.value !== null, async running => {
           {{ formatChange(result.stats.originalSize, result.stats.size) }}
         </span>
       </div>
-      <p v-else-if="expected" class="expected">Result: {{ expected }}</p>
+      <p v-else-if="expected" class="expected">
+        Result: <b>{{ expected.format }}</b>, <b>{{ expected.size }}</b>{{ expected.cropped ? ', cropped' : '' }}
+      </p>
 
       <div v-if="error" class="alert" role="alert">
         <p>{{ error.message }}</p>
@@ -175,7 +177,7 @@ watch(() => job.value !== null, async running => {
           Download
         </a>
         <button ref="runButton" class="button primary" type="button" :disabled="!canRun" @click="start">
-          {{ image ? plan.action : 'Open an image first' }}
+          {{ image ? 'Transform' : 'Open an image first' }}
         </button>
       </div>
     </template>
@@ -230,6 +232,8 @@ watch(() => job.value !== null, async running => {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+.expected b { color: var(--ink); font-weight: 500; }
 
 .blocked {
   padding-left: 8px;

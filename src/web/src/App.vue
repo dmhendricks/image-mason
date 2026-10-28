@@ -2,10 +2,9 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import ImageCanvas from './components/canvas/ImageCanvas.vue'
-import ToolInspector from './components/inspector/ToolInspector.vue'
+import SettingsPanel from './components/inspector/SettingsPanel.vue'
 import KeyDialog from './components/KeyDialog.vue'
 import StatusBar from './components/StatusBar.vue'
-import ToolRail from './components/ToolRail.vue'
 import { useApiKey } from './composables/useApiKey'
 import { useImage } from './composables/useImage'
 import { useResults } from './composables/useResults'
@@ -138,9 +137,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="app">
     <AppHeader class="top" @open="chooseFile" @manage-key="keyOpen = true" />
-    <ToolRail class="rail" />
     <ImageCanvas class="canvas" :file-over="fileOver" @open="chooseFile" />
-    <ToolInspector class="inspector" @enter-key="keyOpen = true" />
+    <SettingsPanel class="inspector" @enter-key="keyOpen = true" />
     <StatusBar class="status" />
 
     <input
@@ -155,21 +153,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-// Mockup B ("Survey"): tool rail, canvas and inspector between a top bar and a status bar.
+// The canvas and the settings between a top bar and a status bar.
 .app {
   height: 100dvh;
   min-height: 560px;
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   grid-template-rows: 48px minmax(0, 1fr) 30px;
   grid-template-areas:
-    "top top top"
-    "rail canvas inspector"
-    "status status status";
+    "top top"
+    "canvas inspector"
+    "status status";
 }
 
 .top { grid-area: top; }
-.rail { grid-area: rail; }
 .canvas { grid-area: canvas; }
 .inspector { grid-area: inspector; }
 .status { grid-area: status; }
@@ -179,8 +176,8 @@ onBeforeUnmount(() => {
     height: auto;
     min-height: 100dvh;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 48px auto auto auto auto;
-    grid-template-areas: "top" "rail" "canvas" "inspector" "status";
+    grid-template-rows: 48px auto auto auto;
+    grid-template-areas: "top" "canvas" "inspector" "status";
   }
 }
 </style>

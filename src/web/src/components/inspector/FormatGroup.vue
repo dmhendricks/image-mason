@@ -9,7 +9,6 @@ import { type ImageFormat, chosenFormat } from '../../settings'
 // isn't listed, since "Keep" names it, and a saved choice of that format shows as "Keep".
 
 const model = defineModel<ImageFormat | null>({ required: true })
-defineProps<{ id: string }>()
 
 const { limits } = useServer()
 const { image } = useImage()
@@ -22,16 +21,25 @@ const selected = computed({
 const formats = computed(() => outputFormats(limits.value).filter(format => format !== image.value?.format))
 
 const keepLabel = computed(() => image.value ? `Keep (${formatName(image.value.format)})` : 'Keep the same')
+
+const hints: Record<ImageFormat, string> = {
+  jpeg: 'Opens everywhere. Best for photos; no transparency.',
+  png: 'Lossless, with transparency. Best for graphics and screenshots; large for photos.',
+  webp: 'Usually smaller than JPEG, with transparency. Every current browser shows it.',
+  avif: 'Usually the smallest, with transparency, but the slowest to make.',
+  jxl: 'As small as AVIF, with transparency, and Lossless repacks a JPEG about 20% smaller. Not every browser shows it yet.',
+}
 </script>
 
 <template>
-  <div class="prop">
-    <label :for="id">Format</label>
+  <div class="group">
+    <h3><label for="format">Format</label></h3>
     <span class="select">
-      <select :id="id" v-model="selected" class="field">
+      <select id="format" v-model="selected" class="field" :aria-describedby="selected ? 'format-hint' : undefined">
         <option :value="null">{{ keepLabel }}</option>
         <option v-for="format in formats" :key="format" :value="format">{{ formatName(format) }}</option>
       </select>
     </span>
+    <p v-if="selected" id="format-hint" class="hint">{{ hints[selected] }}</p>
   </div>
 </template>

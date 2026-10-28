@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defaultSettings, loadSettings, sanitize, saveSettings } from './settings'
+import { defaultSettings, loadSettings, sanitize, saveSettings, shapeAspect } from './settings'
 
 afterEach(() => {
   localStorage.clear()
@@ -8,16 +8,28 @@ afterEach(() => {
 
 describe('settings', () => {
   it('round-trips through localStorage', () => {
-    const settings = { ...defaultSettings(), tool: 'crop' as const, format: 'avif' as const, width: 800, maxWidth: 1200 }
+    const settings = { ...defaultSettings(), format: 'avif' as const, resize: true, width: 800, lock: false, crop: true, shape: '4:3' as const }
     saveSettings(settings)
 
     expect(loadSettings()).toEqual(settings)
   })
 
   it('puts back defaults for anything missing or invalid', () => {
-    const settings = sanitize({ tool: 'sharpen', quality: 'medium', minScore: 140, width: -5, height: 2.5, fit: 'cover', format: 'gif' })
+    const settings = sanitize({ quality: 'medium', minScore: 140, resize: true, width: -5, height: 2.5, shape: '5:4', format: 'gif' })
 
-    expect(settings).toEqual({ ...defaultSettings(), quality: 'medium', fit: 'cover' })
+    expect(settings).toEqual({ ...defaultSettings(), quality: 'medium', resize: true })
+  })
+
+  it('drops the settings of the version with tools, keeping quality and format', () => {
+    const old = { tool: 'resize', quality: 'low', format: 'webp', preferJpeg: true, maxWidth: 1600, width: 800, height: 600, fit: 'cover', focus: 'attention', upscale: true }
+
+    expect(sanitize(old)).toEqual({ ...defaultSettings(), quality: 'low', format: 'webp' })
+  })
+
+  it('gives each shape its aspect, and none for Free', () => {
+    expect(shapeAspect('free')).toBeNull()
+    expect(shapeAspect('1:1')).toBe(1)
+    expect(shapeAspect('16:9')).toBeCloseTo(1.7778, 4)
   })
 
   it('keeps a chosen quality, and follows the server\'s default without one', () => {

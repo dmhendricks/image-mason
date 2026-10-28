@@ -4,18 +4,19 @@ import {
   centeredRect,
   dragRect,
   fitScale,
+  insetRect,
   outputDrawing,
   percentWithin,
   rectFits,
   rectWithin,
   resizeOutput,
   roundHalfEven,
+  scaledRect,
 } from './geometry'
-import type { Fit } from './settings'
 
 describe('resizeOutput', () => {
   // The same cases as ResizeRequestTests.OutputSize_MatchesVipsthumbnail: a 640x427 photo.
-  it.each<[number | null, number | null, Fit, boolean, number, number]>([
+  it.each<[number | null, number | null, Box['fit'], boolean, number, number]>([
     [320, 320, 'contain', false, 320, 214],
     [320, null, 'contain', false, 320, 214],
     [null, 200, 'contain', false, 300, 200],
@@ -96,10 +97,42 @@ describe('dragRect', () => {
     expect(dragRect(start, 'se', 20, 10, image)).toEqual({ left: 100, top: 100, width: 220, height: 110 })
   })
 
+  it('keeps a shape on corner drags, the opposite corner staying put', () => {
+    const square = { left: 100, top: 100, width: 200, height: 200 }
+    expect(dragRect(square, 'se', 50, 10, image, 1)).toEqual({ left: 100, top: 100, width: 210, height: 210 })
+    expect(dragRect(square, 'nw', -40, -10, image, 1)).toEqual({ left: 90, top: 90, width: 210, height: 210 })
+    expect(dragRect(square, 'se', 500, 500, image, 4 / 3)).toEqual({ left: 100, top: 100, width: 507, height: 380 })
+    expect(dragRect(square, 'e', 50, 0, image, 1)).toEqual({ left: 100, top: 100, width: 250, height: 200 })
+  })
+
   it('keeps edges inside the image and the area at least 1 pixel', () => {
     expect(dragRect(start, 'sw', -500, 500, image)).toEqual({ left: 0, top: 100, width: 300, height: 380 })
     expect(dragRect(start, 'w', 500, 0, image)).toEqual({ left: 299, top: 100, width: 1, height: 100 })
     expect(dragRect(start, 'ne', -500, 500, image)).toEqual({ left: 100, top: 199, width: 1, height: 1 })
+  })
+})
+
+describe('insetRect', () => {
+  it('starts a tenth of the shorter side inside every edge', () => {
+    expect(insetRect({ width: 640, height: 427 })).toEqual({ left: 43, top: 43, width: 554, height: 341 })
+  })
+})
+
+describe('scaledRect', () => {
+  const area = { left: 64, top: 48, width: 320, height: 240 }
+
+  it('keeps the same pixels on an image of the same size', () => {
+    expect(scaledRect(area, { width: 640, height: 480 }, { width: 640, height: 480 })).toEqual(area)
+  })
+
+  it('keeps the area in proportion on another size', () => {
+    expect(scaledRect(area, { width: 640, height: 480 }, { width: 3072, height: 4080 }))
+      .toEqual({ left: 307, top: 408, width: 1536, height: 2040 })
+  })
+
+  it('gives nothing for an area that wasn\'t inside the image', () => {
+    expect(scaledRect({ ...area, width: NaN }, { width: 640, height: 480 }, { width: 100, height: 100 })).toBeNull()
+    expect(scaledRect({ ...area, left: 400 }, { width: 640, height: 480 }, { width: 100, height: 100 })).toBeNull()
   })
 })
 

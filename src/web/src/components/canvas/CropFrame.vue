@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useImage } from '../../composables/useImage'
+import { usePlan } from '../../composables/usePlan'
+import { useSettings } from '../../composables/useSettings'
 import { formatSize } from '../../format'
 import { type CropHandle, type Rect, dragRect } from '../../geometry'
+import { shapeAspect } from '../../settings'
 
-// The crop frame: drag inside to move it, or an edge or corner to resize it. The panel's fields edit the same rect,
-// so they follow along (and are the keyboard way in). The parent positions it over the board's frame.
+// The crop frame: drag inside to move it, or an edge or corner to resize it. With a shape chosen, only the corners
+// resize it, keeping the shape. The panel's fields edit the same rect, so they follow along (and are the keyboard way
+// in). The parent positions it over the board's frame.
 
 const props = defineProps<{
   /** The part of the image the board's frame shows, in image pixels; the area stays inside it. */
@@ -13,11 +17,21 @@ const props = defineProps<{
 }>()
 
 const { image, rect } = useImage()
+const { settings } = useSettings()
+const { plan, result } = usePlan()
 const box = ref<HTMLElement | null>(null)
 
-const handles: CropHandle[] = ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se']
+const aspect = computed(() => shapeAspect(settings.shape))
+const handles = computed<CropHandle[]>(() => aspect.value ? ['nw', 'ne', 'sw', 'se'] : ['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'])
 
-const label = computed(() => `${formatSize(rect.width, rect.height)} from ${rect.left}, ${rect.top}`)
+// "427 × 427", and what Resize makes of it: "427 × 427 → 200 × 200". Not over a result, whose tag says it.
+const label = computed(() => {
+  const area = formatSize(rect.width, rect.height)
+  const output = plan.value.output
+  return output && (output.width !== rect.width || output.height !== rect.height)
+    ? `${area} → ${formatSize(output.width, output.height)}`
+    : area
+})
 
 // The view is fixed for the whole drag, so the frame's scale and limits don't shift under the pointer.
 let drag: {
@@ -53,7 +67,7 @@ function move(event: PointerEvent) {
     return
   const dx = (event.clientX - drag.x) * drag.scaleX
   const dy = (event.clientY - drag.y) * drag.scaleY
-  Object.assign(rect, dragRect(drag.start, drag.handle, dx, dy, drag.bounds))
+  Object.assign(rect, dragRect(drag.start, drag.handle, dx, dy, drag.bounds, aspect.value))
 }
 
 // Also when the capture is lost (the window loses focus, the element goes away) or another image opens, so the next
@@ -81,7 +95,7 @@ watch(image, stop)
       aria-hidden="true"
       @pointerdown.stop="start($event, handle)"
     />
-    <b class="flag-label">{{ label }}</b>
+    <b v-if="!result" class="flag-label">{{ label }}</b>
   </div>
 </template>
 

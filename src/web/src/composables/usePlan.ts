@@ -5,8 +5,8 @@ import { type Result, useResults } from './useResults'
 import { useServer } from './useServer'
 import { useSettings } from './useSettings'
 
-// The request the current tool and settings make, and the result made with exactly those settings (the canvas shows
-// it until a setting changes; running them again replaces it). Shared, so every component reads the same plan.
+// The request the settings make, and the result made with exactly those settings (the canvas shows it until a setting
+// changes; running them again replaces it). Shared, so every component reads the same plan.
 
 let shared: { plan: ComputedRef<JobPlan>, result: ComputedRef<Result | null> } | null = null
 
@@ -19,7 +19,7 @@ export function usePlan() {
   const { results } = useResults()
   const { limits } = useServer()
 
-  const plan = computed(() => planJob(settings.tool, settings, image.value, rect, limits.value))
+  const plan = computed(() => planJob(settings, image.value, rect, limits.value))
   const result = computed(() => results.value.find(r => r.path === plan.value.path) ?? null)
   shared = { plan, result }
   return shared

@@ -21,11 +21,13 @@ import {
   resultFileName,
   sniffFormat,
 } from '../files'
-import { type Rect, wholeImage } from '../geometry'
+import { type Rect, type Size, centeredRect, insetRect, scaledRect, wholeImage } from '../geometry'
 import { type Job, type JobError, type JobPlan, type SourceImage, describeFailure } from '../jobs'
+import { type Settings, shapeAspect } from '../settings'
 import { useApiKey } from './useApiKey'
 import { useResults } from './useResults'
 import { useServer } from './useServer'
+import { useSettings } from './useSettings'
 
 // The current image and the request running now; its results are in useResults. One image at a time (docs/WEB-UI.md
 // W8); a queue of images could later hold one of these per file.
@@ -70,6 +72,7 @@ export function useImage() {
   const apiKey = useApiKey()
   const { limits } = useServer()
   const { hasUnsavedResults, add, clear } = useResults()
+  const { settings } = useSettings()
 
   /**
    * Checks a file and makes it the current image, replacing the last one and its results. When results haven't been
@@ -155,10 +158,11 @@ export function useImage() {
       return false
     }
 
+    const previous = image.value && { width: image.value.width, height: image.value.height }
     cancel()
     release()
     image.value = { ...checked, name, blob: file, size: file.size, address }
-    Object.assign(rect, wholeImage(checked))
+    Object.assign(rect, nextRect(settings, rect, previous, checked))
     error.value = null
     return true
   }
@@ -222,7 +226,6 @@ export function useImage() {
     controller = current
     error.value = null
     const start = (attempt: number): Job => ({
-      working: plan.working,
       phase: stored?.image === source ? 'processing' : 'uploading',
       progress: 0,
       since: Date.now(),
@@ -379,6 +382,19 @@ export function useImage() {
     dismissError,
     dismissOpenError,
   }
+}
+
+/**
+ * Crop's area on a new image. While Crop is on it carries over: a shape's largest centered area, or with Free, the same
+ * area in proportion (the frame's start, when there was no image before). Otherwise the whole image.
+ */
+export function nextRect(settings: Pick<Settings, 'crop' | 'shape'>, rect: Rect, previous: Size | null, image: Size): Rect {
+  if (!settings.crop)
+    return wholeImage(image)
+  const aspect = shapeAspect(settings.shape)
+  if (aspect)
+    return centeredRect(aspect, image)
+  return (previous && scaledRect(rect, previous, image)) ?? insetRect(image)
 }
 
 /** Frees an image's object URL and preview. */

@@ -1,21 +1,16 @@
-// The options behind every tool, kept in localStorage so they survive a reload. Each tool is a view of the same
-// settings, so switching tools never loses anything.
+// The options behind the one transform, kept in localStorage so they survive a reload and carry over to the next image.
 
-export const tools = ['optimize', 'resize', 'crop', 'convert'] as const
 /** The lossy presets. Lossless is its own setting, since it allows no difference at all rather than a level of it. */
 export const qualities = ['high', 'medium', 'low'] as const
 export const imageFormats = ['jpeg', 'png', 'webp', 'avif', 'jxl'] as const
-export const fits = ['contain', 'cover', 'fill'] as const
-export const focuses = ['center', 'attention', 'entropy'] as const
+/** Crop's shapes: Free, or an aspect ratio the frame keeps. */
+export const shapes = ['free', '1:1', '4:3', '3:4', '16:9'] as const
 
-export type Tool = typeof tools[number]
 export type Quality = typeof qualities[number]
 export type ImageFormat = typeof imageFormats[number]
-export type Fit = typeof fits[number]
-export type Focus = typeof focuses[number]
+export type Shape = typeof shapes[number]
 
 export interface Settings {
-  tool: Tool
   /** Send quality=lossless; the preset and custom score are kept for when it's turned off. */
   lossless: boolean
   /** null uses the server's default (IMAGE_MASON_DEFAULT_QUALITY) until a preset is chosen. */
@@ -23,20 +18,21 @@ export interface Settings {
   /** Send minScore instead of the preset's floor ("Custom" in the quality switch). */
   customScore: boolean
   minScore: number
-  /** Output format for optimize, resize and crop; null keeps the input's. */
+  /** Output format; null keeps the input's. */
   format: ImageFormat | null
-  /** Convert's format, which it always needs. */
-  convertTo: ImageFormat
-  /** Optimize: turn PNG photos into JPEG (ignored when a format is chosen). */
-  preferJpeg: boolean
-  /** Optimize, crop and convert; null uses the server's default, 0 turns it off. */
-  maxWidth: number | null
-  /** Resize's box; either side may be empty for contain. */
+  /** The Resize step is on. */
+  resize: boolean
+  /**
+   * The typed size; null follows the crop area or the image. While locked, only the side typed last is kept and the
+   * other follows the shape; unlocked, both are kept and the image is stretched to them.
+   */
   width: number | null
   height: number | null
-  fit: Fit
-  focus: Focus
-  upscale: boolean
+  /** Resize keeps the shape (the chain button). */
+  lock: boolean
+  /** The Crop step is on. The area itself belongs to the image (useImage's rect). */
+  crop: boolean
+  shape: Shape
 }
 
 /**
@@ -52,22 +48,27 @@ export function effectiveQuality(quality: Quality | null, serverDefault: string 
   return quality ?? (qualities.includes(serverDefault as Quality) ? serverDefault as Quality : 'high')
 }
 
+/** A shape's width / height; null for Free. */
+export function shapeAspect(shape: Shape): number | null {
+  if (shape === 'free')
+    return null
+  const [width, height] = shape.split(':').map(Number) as [number, number]
+  return width / height
+}
+
 export function defaultSettings(): Settings {
   return {
-    tool: 'optimize',
     lossless: false,
     quality: null,
     customScore: false,
     minScore: 80,
     format: null,
-    convertTo: 'webp',
-    preferJpeg: false,
-    maxWidth: null,
+    resize: false,
     width: null,
     height: null,
-    fit: 'contain',
-    focus: 'center',
-    upscale: false,
+    lock: true,
+    crop: false,
+    shape: 'free',
   }
 }
 
@@ -101,9 +102,8 @@ export function sanitize(value: unknown): Settings {
   const pick = <T extends string>(options: readonly T[], key: string, fallback: T): T =>
     options.includes(saved[key] as T) ? saved[key] as T : fallback
   const bool = (key: string, fallback: boolean) => typeof saved[key] === 'boolean' ? saved[key] : fallback
-  const size = (key: string) => Number.isInteger(saved[key]) && (saved[key] as number) >= 0 ? saved[key] as number : null
+  const size = (key: string) => Number.isInteger(saved[key]) && (saved[key] as number) >= 1 ? saved[key] as number : null
 
-  settings.tool = pick(tools, 'tool', settings.tool)
   // Earlier versions saved lossless as a quality.
   settings.lossless = saved.quality === 'lossless' || bool('lossless', settings.lossless)
   settings.quality = qualities.includes(saved.quality as Quality) ? saved.quality as Quality : null
@@ -111,14 +111,14 @@ export function sanitize(value: unknown): Settings {
   if (typeof saved.minScore === 'number' && saved.minScore >= 0 && saved.minScore <= 100)
     settings.minScore = saved.minScore
   settings.format = imageFormats.includes(saved.format as ImageFormat) ? saved.format as ImageFormat : null
-  settings.convertTo = pick(imageFormats, 'convertTo', settings.convertTo)
-  settings.preferJpeg = bool('preferJpeg', settings.preferJpeg)
-  // Earlier versions saved 0 for no limit.
-  settings.maxWidth = size('maxWidth') || null
-  settings.width = size('width') || null
-  settings.height = size('height') || null
-  settings.fit = pick(fits, 'fit', settings.fit)
-  settings.focus = pick(focuses, 'focus', settings.focus)
-  settings.upscale = bool('upscale', settings.upscale)
+  settings.resize = bool('resize', settings.resize)
+  // Versions with tools saved Resize's box as width and height too, which meant something else; theirs had no resize.
+  if (typeof saved.resize === 'boolean') {
+    settings.width = size('width')
+    settings.height = size('height')
+  }
+  settings.lock = bool('lock', settings.lock)
+  settings.crop = bool('crop', settings.crop)
+  settings.shape = pick(shapes, 'shape', settings.shape)
   return settings
 }

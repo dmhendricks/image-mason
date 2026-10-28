@@ -28,151 +28,139 @@ const query = (path: string) => Object.fromEntries(new URL(path, 'http://x').sea
 
 describe('planJob', () => {
   it('optimizes with only the quality by default', () => {
-    const plan = planJob('optimize', settings(), photo, null, limits)
+    const plan = planJob(settings(), photo, null, limits)
 
     expect(plan.path).toBe('/api/v1/transform?quality=medium')
+    expect(plan.source).toEqual({ width: 640, height: 480 })
     expect(plan.output).toEqual({ width: 640, height: 480 })
+    expect(plan.cropped).toBe(false)
     expect(plan.format).toBe('jpeg')
     expect(plan.errors).toEqual({})
-    expect(plan.action).toBe('Optimize')
     expect(plan.label).toBe('Medium')
   })
 
   it('uses the server\'s default quality until one is chosen', () => {
     const lowServer = { ...limits, defaultQuality: 'low' }
-    expect(query(planJob('optimize', settings(), photo, null, lowServer).path)).toEqual({ quality: 'low' })
-    expect(planJob('optimize', settings(), photo, null, lowServer).label).toBe('Low')
-    expect(query(planJob('optimize', settings({ quality: 'high' }), photo, null, lowServer).path)).toEqual({ quality: 'high' })
-    expect(query(planJob('optimize', settings(), photo, null, { ...limits, defaultQuality: 'ultra' }).path)).toEqual({ quality: 'high' })
+    expect(query(planJob(settings(), photo, null, lowServer).path)).toEqual({ quality: 'low' })
+    expect(planJob(settings(), photo, null, lowServer).label).toBe('Low')
+    expect(query(planJob(settings({ quality: 'high' }), photo, null, lowServer).path)).toEqual({ quality: 'high' })
+    expect(query(planJob(settings(), photo, null, { ...limits, defaultQuality: 'ultra' }).path)).toEqual({ quality: 'high' })
   })
 
   it('sends a custom score, but not for lossless', () => {
-    expect(query(planJob('optimize', settings({ customScore: true, minScore: 82.5 }), photo, null, limits).path))
+    expect(query(planJob(settings({ customScore: true, minScore: 82.5 }), photo, null, limits).path))
       .toMatchObject({ minScore: '82.5' })
-    expect(query(planJob('optimize', settings({ customScore: true, lossless: true }), photo, null, limits).path))
+    expect(query(planJob(settings({ customScore: true, lossless: true }), photo, null, limits).path))
       .toEqual({ quality: 'lossless' })
   })
 
   it('labels the job by lossless, a custom score or the preset', () => {
-    expect(planJob('optimize', settings({ lossless: true, customScore: true }), photo, null, limits).label).toBe('Lossless')
-    expect(planJob('optimize', settings({ customScore: true, minScore: 75 }), photo, null, limits).label).toBe('Score 75')
-    expect(planJob('optimize', settings({ quality: 'low' }), photo, null, limits).label).toBe('Low')
+    expect(planJob(settings({ lossless: true, customScore: true }), photo, null, limits).label).toBe('Lossless')
+    expect(planJob(settings({ customScore: true, minScore: 75 }), photo, null, limits).label).toBe('Score 75')
+    expect(planJob(settings({ quality: 'low' }), photo, null, limits).label).toBe('Low')
   })
 
   it('rejects a score outside 0 to 100', () => {
-    const plan = planJob('optimize', settings({ customScore: true, minScore: 101 }), photo, null, limits)
+    const plan = planJob(settings({ customScore: true, minScore: 101 }), photo, null, limits)
 
     expect(plan.errors.minScore).toBe('Enter a score from 0 to 100.')
   })
 
-  it('sends format=auto for PNG photos to JPEG, only when no format is chosen', () => {
-    expect(query(planJob('optimize', settings({ preferJpeg: true }), photo, null, limits).path)).toMatchObject({ format: 'auto' })
-    expect(query(planJob('optimize', settings({ preferJpeg: true, format: 'webp' }), photo, null, limits).path))
-      .toEqual({ quality: 'medium', format: 'webp' })
-  })
-
-  it('treats a chosen format that is the input\'s own as keeping it', () => {
+  it('sends a chosen format, and treats the input\'s own as keeping it', () => {
     const png: SourceImage = { width: 640, height: 480, format: 'png' }
 
-    expect(query(planJob('optimize', settings({ format: 'jpeg' }), photo, null, limits).path)).toEqual({ quality: 'medium' })
-    expect(query(planJob('optimize', settings({ format: 'png', preferJpeg: true }), png, null, limits).path))
-      .toEqual({ quality: 'medium', format: 'auto' })
-    expect(query(planJob('optimize', settings({ format: 'jpeg' }), png, null, limits).path))
-      .toEqual({ quality: 'medium', format: 'jpeg' })
+    expect(query(planJob(settings({ format: 'jpeg' }), photo, null, limits).path)).toEqual({ quality: 'medium' })
+    expect(query(planJob(settings({ format: 'jpeg' }), png, null, limits).path)).toEqual({ quality: 'medium', format: 'jpeg' })
+    expect(planJob(settings({ format: 'webp' }), photo, null, limits).label).toBe('Medium, WebP')
   })
 
-  it('sends a max width as width, which shrinks wider images and keeps smaller ones', () => {
-    const plan = planJob('optimize', settings({ maxWidth: 320 }), photo, null, limits)
-
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '320' })
-    expect(plan.output).toEqual({ width: 320, height: 240 })
-    expect(planJob('optimize', settings({ maxWidth: 1000 }), photo, null, limits).output).toEqual({ width: 640, height: 480 })
-    expect(planJob('optimize', settings(), photo, null, limits).output).toEqual({ width: 640, height: 480 })
+  it('ignores the size while Resize is off', () => {
+    expect(query(planJob(settings({ width: 320 }), photo, null, limits).path)).toEqual({ quality: 'medium' })
   })
 
-  it('rejects a max width of 0 or past the largest side', () => {
-    expect(planJob('optimize', settings({ maxWidth: 0 }), photo, null, limits).errors.maxWidth).toBe('Enter 1 to 65535 pixels, or leave it empty.')
-    expect(planJob('convert', settings({ maxWidth: 70000 }), photo, null, limits).errors.maxWidth).toBe('Enter 1 to 65535 pixels, or leave it empty.')
+  it('sends nothing for Resize until a size is typed', () => {
+    const plan = planJob(settings({ resize: true }), photo, null, limits)
+
+    expect(query(plan.path)).toEqual({ quality: 'medium' })
+    expect(plan.output).toEqual({ width: 640, height: 480 })
   })
 
-  it('needs a width or height to resize', () => {
-    const plan = planJob('resize', settings(), photo, null, limits)
+  it('sends the typed side while the shape is kept, and the server scales the other', () => {
+    const byWidth = planJob(settings({ resize: true, width: 320 }), photo, null, limits)
+    expect(query(byWidth.path)).toEqual({ quality: 'medium', width: '320' })
+    expect(byWidth.output).toEqual({ width: 320, height: 240 })
+    expect(byWidth.label).toBe('Medium, 320 × 240')
 
-    expect(plan.errors.width).toBe('Enter a width, a height or both.')
-    expect(plan.output).toBeNull()
+    const byHeight = planJob(settings({ resize: true, height: 120 }), photo, null, limits)
+    expect(query(byHeight.path)).toEqual({ quality: 'medium', height: '120' })
+    expect(byHeight.output).toEqual({ width: 160, height: 120 })
   })
 
-  it('resizes to a box with fit and focus', () => {
-    const plan = planJob('resize', settings({ width: 300, height: 300, fit: 'cover', focus: 'attention' }), photo, null, limits)
+  it('enlarges when the typed side is larger', () => {
+    const plan = planJob(settings({ resize: true, width: 1280 }), photo, null, limits)
 
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '300', height: '300', fit: 'cover', position: 'attention' })
-    expect(plan.output).toEqual({ width: 300, height: 300 })
-    expect(plan.action).toBe('Resize to 300 × 300')
-    expect(plan.label).toBe('Medium, 300 × 300')
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '1280', upscale: 'true' })
+    expect(plan.output).toEqual({ width: 1280, height: 960 })
   })
 
-  it('needs both sides for cover and fill', () => {
-    const plan = planJob('resize', settings({ width: 300, fit: 'fill' }), photo, null, limits)
+  it('stretches to both sides when the shape isn\'t kept', () => {
+    const plan = planJob(settings({ resize: true, lock: false, width: 300, height: 200 }), photo, null, limits)
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '300', height: '200', fit: 'fill' })
+    expect(plan.output).toEqual({ width: 300, height: 200 })
 
-    expect(plan.errors.height).toBe('Fill box and Stretch need both a width and a height.')
-    expect(plan.errors.width).toBeUndefined()
+    expect(planJob(settings({ resize: true, lock: false, width: 300 }), photo, null, limits).output).toEqual({ width: 300, height: 480 })
   })
 
   it('rejects sides outside 1 to 65535 and text that isn\'t a number', () => {
-    expect(planJob('resize', settings({ width: 70000 }), photo, null, limits).errors.width).toBe('Enter 1 to 65535 pixels.')
-    expect(planJob('resize', settings({ height: NaN }), photo, null, limits).errors.height).toBe('Enter 1 to 65535 pixels.')
+    expect(planJob(settings({ resize: true, width: 70000 }), photo, null, limits).errors.width).toBe('Enter 1 to 65535 pixels.')
+    const plan = planJob(settings({ resize: true, lock: false, width: 300, height: NaN }), photo, null, limits)
+    expect(plan.errors.height).toBe('Enter 1 to 65535 pixels.')
+    expect(plan.output).toBeNull()
   })
 
-  it('leaves out focus unless cover, and upscale for fill', () => {
-    expect(query(planJob('resize', settings({ width: 300, focus: 'entropy' }), photo, null, limits).path)).not.toHaveProperty('crop')
-    expect(query(planJob('resize', settings({ width: 300, height: 200, fit: 'fill', upscale: true }), photo, null, limits).path))
-      .not.toHaveProperty('upscale')
+  it('crops to the area while Crop is on, and resizes the area', () => {
+    const area = { left: 80, top: 0, width: 480, height: 480 }
+    const cropped = planJob(settings({ crop: true }), photo, area, limits)
+    expect(query(cropped.path)).toEqual({ quality: 'medium', crop: '80,0,480,480' })
+    expect(cropped.source).toEqual({ width: 480, height: 480 })
+    expect(cropped.cropped).toBe(true)
+
+    const both = planJob(settings({ crop: true, resize: true, width: 240 }), photo, area, limits)
+    expect(query(both.path)).toEqual({ quality: 'medium', crop: '80,0,480,480', width: '240' })
+    expect(both.output).toEqual({ width: 240, height: 240 })
+
+    expect(query(planJob(settings(), photo, area, limits).path)).toEqual({ quality: 'medium' })
   })
 
-  it('crops to the rect, then applies the max width', () => {
-    const plan = planJob('crop', settings({ maxWidth: 240 }), photo, { left: 80, top: 0, width: 480, height: 480 }, limits)
-
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '240', crop: '80,0,480,480' })
-    expect(plan.output).toEqual({ width: 240, height: 240 })
-    expect(plan.action).toBe('Crop to 240 × 240')
-  })
-
-  it('rejects a rect reaching past the image', () => {
-    const plan = planJob('crop', settings(), photo, { left: 200, top: 0, width: 480, height: 480 }, limits)
+  it('rejects an area reaching past the image', () => {
+    const plan = planJob(settings({ crop: true }), photo, { left: 200, top: 0, width: 480, height: 480 }, limits)
 
     expect(plan.errors.rect).toBe('The area must lie inside the image, which is 640 × 480.')
   })
 
-  it('keeps the whole image when the rect covers it', () => {
-    const plan = planJob('crop', settings(), photo, wholeImage(photo), limits)
+  it('keeps the whole image when the area covers it', () => {
+    const plan = planJob(settings({ crop: true }), photo, wholeImage(photo), limits)
 
-    expect(plan.output).toEqual({ width: 640, height: 480 })
+    expect(query(plan.path)).toEqual({ quality: 'medium' })
+    expect(plan.cropped).toBe(false)
     expect(plan.errors).toEqual({})
   })
 
-  it('always sends convert\'s format', () => {
-    const plan = planJob('convert', settings({ convertTo: 'avif', format: 'png' }), photo, null, limits)
-
-    expect(query(plan.path)).toEqual({ quality: 'medium', format: 'avif' })
-    expect(plan.action).toBe('Convert to AVIF')
-    expect(plan.label).toBe('Medium, AVIF')
-  })
-
   it('refuses results past the pixel limit or a format\'s largest side', () => {
-    const big: SourceImage = { width: 20000, height: 10000, format: 'jpeg' }
+    const big: SourceImage = { width: 20000, height: 2000, format: 'jpeg' }
 
-    expect(planJob('convert', settings({ convertTo: 'webp' }), { ...big, height: 2000 }, null, limits).errors.output)
+    expect(planJob(settings({ format: 'webp' }), big, null, limits).errors.output)
       .toBe('WebP images can be at most 16383 pixels on each side; the result would be 20000 × 2000.')
-    expect(planJob('resize', settings({ width: 10000, height: 10000, fit: 'fill' }), photo, null, limits).errors.output)
+    expect(planJob(settings({ resize: true, lock: false, width: 10000, height: 10000 }), photo, null, limits).errors.output)
       .toBe('The result would be 10000 × 10000 (100 megapixels); this server\'s limit is 50 megapixels.')
   })
 
   it('plans without an image or limits', () => {
-    const plan = planJob('resize', settings({ width: 300 }), null, null, null)
+    const plan = planJob(settings({ resize: true, width: 300 }), null, null, null)
 
-    expect(plan.path).toBe('/api/v1/transform?quality=high&width=300')
+    expect(plan.path).toBe('/api/v1/transform?quality=high')
+    expect(plan.source).toBeNull()
     expect(plan.output).toBeNull()
-    expect(plan.action).toBe('Resize')
   })
 })
 
@@ -186,32 +174,32 @@ describe('memory', () => {
   const big: SourceImage = { width: 6000, height: 4000, format: 'jpeg' }
 
   it('blocks a lossy job the server would reject for memory, before anything is sent', () => {
-    const plan = planJob('optimize', settings(), big, null, memoryLimits)
+    const plan = planJob(settings(), big, null, memoryLimits)
 
     expect(plan.errors.output).toBe('This needs about 3.77 GB of memory, but this server has 3.75 GB for jobs. A smaller size, or Lossless, needs less.')
   })
 
   it('allows the same image losslessly, or resized to fit', () => {
-    expect(planJob('optimize', settings({ lossless: true }), big, null, memoryLimits).errors).toEqual({})
-    expect(planJob('optimize', settings({ maxWidth: 4000 }), big, null, memoryLimits).errors).toEqual({})
+    expect(planJob(settings({ lossless: true }), big, null, memoryLimits).errors).toEqual({})
+    expect(planJob(settings({ resize: true, width: 4000 }), big, null, memoryLimits).errors).toEqual({})
   })
 
   it('counts the larger format\'s cost when converting', () => {
     const photo20: SourceImage = { width: 5000, height: 4000, format: 'jpeg' }
 
-    expect(planJob('convert', settings({ convertTo: 'jpeg' }), photo20, null, memoryLimits).errors).toEqual({})
-    expect(planJob('convert', settings({ convertTo: 'png' }), photo20, null, memoryLimits).errors.output).toMatch(/memory/)
+    expect(planJob(settings(), photo20, null, memoryLimits).errors).toEqual({})
+    expect(planJob(settings({ format: 'png' }), photo20, null, memoryLimits).errors.output).toMatch(/memory/)
   })
 
   it('holds lossless to JPEG to a score once the pixels change', () => {
     const png: SourceImage = { width: 6000, height: 4000, format: 'png' }
 
-    expect(planJob('convert', settings({ lossless: true, convertTo: 'jpeg' }), png, null, memoryLimits).errors.output)
+    expect(planJob(settings({ lossless: true, format: 'jpeg' }), png, null, memoryLimits).errors.output)
       .toMatch(/A smaller size needs less\.$/)
   })
 
   it('skips the check on servers that don\'t report memory', () => {
-    expect(planJob('optimize', settings(), big, null, limits).errors).toEqual({})
+    expect(planJob(settings(), big, null, limits).errors).toEqual({})
   })
 
   it('reports what a lossy job can take at full size', () => {
@@ -222,15 +210,15 @@ describe('memory', () => {
 })
 
 describe('jobStatus', () => {
-  const job: Job = { working: 'Optimizing', phase: 'processing', progress: 1, since: 10_000, retryAt: null, attempt: 1 }
+  const job: Job = { phase: 'processing', progress: 1, since: 10_000, retryAt: null, attempt: 1 }
 
   it('shows the upload\'s progress', () => {
     expect(jobStatus({ ...job, phase: 'uploading', progress: 0.426 }, 10_000)).toBe('Uploading… 43%')
   })
 
   it('counts whole seconds while the server works, from the first one', () => {
-    expect(jobStatus(job, 10_999)).toBe('Optimizing…')
-    expect(jobStatus(job, 13_500)).toBe('Optimizing… 3 s')
+    expect(jobStatus(job, 10_999)).toBe('Transforming…')
+    expect(jobStatus(job, 13_500)).toBe('Transforming… 3 s')
   })
 
   it('counts down to the next try, rounding up and stopping at 0', () => {
@@ -242,11 +230,11 @@ describe('jobStatus', () => {
 
 describe('announcements', () => {
   const job = (changes: Partial<Job>): Job =>
-    ({ working: 'Optimizing', phase: 'processing', progress: 0, since: 1000, retryAt: null, attempt: 1, ...changes })
+    ({ phase: 'processing', progress: 0, since: 1000, retryAt: null, attempt: 1, ...changes })
 
   it('names each phase once, without the ticking time', () => {
     expect(jobAnnouncement(job({ phase: 'uploading', progress: 0.4 }))).toBe('Uploading the image.')
-    expect(jobAnnouncement(job({}))).toBe('Optimizing.')
+    expect(jobAnnouncement(job({}))).toBe('Transforming.')
     expect(jobAnnouncement(job({ phase: 'waiting', retryAt: 4000, attempt: 2 })))
       .toBe('The server is busy. Trying again in 3 seconds (try 2 of 3).')
   })

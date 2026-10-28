@@ -34,12 +34,12 @@ const { settings } = useSettings()
 
 // Crop's view: after a crop, the board shows just the cropped area (the result, then the original through the same
 // window while the area is adjusted), with the frame around it so it can be cropped further. Every run still crops
-// the original, so nothing is encoded twice. The view goes back to the whole image when the area leaves it (a Shape
-// button, a typed value) or another image opens.
+// the original, so nothing is encoded twice. The view goes back to the whole image when the area leaves it (a shape,
+// a typed value), Crop is turned off or another image opens.
 const cropView = ref<Rect | null>(null)
 watch(image, () => { cropView.value = null })
 watch(() => result.value?.id, () => {
-  if (result.value && settings.tool === 'crop')
+  if (result.value && plan.value.cropped)
     cropView.value = { ...rect }
 })
 
@@ -50,7 +50,7 @@ const undisplayable = ref<number | null>(null)
 const view = computed<Rect | null>(() => {
   if (!image.value)
     return null
-  return settings.tool === 'crop' && cropView.value && rectWithin(rect, cropView.value) ? cropView.value : wholeImage(image.value)
+  return settings.crop && cropView.value && rectWithin(rect, cropView.value) ? cropView.value : wholeImage(image.value)
 })
 
 /** Positions the original so only the view shows; nothing when the view is the whole image. */
@@ -85,8 +85,8 @@ const resultSize = computed(() => result.value && image.value
   ? { width: result.value.stats.width || image.value.width, height: result.value.stats.height || image.value.height }
   : null)
 
-/** The result has the original's size, so the two can share the stage (not on crop, where the frame stays on top). */
-const compare = computed(() => !!resultSize.value && !!image.value && settings.tool !== 'crop'
+/** The result has the original's size, so the two can share the stage (not while cropping: the frame stays on top). */
+const compare = computed(() => !!resultSize.value && !!image.value && !settings.crop
   && resultSize.value.width === image.value.width && resultSize.value.height === image.value.height)
 
 /** What the frame measures: the result when it has a size of its own, else the part of the image in view. */
@@ -103,11 +103,12 @@ const frameStyle = computed(() => {
   return { width: `${size.width * scale}px`, height: `${size.height * scale}px`, '--split': `${split.value}%` }
 })
 
-// Before a run: where the output lands, drawn at the original's scale from the top left corner.
+// Before a run: where the output lands, drawn at the original's scale from the top left corner. While cropping, the
+// frame's label gives the size instead.
 const outputBox = computed(() => {
   const output = plan.value.output
   const source = image.value
-  if (result.value || !output || !source || settings.tool === 'crop')
+  if (result.value || !output || !source || settings.crop)
     return null
   if (output.width === source.width && output.height === source.height)
     return null
@@ -123,7 +124,7 @@ const outputBox = computed(() => {
 const cropStyle = computed(() => {
   const source = image.value
   const area = view.value
-  if (!source || !area || settings.tool !== 'crop' || plan.value.errors.rect || !rectFits(rect, source))
+  if (!source || !area || !settings.crop || plan.value.errors.rect || !rectFits(rect, source))
     return null
   return percentStyle(percentWithin(rect, area))
 })

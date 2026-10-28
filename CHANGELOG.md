@@ -18,6 +18,9 @@
 - **Breaking:** renamed parameters: `rect` is now `crop`, the `fit=cover` focus `crop` is now `position`, `preferJpeg=true` is now `format=auto`, `output=json` is now `store=true`, and `outputFilename` is now `filename` (on `upload` too).
 - **Breaking:** the `X-Image-Mason-Optimized-Size` header is now `X-Image-Mason-Size`, and the stored-image JSON's `compressedSize` is now `size`.
 - **Breaking:** a parameter an endpoint doesn't take gets 400 naming it, instead of being ignored, so a typo or an old name never quietly changes the result.
+- Web interface: one panel replaces the Optimize, Resize, Crop and Convert tools. Quality and Format are always there; Resize (width and height, with a chain button that keeps the shape) and Crop (drag the frame, freely or in a fixed shape) are optional steps. The settings carry over to the next image, with the size and crop area fitted to it.
+- Web interface: Max width, Fit, Fill box, Keep and "Enlarge smaller images" are gone. Crop then Resize covers what Fill box did, and a size larger than the image enlarges it.
+- Web interface: "Turn PNG photos into JPEG" is gone; choose JPEG in Format. The API's `format=auto` still does it for scripts.
 - `IMAGE_MASON_*` variables that aren't settings, such as a misspelled or removed one, are logged as a warning at startup.
 - Web interface: images and results larger than the screen are shown as screen-sized previews instead of at full size, reducing browser memory for a 43 MP photo from about 280 MB to about 160 MB (Chrome, 2× screen). Crop's zoomed view still uses the full image.
 - A resized, cropped or converted JPEG that can't reach its quality floor no longer encodes and scores its fallback twice, saving about 1.8 s on a 12.5 MP photo. The result is unchanged.

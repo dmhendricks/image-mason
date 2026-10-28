@@ -36,7 +36,7 @@ const keyTitle = computed(() => {
 
     <nav class="end">
       <button class="button" type="button" aria-label="Open image" @click="emit('open')">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16.5V3M6.5 8.5 12 3l5.5 5.5M3.5 14.5v2A4.5 4.5 0 0 0 8 21h8a4.5 4.5 0 0 0 4.5-4.5v-2" /></svg>
         <span class="label">Open image</span>
       </button>
       <button

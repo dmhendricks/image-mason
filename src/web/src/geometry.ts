@@ -1,7 +1,8 @@
 // Sizes as the server computes them (Imaging/ResizeRequest.cs and ImageOptimizer.cs), so the interface can draw
 // the output to scale and refuse sizes the server would reject.
 
-import type { Fit } from './settings'
+/** How a box is filled: inside it keeping the shape, filling it and cropping the rest, or stretched to it. */
+export type Fit = 'contain' | 'cover' | 'fill'
 
 export interface Size {
   width: number
@@ -79,10 +80,36 @@ export function centeredRect(aspect: number, image: Size): Rect {
   }
 }
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+/** Where Crop's frame starts: a little inside the edges, so it reads as something to drag. */
+export function insetRect(image: Size): Rect {
+  const inset = Math.round(Math.min(image.width, image.height) * 0.1)
+  return { left: inset, top: inset, width: image.width - 2 * inset, height: image.height - 2 * inset }
+}
+
+/**
+ * The same area on an image of another size, in proportion to it: the same pixels when the sizes match. Null when the
+ * area doesn't lie inside the image it was on.
+ */
+export function scaledRect(rect: Rect, from: Size, to: Size): Rect | null {
+  const whole = [rect.left, rect.top, rect.width, rect.height].every(Number.isInteger)
+  if (!whole || !rectFits(rect, from))
+    return null
+  const x = to.width / from.width
+  const y = to.height / from.height
+  const left = Math.min(to.width - 1, Math.round(rect.left * x))
+  const top = Math.min(to.height - 1, Math.round(rect.top * y))
+  return {
+    left,
+    top,
+    width: clamp(Math.round(rect.width * x), 1, to.width - left),
+    height: clamp(Math.round(rect.height * y), 1, to.height - top),
+  }
+}
+
 /** What a drag on the crop frame moves: the whole area, an edge, or a corner (by compass point). */
 export type CropHandle = 'move' | 'n' | 'e' | 's' | 'w' | 'nw' | 'ne' | 'sw' | 'se'
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 /** Whether inner lies entirely inside outer, edges included. */
 export function rectWithin(inner: Rect, outer: Rect): boolean {
@@ -93,9 +120,10 @@ export function rectWithin(inner: Rect, outer: Rect): boolean {
 /**
  * The area after dragging a handle by (dx, dy) image pixels from where it started: whole pixels, inside bounds (the
  * image, or the part of it in view), and at least 1 × 1. A moved area keeps its size; a dragged edge stops one pixel
- * short of the opposite edge.
+ * short of the opposite edge. With an aspect (width / height), a dragged corner keeps that shape, trimming the side
+ * that went further while the opposite corner stays put.
  */
-export function dragRect(start: Rect, handle: CropHandle, dx: number, dy: number, bounds: Rect): Rect {
+export function dragRect(start: Rect, handle: CropHandle, dx: number, dy: number, bounds: Rect, aspect?: number | null): Rect {
   const minX = bounds.left
   const minY = bounds.top
   const maxX = bounds.left + bounds.width
@@ -120,6 +148,23 @@ export function dragRect(start: Rect, handle: CropHandle, dx: number, dy: number
     top = clamp(Math.round(top + dy), minY, bottom - 1)
   if (handle.startsWith('s'))
     bottom = clamp(Math.round(bottom + dy), top + 1, maxY)
+
+  if (aspect && handle.length === 2) {
+    let width = right - left
+    let height = bottom - top
+    if (width / height > aspect)
+      width = Math.max(1, Math.round(height * aspect))
+    else
+      height = Math.max(1, Math.round(width / aspect))
+    if (handle.endsWith('w'))
+      left = right - width
+    else
+      right = left + width
+    if (handle.startsWith('n'))
+      top = bottom - height
+    else
+      bottom = top + height
+  }
   return { left, top, width: right - left, height: bottom - top }
 }
 

@@ -19,13 +19,12 @@ public enum QualityPreset
 }
 
 /// <param name="MinScore">Overrides the preset's minimum score. Ignored for lossless unless the result can't be lossless.</param>
-/// <param name="MaxWidth">Overrides the default max width. 0 disables resizing. Ignored when <paramref name="Resize"/> is set.</param>
 /// <param name="Format">Output format. Null keeps the input's format.</param>
 /// <param name="Resize">Resize to a box; see <see cref="ResizeRequest"/>. Applies to the cropped area when <paramref name="Rect"/> is set.</param>
 /// <param name="Rect">The area to keep, cut out before any resize.</param>
 /// <param name="IsPhoto">For a PNG input, <see cref="PngPhoto.IsPhoto"/> when the caller already checked; checked when
 /// needed otherwise.</param>
-public sealed record OptimizeRequest(QualityPreset Quality, double? MinScore = null, int? MaxWidth = null, ImageFormat? Format = null,
+public sealed record OptimizeRequest(QualityPreset Quality, double? MinScore = null, ImageFormat? Format = null,
     ResizeRequest? Resize = null, CropRect? Rect = null, bool? IsPhoto = null);
 
 /// <param name="Score">SSIMULACRA2 vs. the original, or vs. the cropped or resized original when the image was changed.</param>
@@ -98,8 +97,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var crop = rect is not null && !rect.Covers(info.DisplayWidth, info.DisplayHeight);
         var (sourceWidth, sourceHeight) = crop ? (rect!.Width, rect.Height) : (info.DisplayWidth, info.DisplayHeight);
 
-        var maxWidth = request.MaxWidth ?? (lossless ? 0 : options.DefaultMaxWidth);
-        var sizing = request.Resize ?? (maxWidth > 0 ? new ResizeRequest(maxWidth, null) : null);
+        var sizing = request.Resize;
         var (outputWidth, outputHeight) = sizing?.OutputSize(sourceWidth, sourceHeight) ?? (sourceWidth, sourceHeight);
         var resize = (outputWidth, outputHeight) != (sourceWidth, sourceHeight);
         CheckOutputSize(target, outputWidth, outputHeight);

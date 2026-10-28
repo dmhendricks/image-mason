@@ -113,7 +113,8 @@ export function sanitize(value: unknown): Settings {
   settings.format = imageFormats.includes(saved.format as ImageFormat) ? saved.format as ImageFormat : null
   settings.convertTo = pick(imageFormats, 'convertTo', settings.convertTo)
   settings.preferJpeg = bool('preferJpeg', settings.preferJpeg)
-  settings.maxWidth = size('maxWidth')
+  // Earlier versions saved 0 for no limit.
+  settings.maxWidth = size('maxWidth') || null
   settings.width = size('width') || null
   settings.height = size('height') || null
   settings.fit = pick(fits, 'fit', settings.fit)

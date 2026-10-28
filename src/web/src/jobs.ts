@@ -60,7 +60,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
   if (tool === 'optimize' && format === null && settings.preferJpeg)
     query.set('preferJpeg', 'true')
 
-  // Resize takes a box; the other tools take maxWidth, which falls back to the server's default.
+  // Resize takes a box; the other tools take a max width, sent as a width (it never enlarges).
   let sizing: Parameters<typeof resizeOutput>[0] | null = null
   if (tool === 'resize') {
     const { width, height, fit } = settings
@@ -94,14 +94,12 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
     sizing = { width, height, fit, upscale }
   } else {
     const value = settings.maxWidth
-    if (value !== null && !(Number.isInteger(value) && value >= 0 && value <= maxSide))
-      errors.maxWidth = `Enter a width up to ${maxSide}, or 0 for none.`
-    else if (value !== null)
-      query.set('maxWidth', String(value))
-
-    const maxWidth = value ?? (lossless ? 0 : limits?.defaultMaxWidth ?? 0)
-    if (maxWidth > 0)
-      sizing = { width: maxWidth, height: null, fit: 'contain', upscale: false }
+    if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= maxSide))
+      errors.maxWidth = `Enter 1 to ${maxSide} pixels, or leave it empty.`
+    else if (value !== null) {
+      query.set('width', String(value))
+      sizing = { width: value, height: null, fit: 'contain', upscale: false }
+    }
   }
 
   // Crop's area, checked against the image as displayed.

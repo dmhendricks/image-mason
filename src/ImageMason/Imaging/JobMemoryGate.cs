@@ -5,7 +5,7 @@ namespace ImageMason.Imaging;
 /// <summary>An optimization job needs more memory than the service has for jobs, so it can never run.</summary>
 public sealed class JobTooLargeException(long neededBytes, long budgetBytes) : Exception(
     $"Optimizing this image needs about {ByteSizes.ToGigabytes(neededBytes)} of memory, but this server has " +
-    $"{ByteSizes.ToGigabytes(budgetBytes)} for jobs. Send a smaller image, pass maxWidth, or use quality=lossless.")
+    $"{ByteSizes.ToGigabytes(budgetBytes)} for jobs. Send a smaller image, pass width, or use quality=lossless.")
 {
     public long NeededBytes { get; } = neededBytes;
     public long BudgetBytes { get; } = budgetBytes;

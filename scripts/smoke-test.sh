@@ -59,6 +59,7 @@ json() { jq -r "$2" "$work/$1.body"; }
 size() { wc -c < "$1" | tr -d ' '; }
 starts_with() { [[ $1 == "$2"* ]]; }
 ends_with() { [[ $1 == *"$2" ]]; }
+contains() { [[ $1 == *"$2"* ]]; }
 smaller() { [[ $(size "$1") -lt $(size "$2") ]]; }
 at_least() { awk -v value="$1" -v floor="$2" 'BEGIN { exit !(floor > 0 && value >= floor) }'; }
 
@@ -131,8 +132,8 @@ check "  returns a PNG" [ "$(header png content-type)" = image/png ]
 check "  smaller than the input" smaller "$work/png.body" "$fixtures/graphic.png"
 check "  uses the default quality, high" [ "$(header png x-image-mason-quality)" = high ]
 
-code=$(request resize "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?maxWidth=320")
-check "optimize with maxWidth=320 is 200" [ "$code" = 200 ]
+code=$(request resize "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?width=320")
+check "optimize with width=320 is 200" [ "$code" = 200 ]
 check "  resizes to 320 wide" starts_with "$(header resize x-image-mason-dimensions)" 320x
 
 code=$(request json "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?output=json&outputFilename=smoke.jpg")
@@ -141,12 +142,12 @@ check "  returns the stored URL" ends_with "$(json json .output)" /images/smoke.
 code=$(request stored "$base/images/smoke.jpg")
 check "  the stored image is served" [ "$code" = 200 ]
 
-code=$(request webp "${auth[@]}" --data-binary @"$fixtures/photo.webp" "$api/optimize?maxWidth=320")
+code=$(request webp "${auth[@]}" --data-binary @"$fixtures/photo.webp" "$api/optimize?width=320")
 check "optimize WebP is 200" [ "$code" = 200 ]
 check "  returns a WebP" [ "$(header webp content-type)" = image/webp ]
 check "  resizes to 320 wide" starts_with "$(header webp x-image-mason-dimensions)" 320x
 
-code=$(request optwebp "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?format=webp&maxWidth=320&preferJpeg=true")
+code=$(request optwebp "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?format=webp&width=320&preferJpeg=true")
 check "optimize with format=webp is 200" [ "$code" = 200 ]
 check "  returns a WebP, ignoring preferJpeg" [ "$(header optwebp content-type)" = image/webp ]
 check "  resizes to 320 wide" starts_with "$(header optwebp x-image-mason-dimensions)" 320x
@@ -160,8 +161,9 @@ check "optimize with fit=cover, as AVIF, is 200" [ "$code" = 200 ]
 check "  crops to 200x150" [ "$(header optcover x-image-mason-dimensions)" = 200x150 ]
 check "  returns an AVIF" [ "$(header optcover content-type)" = image/avif ]
 
-code=$(request optboth "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?maxWidth=320&width=200")
-check "optimize with maxWidth and width is 400" [ "$code" = 400 ]
+code=$(request optmaxwidth "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?maxWidth=320")
+check "optimize with the removed maxWidth is 400" [ "$code" = 400 ]
+check "  says to send width" contains "$(json optmaxwidth .detail)" "send width"
 
 code=$(request optbadformat "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/optimize?format=gif")
 check "optimize to an unknown format is 400" [ "$code" = 400 ]
@@ -170,6 +172,10 @@ code=$(request towebp "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/co
 check "convert JPEG to WebP is 200" [ "$code" = 200 ]
 check "  returns a WebP" [ "$(header towebp content-type)" = image/webp ]
 check "  scored at or above the floor" at_least "$(header towebp x-image-mason-score)" "$(header towebp x-image-mason-min-score)"
+
+code=$(request convertwidth "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/convert?format=webp&width=320")
+check "convert with width=320 is 200" [ "$code" = 200 ]
+check "  resizes to 320 wide" starts_with "$(header convertwidth x-image-mason-dimensions)" 320x
 
 code=$(request toavif "${auth[@]}" --data-binary @"$fixtures/graphic.png" "$api/convert?format=avif")
 check "convert PNG to AVIF is 200" [ "$code" = 200 ]

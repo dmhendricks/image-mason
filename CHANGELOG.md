@@ -4,9 +4,15 @@
 
 ### Changed
 
+- `convert` accepts `width`, `height`, `fit`, `crop` and `upscale`, like `optimize`; before, it ignored them.
 - Web interface: images and results larger than the screen are shown as screen-sized previews instead of at full size, reducing browser memory for a 43 MP photo from about 280 MB to about 160 MB (Chrome, 2× screen). Crop's zoomed view still uses the full image.
 - A resized, cropped or converted JPEG that can't reach its quality floor no longer encodes and scores its fallback twice, saving about 1.8 s on a 12.5 MP photo. The result is unchanged.
 - `docker-compose.yml` sets `stop_grace_period: 30s`, so jobs in progress can finish when the container is stopped or updated (Docker's default of 10 s cut them off).
+
+### Removed
+
+- `maxWidth`: send `width` instead, which also shrinks wider images and never enlarges smaller ones. Requests with `maxWidth` get 400 with that hint.
+- `IMAGE_MASON_DEFAULT_MAX_WIDTH`: results are resized only when a request sends `width` or `height`. A server that still sets it logs a warning at startup, and `GET /api/v1/limits` no longer reports `defaultMaxWidth`.
 
 ### Fixed
 

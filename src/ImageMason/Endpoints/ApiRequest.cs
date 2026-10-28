@@ -56,7 +56,7 @@ internal static class ApiRequest
                     ex.Tool, inputBytes, ImageMasonOptions.Prefix + "MEMORY_LIMIT");
                 api.Http.Response.Headers.RetryAfter = RetryAfterSeconds;
                 return Problem(StatusCodes.Status503ServiceUnavailable,
-                    "The server ran out of memory while optimizing this image. Retry later, or send a smaller image or maxWidth.");
+                    "The server ran out of memory while optimizing this image. Retry later, or send a smaller image or a width.");
             case OperationCanceledException:
                 if (job is not null)
                     logger.LogWarning("{Job} of {Bytes} bytes timed out after {Seconds} s", job, inputBytes, api.Options.TimeoutSeconds);

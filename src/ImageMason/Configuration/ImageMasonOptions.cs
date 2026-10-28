@@ -49,12 +49,6 @@ public sealed class ImageMasonOptions
     /// </summary>
     public int MaxConcurrentTransfers => (int)Math.Clamp(ServiceReserveBytes / 2 / Math.Max(1, MaxInputBytes), 2, 16);
 
-    /// <summary>
-    /// Images displayed wider than this are downscaled. 0 turns default resizing off. The lossless preset only
-    /// resizes when a request passes maxWidth.
-    /// </summary>
-    public int DefaultMaxWidth { get; init; }
-
     /// <summary>Preset for requests that send no quality: High, Medium or Low.</summary>
     public QualityPreset DefaultQuality { get; init; } = QualityPreset.High;
 
@@ -163,7 +157,6 @@ public sealed class ImageMasonOptions
             MaxQueuedJobs = settings.Int("MAX_QUEUED_JOBS", defaults.MaxQueuedJobs, min: 0),
             TimeoutSeconds = settings.Int("TIMEOUT_SECONDS", defaults.TimeoutSeconds, min: 1, max: 86_400),
             MemoryLimitBytes = settings.String("MEMORY_LIMIT") is null ? null : settings.Size("MEMORY_LIMIT", 0, allowZero: false),
-            DefaultMaxWidth = settings.Int("DEFAULT_MAX_WIDTH", defaults.DefaultMaxWidth, min: 0),
             DefaultQuality = settings.Quality("DEFAULT_QUALITY", defaults.DefaultQuality),
             HighMinScore = settings.Score("HIGH_MIN_SCORE", defaults.HighMinScore),
             MediumMinScore = settings.Score("MEDIUM_MIN_SCORE", defaults.MediumMinScore),

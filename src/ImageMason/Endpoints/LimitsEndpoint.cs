@@ -24,7 +24,6 @@ internal static class LimitsEndpoint
                 ["low"] = options.LowMinScore,
             },
             DefaultQuality: options.DefaultQuality.ToString().ToLowerInvariant(),
-            DefaultMaxWidth: options.DefaultMaxWidth,
             ImageTtlMinutes: options.ImageTtlMinutes,
             TimeoutSeconds: options.TimeoutSeconds,
             UrlFetch: options.UrlFetchEnabled,

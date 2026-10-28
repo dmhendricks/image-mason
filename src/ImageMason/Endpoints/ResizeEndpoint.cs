@@ -21,6 +21,6 @@ internal static class ResizeEndpoint
         if (!ApiRequest.TryParseFormat(job.Format, required: false, out var target, out var formatError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, formatError!);
 
-        return await OptimizeEndpoint.RunAsync(api, job, target, resize, area, maxWidth: null, preferJpeg: false);
+        return await OptimizeEndpoint.RunAsync(api, job, target, resize, area, preferJpeg: false);
     }
 }

@@ -15,7 +15,6 @@ const limits: Limits = {
   maxPixels: 50_000_000,
   presets: { lossless: null, high: 85, medium: 80, low: 70 },
   defaultQuality: 'medium',
-  defaultMaxWidth: 0,
   imageTtlMinutes: 20,
   timeoutSeconds: 120,
   urlFetch: false,
@@ -82,12 +81,18 @@ describe('planJob', () => {
       .toEqual({ quality: 'medium', format: 'jpeg' })
   })
 
-  it('shrinks to maxWidth, or to the server default when none is sent', () => {
-    expect(planJob('optimize', settings({ maxWidth: 320 }), photo, null, limits).output).toEqual({ width: 320, height: 240 })
-    expect(planJob('optimize', settings(), photo, null, { ...limits, defaultMaxWidth: 400 }).output).toEqual({ width: 400, height: 300 })
-    // Lossless skips the server default, as ImageOptimizer does.
-    expect(planJob('optimize', settings({ lossless: true }), photo, null, { ...limits, defaultMaxWidth: 400 }).output)
-      .toEqual({ width: 640, height: 480 })
+  it('sends a max width as width, which shrinks wider images and keeps smaller ones', () => {
+    const plan = planJob('optimize', settings({ maxWidth: 320 }), photo, null, limits)
+
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '320' })
+    expect(plan.output).toEqual({ width: 320, height: 240 })
+    expect(planJob('optimize', settings({ maxWidth: 1000 }), photo, null, limits).output).toEqual({ width: 640, height: 480 })
+    expect(planJob('optimize', settings(), photo, null, limits).output).toEqual({ width: 640, height: 480 })
+  })
+
+  it('rejects a max width of 0 or past the largest side', () => {
+    expect(planJob('optimize', settings({ maxWidth: 0 }), photo, null, limits).errors.maxWidth).toBe('Enter 1 to 65535 pixels, or leave it empty.')
+    expect(planJob('convert', settings({ maxWidth: 70000 }), photo, null, limits).errors.maxWidth).toBe('Enter 1 to 65535 pixels, or leave it empty.')
   })
 
   it('needs a width or height to resize', () => {
@@ -124,10 +129,10 @@ describe('planJob', () => {
       .not.toHaveProperty('upscale')
   })
 
-  it('crops to the rect, then applies maxWidth', () => {
+  it('crops to the rect, then applies the max width', () => {
     const plan = planJob('crop', settings({ maxWidth: 240 }), photo, { left: 80, top: 0, width: 480, height: 480 }, limits)
 
-    expect(query(plan.path)).toEqual({ quality: 'medium', maxWidth: '240', rect: '80,0,480,480' })
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '240', rect: '80,0,480,480' })
     expect(plan.output).toEqual({ width: 240, height: 240 })
     expect(plan.action).toBe('Crop to 240 × 240')
   })

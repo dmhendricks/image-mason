@@ -10,12 +10,11 @@ internal static class CropEndpoint
         [AsParameters] ApiServices api,
         [AsParameters] JobParameters job,
         [AsParameters] ResizeParameters box,
-        int? maxWidth,
         bool preferJpeg = false)
     {
         if (string.IsNullOrWhiteSpace(job.Rect))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send rect as left,top,width,height, such as 80,0,480,480.");
 
-        return await OptimizeEndpoint.HandleAsync(api, job, box, maxWidth, preferJpeg);
+        return await OptimizeEndpoint.HandleAsync(api, job, box, preferJpeg);
     }
 }

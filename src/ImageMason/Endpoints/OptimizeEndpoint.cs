@@ -9,7 +9,7 @@ namespace ImageMason.Endpoints;
 
 /// <summary>
 /// POST /api/v1/optimize: returns a smaller image in the same format (or in format, when sent), optionally cropped
-/// to rect and resized to maxWidth or to a width/height box like resize, with stats in X-Image-Mason-* headers, or
+/// to rect and resized to a width/height box like resize, with stats in X-Image-Mason-* headers, or
 /// with output=json stores it and returns its URL and the same stats.
 /// </summary>
 internal static class OptimizeEndpoint
@@ -19,7 +19,6 @@ internal static class OptimizeEndpoint
         [AsParameters] ApiServices api,
         [AsParameters] JobParameters job,
         [AsParameters] ResizeParameters box,
-        int? maxWidth,
         bool preferJpeg = false)
     {
         if (!RectParameter.TryParse(job.Rect, out var area, out var rectError))
@@ -28,24 +27,26 @@ internal static class OptimizeEndpoint
         if (!box.TryParse(out var resize, out var resizeError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
 
-        if (resize is not null && maxWidth is not null)
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "Send maxWidth or width/height, not both.");
-
         // An explicit format wins over preferJpeg.
         if (!ApiRequest.TryParseFormat(job.Format, required: false, out var target, out var formatError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, formatError!);
 
-        return await RunAsync(api, job, target, resize, area, maxWidth, preferJpeg);
+        return await RunAsync(api, job, target, resize, area, preferJpeg);
     }
 
     /// <summary>Shared by optimize, convert, resize and crop, after their parameter checks.</summary>
     /// <param name="target">The output format; null keeps the input's (or JPEG for a photo PNG with preferJpeg).</param>
-    /// <param name="resize">The resize endpoint's box; null uses maxWidth.</param>
+    /// <param name="resize">The box to resize to; null keeps the size.</param>
     /// <param name="rect">The area to keep, cut out before resizing; null keeps the whole image.</param>
     public static async Task<IResult> RunAsync(ApiServices api, JobParameters job, ImageFormat? target, ResizeRequest? resize,
-        CropRect? rect, int? maxWidth, bool preferJpeg)
+        CropRect? rect, bool preferJpeg)
     {
         var (http, options, downloader, optimizer, store, logger) = api;
+
+        // Removed before 1.0; rejected rather than ignored, so a caller doesn't silently get full-size images.
+        if (http.Request.Query.ContainsKey("maxWidth"))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest,
+                "maxWidth was removed; send width instead, which also shrinks wider images and never enlarges smaller ones.");
 
         var preset = options.DefaultQuality;
         if (!string.IsNullOrEmpty(job.Quality) && !QualityPresets.TryParse(job.Quality, out preset))
@@ -53,9 +54,6 @@ internal static class OptimizeEndpoint
 
         if (job.MinScore is < 0 or > 100)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "minScore must be between 0 and 100.");
-
-        if (maxWidth is < 0)
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "maxWidth must be 0 (no resize) or a positive width.");
 
         bool asJson;
         switch (job.Output?.ToLowerInvariant())
@@ -98,7 +96,7 @@ internal static class OptimizeEndpoint
                     return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {stored.Extension()}.");
             }
 
-            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, job.MinScore, maxWidth, target, resize, rect, isPhoto), timeout.Token);
+            var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, job.MinScore, target, resize, rect, isPhoto), timeout.Token);
             var elapsedMs = (long)stopwatch.Elapsed.TotalMilliseconds;
             var qualityName = preset.ToString().ToLowerInvariant();
             var score = result.Score?.ToString("F2", CultureInfo.InvariantCulture);

@@ -126,7 +126,7 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o thumb.webp \
 
 ### Crop an Image
 
-`crop` keeps the area in `rect`, given as `left,top,width,height` in pixels, then optimizes it like `optimize`. Add `width`, `height` or `maxWidth` to resize the cropped area, and `format` to convert it:
+`crop` keeps the area in `rect`, given as `left,top,width,height` in pixels, then optimizes it like `optimize`. Add `width` or `height` to resize the cropped area, and `format` to convert it:
 
 ```bash
 # The 480x480 square starting 80 pixels from the left
@@ -235,8 +235,7 @@ The image is the request body, the file at `url`, or a stored image named by `so
 | `quality` | `high` (`IMAGE_MASON_DEFAULT_QUALITY`) | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
 | `rect` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
-| `maxWidth` | `0` | Downscale images wider than this, keeping the aspect ratio. `0` keeps the original size. Can't be combined with `width` or `height`. |
-| `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied) |
+| `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied). On its own, it downscales wider images and leaves narrower ones as they are. |
 | `height` | | Resize to a box this high, 1 to 65535. Send `width`, `height` or both; a missing side follows the aspect ratio. |
 | `fit` | `contain` | `contain`: fit inside the box, keeping the aspect ratio (either side may be left out). `cover`: fill the box and crop what overflows. `fill`: stretch to exactly the box. `cover` and `fill` need both sides. |
 | `crop` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
@@ -285,7 +284,7 @@ The same parameters and response as [`optimize`](#post-apiv1optimize), except th
 
 ### `POST /api/v1/resize`
 
-The same parameters and response as [`optimize`](#post-apiv1optimize), except that `width`, `height` or both are required, and `maxWidth` and `preferJpeg` don't apply.
+The same parameters and response as [`optimize`](#post-apiv1optimize), except that `width`, `height` or both are required, and `preferJpeg` doesn't apply.
 
 The result is optimized against the resized pixels, so its score compares it to the resized image, not the original. Results over `IMAGE_MASON_MAX_PIXELS`, and WebP results over 16383 pixels on a side, get 422.
 
@@ -293,7 +292,7 @@ The result is optimized against the resized pixels, so its score compares it to 
 
 The same parameters and response as [`optimize`](#post-apiv1optimize), except that `rect` is required. The area is in display pixels, so for a photo with an orientation tag it matches what a viewer shows, not the stored pixels. A `rect` that reaches past the image's edges gets 400, with the image's displayed size in the message.
 
-`width`, `height` and `maxWidth` resize the cropped area, and `X-Image-Mason-Original-Dimensions` still reports the whole input. The score compares the result with the cropped area.
+`width` and `height` resize the cropped area, and `X-Image-Mason-Original-Dimensions` still reports the whole input. The score compares the result with the cropped area.
 
 ### `POST /api/v1/upload`
 
@@ -366,7 +365,6 @@ What this server accepts, so a client can check an image before sending it. The 
   "maxPixels": 50000000,
   "presets": { "lossless": null, "high": 85, "medium": 80, "low": 70 },
   "defaultQuality": "high",
-  "defaultMaxWidth": 0,
   "imageTtlMinutes": 60,
   "timeoutSeconds": 120,
   "urlFetch": true,
@@ -409,7 +407,6 @@ All settings are environment variables, and all are optional. Sizes are in bytes
 | `IMAGE_MASON_MAX_QUEUED_JOBS` | `16` | Requests that wait for a slot before getting 503 |
 | `IMAGE_MASON_TIMEOUT_SECONDS` | `120` | Time before a request stops with 504; at most `86400` (a day) |
 | `IMAGE_MASON_MEMORY_LIMIT` | container limit | Memory the service may use. See [Memory](#memory). |
-| `IMAGE_MASON_DEFAULT_MAX_WIDTH` | `0` | `maxWidth` for requests that don't send one. `0` keeps the original size. |
 | `IMAGE_MASON_DEFAULT_QUALITY` | `high` | `quality` for requests that don't send one, and the web interface's starting choice: `high`, `medium` or `low` |
 | `IMAGE_MASON_HIGH_MIN_SCORE` | `85` | Floor for `high` |
 | `IMAGE_MASON_MEDIUM_MIN_SCORE` | `80` | Floor for `medium` |
@@ -439,7 +436,7 @@ The service guards against running out of memory:
 - The budget is the container's memory limit minus 256 MB for the service itself. Set `IMAGE_MASON_MEMORY_LIMIT` when there is no container limit, or to share the host with other services.
 - If the kernel still kills an image tool, the request gets 503 with `Retry-After`, and the service keeps running.
 
-Set a container memory limit (`--memory` or the Compose `memory` limit) that fits your largest images, and use `maxWidth` or `IMAGE_MASON_DEFAULT_MAX_WIDTH` when you don't need full-resolution output: memory for scoring depends on the output size.
+Set a container memory limit (`--memory` or the Compose `memory` limit) that fits your largest images, and send `width` when you don't need full-resolution output: memory for scoring depends on the output size.
 
 ## Security
 

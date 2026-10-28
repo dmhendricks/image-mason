@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe('settings', () => {
   it('round-trips through localStorage', () => {
-    const settings = { ...defaultSettings(), tool: 'crop' as const, format: 'avif' as const, width: 800, maxWidth: 0 }
+    const settings = { ...defaultSettings(), tool: 'crop' as const, format: 'avif' as const, width: 800, maxWidth: 1200 }
     saveSettings(settings)
 
     expect(loadSettings()).toEqual(settings)

@@ -22,7 +22,6 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(defaults.MaxInputBytes, options.MaxInputBytes);
         Assert.Equal(defaults.MaxPixels, options.MaxPixels);
         Assert.Equal(Environment.ProcessorCount, options.MaxConcurrentJobs);
-        Assert.Equal(0, options.DefaultMaxWidth);
         Assert.Equal(QualityPreset.High, options.DefaultQuality);
         Assert.Equal(120, options.TimeoutSeconds);
         Assert.Null(options.MemoryLimitBytes);
@@ -45,7 +44,6 @@ public sealed class ImageMasonOptionsTests
             ("MAX_QUEUED_JOBS", "0"),
             ("TIMEOUT_SECONDS", "30"),
             ("MEMORY_LIMIT", "4g"),
-            ("DEFAULT_MAX_WIDTH", "2000"),
             ("DEFAULT_QUALITY", "Low"),
             ("HIGH_MIN_SCORE", "88.5"),
             ("STORE_PATH", "/tmp/store"),
@@ -66,7 +64,6 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(0, options.MaxQueuedJobs);
         Assert.Equal(30, options.TimeoutSeconds);
         Assert.Equal(4L * 1024 * 1024 * 1024, options.MemoryLimitBytes);
-        Assert.Equal(2000, options.DefaultMaxWidth);
         Assert.Equal(QualityPreset.Low, options.DefaultQuality);
         Assert.Equal(88.5, options.HighMinScore);
         Assert.Equal("/tmp/store", options.StorePath);

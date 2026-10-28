@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Optimize one image and print the X-Image-Mason-* stats.
 #
-#   scripts/optimize.sh <image> [lossless|high|medium|low] [output] [extra query, e.g. "&maxWidth=2000"]
+#   scripts/optimize.sh <image> [lossless|high|medium|low] [output] [extra query, e.g. "&width=2000"]
 #
 # Env: IMAGE_MASON_URL (default http://localhost:8080), IMAGE_MASON_API_KEY (optional)
 set -euo pipefail

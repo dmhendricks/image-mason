@@ -8,45 +8,34 @@ using ImageMason.Storage;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/optimize: returns a smaller image in the same format (or in format, when sent), optionally cropped
-/// to rect and resized to a width/height box like resize, with stats in X-Image-Mason-* headers, or
-/// with output=json stores it and returns its URL and the same stats.
+/// POST /api/v1/transform: optimizes an image, optionally cropping it to crop, resizing it to a width/height box and
+/// converting it to format, and returns it with stats in X-Image-Mason-* headers, or with store=true stores it and
+/// returns its URL and the same stats.
 /// </summary>
-internal static class OptimizeEndpoint
+internal static class TransformEndpoint
 {
-    /// <summary>Optimize's parameter checks and run. Also the crop endpoint's, after it checks rect.</summary>
+    /// <summary>The query parameters transform takes; see <see cref="QueryCheck"/>.</summary>
+    public static readonly string[] Parameters =
+        ["quality", "minScore", "format", "crop", "width", "height", "fit", "position", "upscale", "url", "source", "store", "filename", "keepOriginal"];
+
     public static async Task<IResult> HandleAsync(
         [AsParameters] ApiServices api,
         [AsParameters] JobParameters job,
-        [AsParameters] ResizeParameters box,
-        bool preferJpeg = false)
+        [AsParameters] ResizeParameters box)
     {
-        if (!RectParameter.TryParse(job.Rect, out var area, out var rectError))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, rectError!);
+        var (http, options, downloader, optimizer, store, logger) = api;
+
+        if (!CropParameter.TryParse(job.Crop, out var rect, out var cropError))
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, cropError!);
 
         if (!box.TryParse(out var resize, out var resizeError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, resizeError!);
 
-        // An explicit format wins over preferJpeg.
-        if (!ApiRequest.TryParseFormat(job.Format, required: false, out var target, out var formatError))
+        // auto: JPEG for a PNG photo, otherwise the input's format, decided once the image is read.
+        var auto = string.Equals(job.Format?.Trim(), "auto", StringComparison.OrdinalIgnoreCase);
+        ImageFormat? target = null;
+        if (!auto && !ApiRequest.TryParseFormat(job.Format, required: false, out target, out var formatError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, formatError!);
-
-        return await RunAsync(api, job, target, resize, area, preferJpeg);
-    }
-
-    /// <summary>Shared by optimize, convert, resize and crop, after their parameter checks.</summary>
-    /// <param name="target">The output format; null keeps the input's (or JPEG for a photo PNG with preferJpeg).</param>
-    /// <param name="resize">The box to resize to; null keeps the size.</param>
-    /// <param name="rect">The area to keep, cut out before resizing; null keeps the whole image.</param>
-    public static async Task<IResult> RunAsync(ApiServices api, JobParameters job, ImageFormat? target, ResizeRequest? resize,
-        CropRect? rect, bool preferJpeg)
-    {
-        var (http, options, downloader, optimizer, store, logger) = api;
-
-        // Removed before 1.0; rejected rather than ignored, so a caller doesn't silently get full-size images.
-        if (http.Request.Query.ContainsKey("maxWidth"))
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest,
-                "maxWidth was removed; send width instead, which also shrinks wider images and never enlarges smaller ones.");
 
         var preset = options.DefaultQuality;
         if (!string.IsNullOrEmpty(job.Quality) && !QualityPresets.TryParse(job.Quality, out preset))
@@ -55,27 +44,15 @@ internal static class OptimizeEndpoint
         if (job.MinScore is < 0 or > 100)
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, "minScore must be between 0 and 100.");
 
-        bool asJson;
-        switch (job.Output?.ToLowerInvariant())
-        {
-            case null or "":
-                asJson = false;
-                break;
-            case "json":
-                asJson = true;
-                break;
-            default:
-                return ApiRequest.Problem(StatusCodes.Status400BadRequest, "output must be 'json'.");
-        }
-
-        if (!ApiRequest.TryParseOutputFilename(job.OutputFilename, out var storedName, out var nameError))
+        var stored = job.StoreResult is true;
+        if (!ApiRequest.TryParseFilename(job.Filename, out var storedName, out var nameError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, nameError!);
 
-        if (storedName is not null && !asJson)
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "outputFilename is only used with output=json.");
+        if (storedName is not null && !stored)
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "filename is only used with store=true.");
 
-        if (job.KeepOriginal is true && !asJson)
-            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "keepOriginal is only used with output=json.");
+        if (job.KeepOriginal is true && !stored)
+            return ApiRequest.Problem(StatusCodes.Status400BadRequest, "keepOriginal is only used with store=true.");
 
         using var timeout = api.StartTimeout();
 
@@ -87,13 +64,14 @@ internal static class OptimizeEndpoint
 
             var detected = ImageFormatDetector.Detect(input);
             bool? isPhoto = detected == ImageFormat.Png ? PngPhoto.IsPhoto(input, options.MaxPixels, timeout.Token) : null;
-            target ??= preferJpeg && isPhoto == true ? ImageFormat.Jpeg : null;
+            if (auto && isPhoto == true)
+                target = ImageFormat.Jpeg;
 
             if (storedName is not null)
             {
-                var stored = target ?? detected;
-                if (stored != ImageFormat.Unknown && !storedName.EndsWith(stored.Extension(), StringComparison.Ordinal))
-                    return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {stored.Extension()}.");
+                var storedFormat = target ?? detected;
+                if (storedFormat != ImageFormat.Unknown && !storedName.EndsWith(storedFormat.Extension(), StringComparison.Ordinal))
+                    return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"filename must end in {storedFormat.Extension()}.");
             }
 
             var result = await optimizer.OptimizeAsync(input, new OptimizeRequest(preset, job.MinScore, target, resize, rect, isPhoto), timeout.Token);
@@ -111,7 +89,7 @@ internal static class OptimizeEndpoint
             var headers = http.Response.Headers;
             headers["X-Image-Mason-Quality"] = qualityName;
             headers["X-Image-Mason-Original-Size"] = result.OriginalSize.ToString(CultureInfo.InvariantCulture);
-            headers["X-Image-Mason-Optimized-Size"] = result.Data.Length.ToString(CultureInfo.InvariantCulture);
+            headers["X-Image-Mason-Size"] = result.Data.Length.ToString(CultureInfo.InvariantCulture);
             headers["X-Image-Mason-Size-Change-Percent"] = sizeChangeText;
             headers["X-Image-Mason-Original-Dimensions"] = before;
             headers["X-Image-Mason-Dimensions"] = after;
@@ -129,7 +107,7 @@ internal static class OptimizeEndpoint
             logger.LogInformation("{Quality} {Formats} {Before}: {BeforeBytes} -> {AfterBytes} bytes ({SizeChange}), {After} via {Method} (score {Score}, min {MinScore}, isPhoto {IsPhoto}) in {ElapsedMs} ms",
                 preset, formats, before, result.OriginalSize, result.Data.Length, sizeChangeLog, after, result.Method, score ?? "n/a", floor ?? "n/a", isPhoto?.ToString() ?? "n/a", elapsedMs);
 
-            if (!asJson)
+            if (!stored)
                 return Results.Bytes(result.Data, result.Format.ContentType());
 
             var origin = ApiRequest.Origin(http.Request, options.PublicBaseUrl);
@@ -156,7 +134,7 @@ internal static class OptimizeEndpoint
                 Input = inputUrl,
                 MimeType = result.Format.ContentType(),
                 OriginalSize = result.OriginalSize,
-                CompressedSize = result.Data.Length,
+                Size = result.Data.Length,
                 SizeChangePercent = sizeChange,
                 OriginalWidth = result.OriginalInfo.Width,
                 OriginalHeight = result.OriginalInfo.Height,

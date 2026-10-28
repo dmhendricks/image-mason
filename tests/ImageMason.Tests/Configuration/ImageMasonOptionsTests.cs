@@ -30,6 +30,17 @@ public sealed class ImageMasonOptionsTests
         Assert.Empty(options.UrlAllowedHosts);
         Assert.True(options.UiEnabled);
         Assert.Equal(LogLevel.Information, options.LogLevel);
+        Assert.Empty(options.UnknownSettings);
+    }
+
+    [Fact]
+    public void Load_ListsVariablesThatAreNotSettings()
+    {
+        var options = Load(("MAX_PIXEL", "1000"), ("DEFAULT_MAX_WIDTH", "800"), ("TAG", "latest"), ("max_pixels", "2000"));
+
+        // TAG is docker-compose.yml's; settings match ignoring case, as configuration does.
+        Assert.Equal(["IMAGE_MASON_DEFAULT_MAX_WIDTH", "IMAGE_MASON_MAX_PIXEL"], options.UnknownSettings);
+        Assert.Equal(2000, options.MaxPixels);
     }
 
     [Fact]

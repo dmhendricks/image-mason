@@ -292,38 +292,38 @@
     <section>
       <h2>Optimize</h2>
       <pre>curl -sS --data-binary @photo.jpg -o photo.min.jpg \
-  {{origin}}/api/v1/optimize</pre>
+  {{origin}}/api/v1/transform</pre>
       <pre>curl -sS -G --data-urlencode "url=https://example.com/photo.jpg" \
-  -o photo.min.jpg {{origin}}/api/v1/optimize</pre>
-      <p class="note">The body is the raw image, or <code>url</code> names one to download. The response is the optimized file, with its statistics in <code>X-Image-Mason-*</code> headers. When the server has an API key, send it in the <code>X-Api-Key</code> header.</p>
+  -o photo.min.jpg {{origin}}/api/v1/transform</pre>
+      <p class="note">Every job goes to <code>transform</code>. The body is the raw image, or <code>url</code> names one to download. With no other parameters, the result is the same image, optimized, with its statistics in <code>X-Image-Mason-*</code> headers. When the server has an API key, send it in the <code>X-Api-Key</code> header.</p>
     </section>
 
     <section>
       <h2>Convert</h2>
       <pre>curl -sS --data-binary @photo.jpg -o photo.webp \
-  "{{origin}}/api/v1/convert?format=webp"</pre>
-      <p class="note"><code>format</code> is <code>jpeg</code>, <code>png</code>, <code>webp</code>, <code>avif</code> or <code>jxl</code>. The result is optimized with the same quality presets and parameters as <code>optimize</code>.</p>
+  "{{origin}}/api/v1/transform?format=webp"</pre>
+      <p class="note"><code>format</code> is <code>jpeg</code>, <code>png</code>, <code>webp</code>, <code>avif</code> or <code>jxl</code>, or <code>auto</code> to turn a PNG that's really a photo into a JPEG.</p>
     </section>
 
     <section>
       <h2>Resize</h2>
       <pre>curl -sS --data-binary @photo.jpg -o thumb.webp \
-  "{{origin}}/api/v1/resize?width=400&amp;height=400&amp;fit=cover&amp;format=webp"</pre>
-      <p class="note"><code>fit</code> is <code>contain</code> (default), <code>cover</code> (fill the box and crop) or <code>fill</code> (stretch). Images are only enlarged with <code>upscale=true</code>.</p>
+  "{{origin}}/api/v1/transform?width=400&amp;height=400&amp;fit=cover&amp;format=webp"</pre>
+      <p class="note"><code>width</code> on its own shrinks wider images. <code>fit</code> is <code>contain</code> (default), <code>cover</code> (fill the box and crop) or <code>fill</code> (stretch). Images are only enlarged with <code>upscale=true</code>.</p>
     </section>
 
     <section>
       <h2>Crop</h2>
       <pre>curl -sS --data-binary @photo.jpg -o square.jpg \
-  "{{origin}}/api/v1/crop?rect=80,0,480,480"</pre>
-      <p class="note"><code>rect</code> is <code>left,top,width,height</code> in pixels, as the image is displayed. Add <code>width</code>, <code>height</code> or <code>format</code> to resize or convert the cropped area in the same call.</p>
+  "{{origin}}/api/v1/transform?crop=80,0,480,480"</pre>
+      <p class="note"><code>crop</code> is <code>left,top,width,height</code> in pixels, as the image is displayed. Add <code>width</code>, <code>height</code> or <code>format</code> to resize or convert the cropped area in the same call.</p>
     </section>
 
     <section>
       <h2>Store</h2>
       <pre>curl -sS --data-binary @photo.jpg \
-  "{{origin}}/api/v1/optimize?output=json"</pre>
-      <p class="note"><code>output=json</code> stores the result and returns its URL and statistics as JSON. <code>POST /api/v1/upload</code> stores an image unchanged; pass the name at the end of its URL as <code>source</code> to run more jobs on it without sending it again. Stored images are served for {{ttlMinutes}} minutes; anyone with the URL can fetch them until then.</p>
+  "{{origin}}/api/v1/transform?store=true"</pre>
+      <p class="note"><code>store=true</code> stores the result and returns its URL and statistics as JSON. <code>POST /api/v1/upload</code> stores an image unchanged; pass the name at the end of its URL as <code>source</code> to run more jobs on it without sending it again. Stored images are served for {{ttlMinutes}} minutes; anyone with the URL can fetch them until then.</p>
     </section>
 
     <section>
@@ -339,17 +339,14 @@
           <tr><td><code>low</code></td><td>Barely visible difference side by side</td></tr>
         </tbody>
       </table>
-      <p class="note"><code>minScore</code> sets a custom quality floor (SSIMULACRA2, 0–100), <code>width</code> downscales wider images (add <code>height</code> and <code>fit</code> to resize to a box, as with <code>resize</code>), <code>format</code> converts while optimizing, and <code>preferJpeg=true</code> returns a JPEG when a PNG is really a photo.</p>
+      <p class="note"><code>quality</code> picks the preset, and <code>minScore</code> sets a custom quality floor instead (SSIMULACRA2, 0–100). Parameters the server doesn't know get 400, so a typo never goes unnoticed.</p>
     </section>
 
     <section>
       <h2>Endpoints</h2>
       <table>
         <tbody>
-          <tr><td><code>POST /api/v1/optimize</code></td><td>Optimize an image, keeping its format unless <code>format</code> is sent</td></tr>
-          <tr><td><code>POST /api/v1/convert</code></td><td>Convert an image to another format</td></tr>
-          <tr><td><code>POST /api/v1/resize</code></td><td>Resize an image to a box</td></tr>
-          <tr><td><code>POST /api/v1/crop</code></td><td>Crop an image to an area</td></tr>
+          <tr><td><code>POST /api/v1/transform</code></td><td>Optimize an image, and optionally crop, resize or convert it</td></tr>
           <tr><td><code>POST /api/v1/upload</code></td><td>Store an image unchanged</td></tr>
           <tr><td><code>POST /api/v1/info</code></td><td>Describe an image without changing it</td></tr>
           <tr><td><code>GET /api/v1/limits</code></td><td>Formats, size limits and presets</td></tr>

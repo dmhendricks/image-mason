@@ -23,16 +23,13 @@ internal static class ApiEndpoints
             .WithApiVersionSet(versions)
             .RequireApiKey();
 
-        api.MapPost("/optimize", OptimizeEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
-        api.MapPost("/convert", ConvertEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
-        api.MapPost("/resize", ResizeEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
-        api.MapPost("/crop", CropEndpoint.HandleAsync).RequireRateLimiting(JobsPolicy);
+        api.MapPost("/transform", TransformEndpoint.HandleAsync).AllowQuery(TransformEndpoint.Parameters).RequireRateLimiting(JobsPolicy);
         // No tools run, so these don't wait behind jobs; each still holds the image in memory, so they have their own limit.
-        api.MapPost("/upload", UploadEndpoint.HandleAsync).RequireRateLimiting(TransfersPolicy);
-        api.MapPost("/info", InfoEndpoint.HandleAsync).RequireRateLimiting(TransfersPolicy);
-        api.MapPost("/fetch", FetchEndpoint.HandleAsync).RequireRateLimiting(TransfersPolicy);
+        api.MapPost("/upload", UploadEndpoint.HandleAsync).AllowQuery(UploadEndpoint.Parameters).RequireRateLimiting(TransfersPolicy);
+        api.MapPost("/info", InfoEndpoint.HandleAsync).AllowQuery("url", "source").RequireRateLimiting(TransfersPolicy);
+        api.MapPost("/fetch", FetchEndpoint.HandleAsync).AllowQuery("url").RequireRateLimiting(TransfersPolicy);
 
         // Public: reports apiKeyRequired, so it can't require the key itself.
-        api.MapGet("/limits", LimitsEndpoint.Handle).AllowWithoutApiKey();
+        api.MapGet("/limits", LimitsEndpoint.Handle).AllowQuery().AllowWithoutApiKey();
     }
 }

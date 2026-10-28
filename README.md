@@ -44,7 +44,7 @@ Open <http://localhost:8080> to use the web interface (it asks for the key), or 
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo.min.jpg \
-  http://localhost:8080/api/v1/optimize
+  http://localhost:8080/api/v1/transform
 ```
 
 ### Docker Compose
@@ -68,20 +68,22 @@ The sample Compose file runs the container read-only with a 4 GB memory limit an
 
 ## Usage
 
+Every job goes to one endpoint, `POST /api/v1/transform`. On its own it optimizes the image: the same format and size, as small as the quality preset allows. Parameters add steps: `crop` to keep an area, `width` and `height` to resize, and `format` to convert. The result is always optimized.
+
 ### Optimize an Image
 
 Send the image as the raw request body:
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo.min.jpg \
-  "http://localhost:8080/api/v1/optimize?quality=medium"
+  "http://localhost:8080/api/v1/transform?quality=medium"
 ```
 
 Or pass a URL for the service to download:
 
 ```bash
 curl -sS -X POST -H "X-Api-Key: change-me" -o photo.min.jpg \
-  "http://localhost:8080/api/v1/optimize?url=https://example.com/photo.jpg"
+  "http://localhost:8080/api/v1/transform?url=https://example.com/photo.jpg"
 ```
 
 The response body is the optimized image. Its statistics are in the response headers:
@@ -89,7 +91,7 @@ The response body is the optimized image. Its statistics are in the response hea
 ```text
 X-Image-Mason-Quality: high
 X-Image-Mason-Original-Size: 93694
-X-Image-Mason-Optimized-Size: 47521
+X-Image-Mason-Size: 47521
 X-Image-Mason-Size-Change-Percent: -49.28
 X-Image-Mason-Original-Dimensions: 640x427
 X-Image-Mason-Dimensions: 640x427
@@ -101,41 +103,45 @@ X-Image-Mason-Duration-Ms: 209
 
 ### Convert an Image
 
-`convert` takes the same parameters as `optimize`, plus the output `format`: `jpeg`, `png`, `webp`, `avif` or `jxl`.
+Add `format`: `jpeg`, `png`, `webp`, `avif` or `jxl`.
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo.webp \
-  "http://localhost:8080/api/v1/convert?format=webp"
+  "http://localhost:8080/api/v1/transform?format=webp"
 ```
 
-The result is optimized the same way: the smallest encoding that meets the quality preset.
+The result is optimized the same way: the smallest encoding that meets the quality preset. `format=auto` turns a PNG that's really a photo into a JPEG and leaves other images in their format.
 
 ### Resize an Image
 
-`resize` fits the image into a box, then optimizes it like `optimize` (or converts it, with `format`):
+Add `width`, `height` or both. On its own, `width` shrinks wider images and leaves narrower ones as they are:
 
 ```bash
-# Fit inside 1200x800, keeping the aspect ratio
+# At most 1200 wide
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo-1200.jpg \
-  "http://localhost:8080/api/v1/resize?width=1200&height=800"
+  "http://localhost:8080/api/v1/transform?width=1200"
+
+# Fit inside 1200x800, keeping the aspect ratio
+curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo-1200x800.jpg \
+  "http://localhost:8080/api/v1/transform?width=1200&height=800"
 
 # A 400x400 square thumbnail as WebP, cropped to the most interesting area
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o thumb.webp \
-  "http://localhost:8080/api/v1/resize?width=400&height=400&fit=cover&crop=attention&format=webp"
+  "http://localhost:8080/api/v1/transform?width=400&height=400&fit=cover&position=attention&format=webp"
 ```
 
 ### Crop an Image
 
-`crop` keeps the area in `rect`, given as `left,top,width,height` in pixels, then optimizes it like `optimize`. Add `width` or `height` to resize the cropped area, and `format` to convert it:
+Add `crop`, the area to keep as `left,top,width,height` in pixels. `width` and `height` then resize the cropped area, and `format` converts it:
 
 ```bash
 # The 480x480 square starting 80 pixels from the left
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o square.jpg \
-  "http://localhost:8080/api/v1/crop?rect=80,0,480,480"
+  "http://localhost:8080/api/v1/transform?crop=80,0,480,480"
 
 # The same square as a 200x200 AVIF
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o square.avif \
-  "http://localhost:8080/api/v1/crop?rect=80,0,480,480&width=200&format=avif"
+  "http://localhost:8080/api/v1/transform?crop=80,0,480,480&width=200&format=avif"
 ```
 
 ### Quality Presets
@@ -151,11 +157,11 @@ Scores are SSIMULACRA2, from 0 to 100, where 100 is identical. Use `minScore` fo
 
 ### Store and Share an Image
 
-Add `output=json` to store the result and get its URL instead of the bytes:
+Add `store=true` to store the result and get its URL instead of the bytes:
 
 ```bash
 curl -sS -H "X-Api-Key: change-me" --data-binary @graphic.png \
-  "http://localhost:8080/api/v1/optimize?output=json"
+  "http://localhost:8080/api/v1/transform?store=true"
 ```
 
 ```json
@@ -163,7 +169,7 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @graphic.png \
   "output": "http://localhost:8080/images/f100579fc856433e9a5b56c49ee9e420.png",
   "mimeType": "image/png",
   "originalSize": 9810,
-  "compressedSize": 894,
+  "size": 894,
   "sizeChangePercent": -90.89,
   "originalWidth": 480,
   "originalHeight": 320,
@@ -197,7 +203,7 @@ Errors are returned as [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc
 
 | Status | Cause |
 |---|---|
-| 400 | Invalid parameter, empty body, more than one of a body, `url` and `source`, or a `url` that isn't allowed |
+| 400 | Invalid or unknown parameter, empty body, more than one of a body, `url` and `source`, or a `url` that isn't allowed |
 | 401 | Missing or wrong `X-Api-Key` |
 | 404 | No stored image has the `source` name (it expired or was deleted) |
 | 413 | Image larger than `IMAGE_MASON_MAX_INPUT_SIZE` |
@@ -213,10 +219,7 @@ When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api
 
 | Endpoint | Description |
 |---|---|
-| `POST /api/v1/optimize` | Optimize an image, keeping its format unless `format` is sent |
-| `POST /api/v1/convert` | Convert an image to another format, optimized |
-| `POST /api/v1/resize` | Resize an image to a box, optimized |
-| `POST /api/v1/crop` | Crop an image to an area, optimized |
+| `POST /api/v1/transform` | Optimize an image, and optionally crop, resize or convert it |
 | `POST /api/v1/upload` | Store an image unchanged |
 | `POST /api/v1/info` | Describe an image: format, dimensions, bit depth, alpha and more |
 | `GET /api/v1/limits` | The server's formats, size limits, presets and timeouts |
@@ -226,27 +229,26 @@ When `IMAGE_MASON_API_KEY` is set, the `/api` endpoints require it in the `X-Api
 | `GET /` | Web interface (turn off with `IMAGE_MASON_UI_ENABLED=false`) |
 | `GET /docs` | Usage examples |
 
-### `POST /api/v1/optimize`
+### `POST /api/v1/transform`
 
-The image is the request body, the file at `url`, or a stored image named by `source`.
+Optimizes the image, after cropping, resizing and converting it when asked. The image is the request body, the file at `url`, or a stored image named by `source`. Parameters it doesn't take get 400, naming them.
 
 | Parameter | Default | Description |
 |---|---|---|
 | `quality` | `high` (`IMAGE_MASON_DEFAULT_QUALITY`) | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
-| `rect` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
+| `format` | the input's | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl` to convert. `auto`: JPEG when the input is a PNG photo with no transparency, otherwise the input's format. |
+| `crop` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
 | `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied). On its own, it downscales wider images and leaves narrower ones as they are. |
 | `height` | | Resize to a box this high, 1 to 65535. Send `width`, `height` or both; a missing side follows the aspect ratio. |
 | `fit` | `contain` | `contain`: fit inside the box, keeping the aspect ratio (either side may be left out). `cover`: fill the box and crop what overflows. `fill`: stretch to exactly the box. `cover` and `fill` need both sides. |
-| `crop` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
+| `position` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
 | `upscale` | `false` | Enlarge images smaller than the box. Without it, `contain` leaves them as they are and `cover` only crops. `fill` always reaches the exact size. |
-| `format` | the input's | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl`, to convert while optimizing. Overrides `preferJpeg`. |
-| `preferJpeg` | `false` | Return a JPEG when the input is a PNG photo with no transparency. Ignored when `format` is sent. |
 | `url` | | Download the image from this URL instead of reading the body |
 | `source` | | Use a stored image instead of reading the body: the name from `upload` (the last part of its `output` URL), such as `3f2a….jpg`. Send it once with `upload`, then run several jobs on it without sending it again. 404 once it has expired. |
-| `output` | | `json` stores the result and returns its URL and statistics |
-| `outputFilename` | random | Stored file name, such as `banner.jpg`: letters, digits, `_` or `-`, then the output format's extension (`.jpg`, `.png`, `.webp`, `.avif` or `.jxl`). Replaces an existing file with the same name. Requires `output=json`. |
-| `keepOriginal` | `false` | Also store the input, returned as `input`. Requires `output=json`. With `source`, `input` is the stored image's own URL. |
+| `store` | `false` | `true` stores the result and returns its URL and statistics as JSON |
+| `filename` | random | Stored file name, such as `banner.jpg`: letters, digits, `_` or `-`, then the output format's extension (`.jpg`, `.png`, `.webp`, `.avif` or `.jxl`). Replaces an existing file with the same name. Requires `store=true`. |
+| `keepOriginal` | `false` | Also store the input, returned as `input`. Requires `store=true`. With `source`, `input` is the stored image's own URL. |
 
 Response headers:
 
@@ -254,7 +256,7 @@ Response headers:
 |---|---|
 | `X-Image-Mason-Quality` | The preset used |
 | `X-Image-Mason-Original-Size` | Input size in bytes |
-| `X-Image-Mason-Optimized-Size` | Output size in bytes |
+| `X-Image-Mason-Size` | Output size in bytes |
 | `X-Image-Mason-Size-Change-Percent` | Percent change from the input size: negative if smaller, positive if larger |
 | `X-Image-Mason-Original-Dimensions` | Input width x height |
 | `X-Image-Mason-Dimensions` | Output width x height |
@@ -278,25 +280,16 @@ Lossy encoders search their quality setting for the smallest result that meets t
 
 When the output format matches the input, the original is always a candidate, so the response is never larger than the input unless a crop or resize asked for a different image. Animated WebP, AVIF and JPEG XL are rejected.
 
-### `POST /api/v1/convert`
+#### Cropping, Resizing and Converting
 
-The same parameters and response as [`optimize`](#post-apiv1optimize), except that `format` is required: `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl`. `preferJpeg` doesn't apply. Converting to JPEG or WebP reduces 16-bit images to 8 bits per channel.
-
-### `POST /api/v1/resize`
-
-The same parameters and response as [`optimize`](#post-apiv1optimize), except that `width`, `height` or both are required, and `preferJpeg` doesn't apply.
-
-The result is optimized against the resized pixels, so its score compares it to the resized image, not the original. Results over `IMAGE_MASON_MAX_PIXELS`, and WebP results over 16383 pixels on a side, get 422.
-
-### `POST /api/v1/crop`
-
-The same parameters and response as [`optimize`](#post-apiv1optimize), except that `rect` is required. The area is in display pixels, so for a photo with an orientation tag it matches what a viewer shows, not the stored pixels. A `rect` that reaches past the image's edges gets 400, with the image's displayed size in the message.
-
-`width` and `height` resize the cropped area, and `X-Image-Mason-Original-Dimensions` still reports the whole input. The score compares the result with the cropped area.
+- **Cropping:** the area is in display pixels, so for a photo with an orientation tag it matches what a viewer shows, not the stored pixels. A `crop` that reaches past the image's edges gets 400, with the image's displayed size in the message. `X-Image-Mason-Original-Dimensions` still reports the whole input.
+- **Scores:** a cropped or resized result is optimized against the cropped or resized pixels, so its score compares it with those, not with the original.
+- **Size limits:** results over `IMAGE_MASON_MAX_PIXELS`, and WebP results over 16383 pixels on a side, get 422.
+- **Bit depth:** converting to JPEG or WebP reduces 16-bit images to 8 bits per channel.
 
 ### `POST /api/v1/upload`
 
-Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `optimize?output=json`. It doesn't wait for a job slot. Accepts the image as the body or `url`, and `outputFilename`. The name in `output` can then be passed as `source` to the other endpoints.
+Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `transform?store=true`. It doesn't wait for a job slot. Accepts the image as the body or `url`, and `filename`. The name in `output` can then be passed as `source` to `transform` and `info`.
 
 ### `POST /api/v1/info`
 
@@ -325,7 +318,7 @@ curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg http://localhost:808
 }
 ```
 
-`orientation` is the EXIF orientation (1 is upright), and `displayWidth` and `displayHeight` apply it. `hasAlpha` means the image has an alpha channel, even if every pixel is opaque. PNGs within the pixel limit also report `isPhoto`. `withinPixelLimit` says whether `optimize` and `convert` accept the image under `IMAGE_MASON_MAX_PIXELS`.
+`orientation` is the EXIF orientation (1 is upright), and `displayWidth` and `displayHeight` apply it. `hasAlpha` means the image has an alpha channel, even if every pixel is opaque. PNGs within the pixel limit also report `isPhoto`. `withinPixelLimit` says whether `transform` accepts the image under `IMAGE_MASON_MAX_PIXELS`.
 
 When a JPEG, PNG or WebP carries EXIF, `exif` summarizes it. Fields the image doesn't have are left out:
 
@@ -445,7 +438,7 @@ Image Mason is built for private networks and trusted callers.
 - **Set an API key** unless only trusted clients can reach the port. Without one, anyone who can reach the service can use it, and the container logs a warning at startup.
 - **Use TLS.** The service speaks plain HTTP. Put it behind a reverse proxy for HTTPS, and set `IMAGE_MASON_PUBLIC_BASE_URL` so stored image URLs use the public address.
 - **Restrict URL fetching.** By default the service fetches any URL a caller sends, including addresses on your private network. Set `IMAGE_MASON_URL_ALLOW_PRIVATE=false` to refuse loopback, private, link-local (including cloud metadata) and other non-public addresses; it checks the address each connection actually goes to, so a public name that resolves to a private address is refused too. Set `IMAGE_MASON_URL_ALLOWED_HOSTS` to limit the hosts, or turn fetching off with `IMAGE_MASON_URL_FETCH_ENABLED=false`. Both checks apply again on every redirect.
-- **Stored images are public** to anyone with the URL until they expire or are deleted with `DELETE /images/{name}`. The names are random unless `outputFilename` sets one.
+- **Stored images are public** to anyone with the URL until they expire or are deleted with `DELETE /images/{name}`. The names are random unless `filename` sets one.
 
 To report a vulnerability, see [SECURITY.md](https://github.com/dmhendricks/image-mason/blob/main/SECURITY.md).
 

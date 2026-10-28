@@ -37,7 +37,7 @@ export interface JobMemoryLimits {
   scoringBytesPerPixel: number
 }
 
-/** The X-Image-Mason-* headers on an optimize, resize, crop or convert response. */
+/** The X-Image-Mason-* headers on a transform response. */
 export interface ResultStats {
   quality: string
   originalSize: number
@@ -71,7 +71,7 @@ export function readStats(header: (name: string) => string | null): ResultStats 
   return {
     quality: text('Quality'),
     originalSize: number('Original-Size') ?? 0,
-    size: number('Optimized-Size') ?? 0,
+    size: number('Size') ?? 0,
     originalWidth: original.width,
     originalHeight: original.height,
     width: result.width,

@@ -4,15 +4,29 @@
 
 ### Changed
 
-- `convert` accepts `width`, `height`, `fit`, `crop` and `upscale`, like `optimize`; before, it ignored them.
+- **Breaking:** one job endpoint, `POST /api/v1/transform`, replaces `optimize`, `convert`, `resize` and `crop`. It takes the parameters they shared, and every result is still optimized.
+
+  | 0.3.0 | Now |
+  |---|---|
+  | `optimize?quality=medium` | `transform?quality=medium` |
+  | `convert?format=webp` | `transform?format=webp` |
+  | `resize?width=800&fit=cover&crop=entropy` | `transform?width=800&fit=cover&position=entropy` |
+  | `crop?rect=80,0,480,480&maxWidth=320` | `transform?crop=80,0,480,480&width=320` |
+  | `optimize?preferJpeg=true&output=json` | `transform?format=auto&store=true` |
+  | `optimize?output=json&outputFilename=banner.jpg` | `transform?store=true&filename=banner.jpg` |
+
+- **Breaking:** renamed parameters: `rect` is now `crop`, the `fit=cover` focus `crop` is now `position`, `preferJpeg=true` is now `format=auto`, `output=json` is now `store=true`, and `outputFilename` is now `filename` (on `upload` too).
+- **Breaking:** the `X-Image-Mason-Optimized-Size` header is now `X-Image-Mason-Size`, and the stored-image JSON's `compressedSize` is now `size`.
+- **Breaking:** a parameter an endpoint doesn't take gets 400 naming it, instead of being ignored, so a typo or an old name never quietly changes the result.
+- `IMAGE_MASON_*` variables that aren't settings, such as a misspelled or removed one, are logged as a warning at startup.
 - Web interface: images and results larger than the screen are shown as screen-sized previews instead of at full size, reducing browser memory for a 43 MP photo from about 280 MB to about 160 MB (Chrome, 2× screen). Crop's zoomed view still uses the full image.
 - A resized, cropped or converted JPEG that can't reach its quality floor no longer encodes and scores its fallback twice, saving about 1.8 s on a 12.5 MP photo. The result is unchanged.
 - `docker-compose.yml` sets `stop_grace_period: 30s`, so jobs in progress can finish when the container is stopped or updated (Docker's default of 10 s cut them off).
 
 ### Removed
 
-- `maxWidth`: send `width` instead, which also shrinks wider images and never enlarges smaller ones. Requests with `maxWidth` get 400 with that hint.
-- `IMAGE_MASON_DEFAULT_MAX_WIDTH`: results are resized only when a request sends `width` or `height`. A server that still sets it logs a warning at startup, and `GET /api/v1/limits` no longer reports `defaultMaxWidth`.
+- `maxWidth`: send `width` instead, which also shrinks wider images and never enlarges smaller ones.
+- `IMAGE_MASON_DEFAULT_MAX_WIDTH`: results are resized only when a request sends `width` or `height`. `GET /api/v1/limits` no longer reports `defaultMaxWidth`.
 
 ### Fixed
 

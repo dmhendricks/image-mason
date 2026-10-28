@@ -79,7 +79,7 @@ public static class PngPhoto
             }
         }
 
-        // Over the pixel limit (optimize rejects it anyway), indexed, grayscale, interlaced, or an explicit
+        // Over the pixel limit (transform rejects it anyway), indexed, grayscale, interlaced, or an explicit
         // transparency key. JPEG cannot keep transparency.
         if (width <= 0 || height <= 0 || (long)width * height > maxPixels)
             return false;

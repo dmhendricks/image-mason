@@ -18,13 +18,13 @@ describe('getJson', () => {
   })
 
   it('throws the Problem Details detail on an error status', async () => {
-    respond('{"title":"Bad Request","status":400,"detail":"rect must be left,top,width,height."}', 400, 'Bad Request')
+    respond('{"title":"Bad Request","status":400,"detail":"crop must be left,top,width,height."}', 400, 'Bad Request')
 
-    const error = await getJson('/api/v1/crop').catch((e: unknown) => e)
+    const error = await getJson('/api/v1/limits').catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(ApiError)
     expect((error as ApiError).status).toBe(400)
-    expect((error as ApiError).message).toBe('rect must be left,top,width,height.')
+    expect((error as ApiError).message).toBe('crop must be left,top,width,height.')
   })
 
   it('falls back to the status line when the body is not JSON', async () => {
@@ -107,14 +107,14 @@ describe('postImage', () => {
     const progress: number[] = []
     const uploaded = vi.fn()
 
-    const response = await postImage('/api/v1/optimize?quality=high', image, {
+    const response = await postImage('/api/v1/transform?quality=high', image, {
       headers: { 'X-Api-Key': 'secret' },
       onUploadProgress: fraction => progress.push(fraction),
       onUploaded: uploaded,
     })
 
     expect(FakeXhr.last.method).toBe('POST')
-    expect(FakeXhr.last.url).toBe('/api/v1/optimize?quality=high')
+    expect(FakeXhr.last.url).toBe('/api/v1/transform?quality=high')
     expect(FakeXhr.last.requestHeaders).toEqual({ 'X-Api-Key': 'secret', 'Content-Type': 'image/jpeg' })
     expect(response.blob.type).toBe('image/webp')
     expect(response.header('x-image-mason-method')).toBe('cwebp-q79')
@@ -127,7 +127,7 @@ describe('postImage', () => {
     FakeXhr.next = { status: 200, headers: { 'Content-Type': 'image/jpeg' }, body: 'jpeg' }
     const uploaded = vi.fn()
 
-    await postImage('/api/v1/optimize?source=abc.jpg', null, { headers: { 'X-Api-Key': 'secret' }, onUploaded: uploaded })
+    await postImage('/api/v1/transform?source=abc.jpg', null, { headers: { 'X-Api-Key': 'secret' }, onUploaded: uploaded })
 
     expect(FakeXhr.last.sent).toBeNull()
     expect(FakeXhr.last.requestHeaders).toEqual({ 'X-Api-Key': 'secret' })
@@ -138,7 +138,7 @@ describe('postImage', () => {
     vi.stubGlobal('XMLHttpRequest', FakeXhr)
     FakeXhr.next = { status: 503, statusText: 'Service Unavailable', headers: { 'Retry-After': '30' }, body: '{"detail":"Out of memory."}' }
 
-    const error = await postImage('/api/v1/optimize', image).catch((e: unknown) => e)
+    const error = await postImage('/api/v1/transform', image).catch((e: unknown) => e)
 
     expect(error).toMatchObject({ name: 'ApiError', status: 503, retryAfter: 30, message: 'Out of memory.' })
   })
@@ -147,7 +147,7 @@ describe('postImage', () => {
     vi.stubGlobal('XMLHttpRequest', FakeXhr)
     FakeXhr.next = { status: 0, fail: true }
 
-    await expect(postImage('/api/v1/optimize', image)).rejects.toMatchObject({ status: 0 })
+    await expect(postImage('/api/v1/transform', image)).rejects.toMatchObject({ status: 0 })
   })
 
   it('aborts through the signal', async () => {
@@ -155,7 +155,7 @@ describe('postImage', () => {
     FakeXhr.next = { status: 200, hang: true }
     const controller = new AbortController()
 
-    const request = postImage('/api/v1/optimize', image, { signal: controller.signal })
+    const request = postImage('/api/v1/transform', image, { signal: controller.signal })
     controller.abort()
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' })
@@ -165,7 +165,7 @@ describe('postImage', () => {
     const controller = new AbortController()
     controller.abort()
 
-    await expect(postImage('/api/v1/optimize', image, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(postImage('/api/v1/transform', image, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
   })
 })
 
@@ -204,7 +204,7 @@ describe('readStats', () => {
     const headers: Record<string, string> = {
       'X-Image-Mason-Quality': 'high',
       'X-Image-Mason-Original-Size': '161713',
-      'X-Image-Mason-Optimized-Size': '129005',
+      'X-Image-Mason-Size': '129005',
       'X-Image-Mason-Original-Dimensions': '640x480',
       'X-Image-Mason-Dimensions': '320x240',
       'X-Image-Mason-Method': 'resize+jpegli-d1.063',

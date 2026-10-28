@@ -26,7 +26,7 @@ find "$dir" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*
         status=$(curl -sS -H "Expect:" -o "${out}/${mode}/${name}" -D "$headers" -w '%{http_code}' \
             -H "X-Api-Key: ${IMAGE_MASON_API_KEY:-}" \
             --data-binary "@${file}" \
-            "${url}/api/v1/optimize?quality=${mode}")
+            "${url}/api/v1/transform?quality=${mode}")
 
         if [[ "$status" != "200" ]]; then
             echo "${name},${mode},HTTP ${status}" >> "$csv"
@@ -34,7 +34,7 @@ find "$dir" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*
         fi
 
         original=$(header original-size)
-        optimized=$(header optimized-size)
+        optimized=$(header size)
         saved=$(awk -v a="$original" -v b="$optimized" 'BEGIN { printf "%.1f", (a - b) * 100 / a }')
         echo "${name},${mode},${original},${optimized},${saved},$(header method),$(header score),$(header duration-ms)" >> "$csv"
     done

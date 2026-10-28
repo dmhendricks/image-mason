@@ -4,16 +4,19 @@ using ImageMason.Imaging;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/upload: stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged and returns the same JSON as optimize?output=json.
+/// POST /api/v1/upload: stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged and returns the same JSON as transform?store=true.
 /// The file is served at /images/{name} until IMAGE_MASON_IMAGE_TTL_MINUTES, then deleted.
 /// </summary>
 internal static class UploadEndpoint
 {
-    public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, string? outputFilename, string? url)
+    /// <summary>The query parameters upload takes; see <see cref="QueryCheck"/>.</summary>
+    public static readonly string[] Parameters = ["url", "filename"];
+
+    public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, string? filename, string? url)
     {
         var (http, options, downloader, _, store, logger) = api;
 
-        if (!ApiRequest.TryParseOutputFilename(outputFilename, out var storedName, out var nameError))
+        if (!ApiRequest.TryParseFilename(filename, out var storedName, out var nameError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, nameError!);
 
         using var timeout = api.StartTimeout();
@@ -28,7 +31,7 @@ internal static class UploadEndpoint
                 return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
 
             if (storedName is not null && !storedName.EndsWith(format.Extension(), StringComparison.Ordinal))
-                return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"outputFilename must end in {format.Extension()}.");
+                return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"filename must end in {format.Extension()}.");
 
             var info = ImageOptimizer.ReadInfo(input, format, options.MaxPixels);
             var saved = await store.SaveAsync(input, format, storedName, timeout.Token);
@@ -41,7 +44,7 @@ internal static class UploadEndpoint
                 Output = outputUrl,
                 MimeType = format.ContentType(),
                 OriginalSize = input.LongLength,
-                CompressedSize = input.LongLength,
+                Size = input.LongLength,
                 SizeChangePercent = 0,
                 OriginalWidth = info.Width,
                 OriginalHeight = info.Height,

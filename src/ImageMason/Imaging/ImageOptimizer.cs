@@ -91,7 +91,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         var rect = request.Rect;
         if (rect is not null && !rect.FitsWithin(info.DisplayWidth, info.DisplayHeight))
             throw new CropOutsideImageException(string.Create(CultureInfo.InvariantCulture,
-                $"rect {rect} reaches past the image, which is {info.DisplayWidth}x{info.DisplayHeight} as displayed."));
+                $"crop {rect} reaches past the image, which is {info.DisplayWidth}x{info.DisplayHeight} as displayed."));
 
         // Resizing applies to the cropped area.
         var crop = rect is not null && !rect.Covers(info.DisplayWidth, info.DisplayHeight);

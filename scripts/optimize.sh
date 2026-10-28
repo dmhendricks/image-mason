@@ -19,7 +19,7 @@ trap 'rm -f "$headers"' EXIT
 status=$(curl -sS -o "$output" -D "$headers" -w '%{http_code}' \
     -H "X-Api-Key: ${IMAGE_MASON_API_KEY:-}" \
     --data-binary "@${input}" \
-    "${url}/api/v1/optimize?quality=${quality}${extra}")
+    "${url}/api/v1/transform?quality=${quality}${extra}")
 
 if [[ "$status" != "200" ]]; then
     echo "HTTP $status: $(cat "$output")" >&2

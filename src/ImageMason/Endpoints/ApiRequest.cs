@@ -66,10 +66,10 @@ internal static class ApiRequest
         }
     }
 
-    /// <summary>"format must be 'png', 'webp', 'jpeg', 'jxl' or 'avif'.", from the supported formats.</summary>
+    /// <summary>"format must be 'png', 'webp', 'jpeg', 'jxl', 'avif' or 'auto'.", from the supported formats.</summary>
     private static readonly string FormatError = "format must be "
-        + string.Join(", ", ImageFormatDetector.Supported.SkipLast(1).Select(format => $"'{format.Name()}'"))
-        + $" or '{ImageFormatDetector.Supported[^1].Name()}'.";
+        + string.Join(", ", ImageFormatDetector.Supported.Select(format => $"'{format.Name()}'"))
+        + " or 'auto'.";
 
     /// <summary>
     /// Parses the format parameter, or returns why it can't be used. Null keeps the input's format, unless
@@ -94,12 +94,12 @@ internal static class ApiRequest
         !string.IsNullOrEmpty(publicBaseUrl) ? publicBaseUrl : $"{request.Scheme}://{request.Host.Value}";
 
     /// <summary>Trims the requested stored name, or returns why it can't be used. Empty means "generate one".</summary>
-    public static bool TryParseOutputFilename(string? value, out string? name, out string? error)
+    public static bool TryParseFilename(string? value, out string? name, out string? error)
     {
         name = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         error = name is null || ImageStore.IsStoredName(name)
             ? null
-            : "outputFilename must be letters, digits, '_' or '-', then .jpg, .png, .webp, .avif or .jxl.";
+            : "filename must be letters, digits, '_' or '-', then .jpg, .png, .webp, .avif or .jxl.";
         return error is null;
     }
 

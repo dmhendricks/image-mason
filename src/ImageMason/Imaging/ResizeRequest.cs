@@ -30,8 +30,9 @@ public enum CropPosition
 /// <param name="Width">Box width; null leaves it free (contain only).</param>
 /// <param name="Height">Box height; null leaves it free (contain only).</param>
 /// <param name="Upscale">Enlarge images smaller than the box. Off by default; fill always reaches the exact size.</param>
+/// <param name="Position">For cover: which part of the image to keep.</param>
 public sealed record ResizeRequest(int? Width, int? Height, ResizeFit Fit = ResizeFit.Contain, bool Upscale = false,
-    CropPosition Crop = CropPosition.Center)
+    CropPosition Position = CropPosition.Center)
 {
     /// <summary>
     /// The size vipsthumbnail produces for an image displayed at <paramref name="width"/> x <paramref name="height"/>.
@@ -65,7 +66,7 @@ public sealed record ResizeRequest(int? Width, int? Height, ResizeFit Fit = Resi
             case ResizeFit.Fill:
                 return ["--size", box + "!"];
             case ResizeFit.Cover:
-                return ["--size", Upscale ? box : box + ">", "--smartcrop", Crop.ToString().ToLowerInvariant().Replace("center", "centre")];
+                return ["--size", Upscale ? box : box + ">", "--smartcrop", Position.ToString().ToLowerInvariant().Replace("center", "centre")];
             default:
                 return ["--size", Upscale ? box : box + ">"];
         }

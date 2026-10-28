@@ -30,7 +30,7 @@ describe('planJob', () => {
   it('optimizes with only the quality by default', () => {
     const plan = planJob('optimize', settings(), photo, null, limits)
 
-    expect(plan.path).toBe('/api/v1/optimize?quality=medium')
+    expect(plan.path).toBe('/api/v1/transform?quality=medium')
     expect(plan.output).toEqual({ width: 640, height: 480 })
     expect(plan.format).toBe('jpeg')
     expect(plan.errors).toEqual({})
@@ -65,8 +65,8 @@ describe('planJob', () => {
     expect(plan.errors.minScore).toBe('Enter a score from 0 to 100.')
   })
 
-  it('sends preferJpeg only when no format is chosen', () => {
-    expect(query(planJob('optimize', settings({ preferJpeg: true }), photo, null, limits).path)).toMatchObject({ preferJpeg: 'true' })
+  it('sends format=auto for PNG photos to JPEG, only when no format is chosen', () => {
+    expect(query(planJob('optimize', settings({ preferJpeg: true }), photo, null, limits).path)).toMatchObject({ format: 'auto' })
     expect(query(planJob('optimize', settings({ preferJpeg: true, format: 'webp' }), photo, null, limits).path))
       .toEqual({ quality: 'medium', format: 'webp' })
   })
@@ -76,7 +76,7 @@ describe('planJob', () => {
 
     expect(query(planJob('optimize', settings({ format: 'jpeg' }), photo, null, limits).path)).toEqual({ quality: 'medium' })
     expect(query(planJob('optimize', settings({ format: 'png', preferJpeg: true }), png, null, limits).path))
-      .toEqual({ quality: 'medium', preferJpeg: 'true' })
+      .toEqual({ quality: 'medium', format: 'auto' })
     expect(query(planJob('optimize', settings({ format: 'jpeg' }), png, null, limits).path))
       .toEqual({ quality: 'medium', format: 'jpeg' })
   })
@@ -105,7 +105,7 @@ describe('planJob', () => {
   it('resizes to a box with fit and focus', () => {
     const plan = planJob('resize', settings({ width: 300, height: 300, fit: 'cover', focus: 'attention' }), photo, null, limits)
 
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '300', height: '300', fit: 'cover', crop: 'attention' })
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '300', height: '300', fit: 'cover', position: 'attention' })
     expect(plan.output).toEqual({ width: 300, height: 300 })
     expect(plan.action).toBe('Resize to 300 × 300')
     expect(plan.label).toBe('Medium, 300 × 300')
@@ -132,7 +132,7 @@ describe('planJob', () => {
   it('crops to the rect, then applies the max width', () => {
     const plan = planJob('crop', settings({ maxWidth: 240 }), photo, { left: 80, top: 0, width: 480, height: 480 }, limits)
 
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '240', rect: '80,0,480,480' })
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '240', crop: '80,0,480,480' })
     expect(plan.output).toEqual({ width: 240, height: 240 })
     expect(plan.action).toBe('Crop to 240 × 240')
   })
@@ -170,7 +170,7 @@ describe('planJob', () => {
   it('plans without an image or limits', () => {
     const plan = planJob('resize', settings({ width: 300 }), null, null, null)
 
-    expect(plan.path).toBe('/api/v1/resize?quality=high&width=300')
+    expect(plan.path).toBe('/api/v1/transform?quality=high&width=300')
     expect(plan.output).toBeNull()
     expect(plan.action).toBe('Resize')
   })

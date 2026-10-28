@@ -3,7 +3,7 @@ using ImageMason.Imaging;
 
 namespace ImageMason.Storage;
 
-/// <summary>Images stored by output=json and upload, served from GET /images/{name} until they expire.</summary>
+/// <summary>Images stored by transform?store=true and upload, served from GET /images/{name} until they expire.</summary>
 public sealed class ImageStore
 {
     private readonly string _directory;
@@ -32,7 +32,7 @@ public sealed class ImageStore
             ? Guid.NewGuid().ToString("N") + format.Extension()
             : filename;
         if (!IsStoredName(name) || !name.EndsWith(format.Extension(), StringComparison.Ordinal))
-            throw new ArgumentException("outputFilename is not a stored image name.");
+            throw new ArgumentException("filename is not a stored image name.");
 
         var finalPath = Path.Combine(_directory, name);
         // Unique partial so two saves of the same filename do not share a temp file.

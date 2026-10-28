@@ -5,8 +5,8 @@ namespace ImageMason.Tests.Endpoints;
 
 public sealed class ResizeParametersTests
 {
-    private static ResizeParameters Box(int? width, int? height, string? fit, string? crop, bool? upscale) =>
-        new() { Width = width, Height = height, Fit = fit, Crop = crop, Upscale = upscale };
+    private static ResizeParameters Box(int? width, int? height, string? fit, string? position, bool? upscale) =>
+        new() { Width = width, Height = height, Fit = fit, Position = position, Upscale = upscale };
 
     [Fact]
     public void TryParse_NothingSent_HasNoBox()
@@ -32,17 +32,17 @@ public sealed class ResizeParametersTests
     [Theory]
     [InlineData(0, null, null, null, null, "width and height must be between 1 and 65535.")]
     [InlineData(null, 65536, null, null, null, "width and height must be between 1 and 65535.")]
-    [InlineData(null, null, "cover", null, null, "fit, crop and upscale need width, height or both.")]
-    [InlineData(null, null, null, "center", null, "fit, crop and upscale need width, height or both.")]
-    [InlineData(null, null, null, null, true, "fit, crop and upscale need width, height or both.")]
+    [InlineData(null, null, "cover", null, null, "fit, position and upscale need width, height or both.")]
+    [InlineData(null, null, null, "center", null, "fit, position and upscale need width, height or both.")]
+    [InlineData(null, null, null, null, true, "fit, position and upscale need width, height or both.")]
     [InlineData(800, 600, "stretch", null, null, "fit must be 'contain', 'cover' or 'fill'.")]
     [InlineData(800, null, "cover", null, null, "fit=cover needs both width and height.")]
     [InlineData(null, 600, "fill", null, null, "fit=fill needs both width and height.")]
-    [InlineData(800, 600, "cover", "faces", null, "crop must be 'center', 'attention' or 'entropy'.")]
-    [InlineData(800, 600, null, "attention", null, "crop is only used with fit=cover.")]
-    public void TryParse_Invalid(int? width, int? height, string? fit, string? crop, bool? upscale, string expected)
+    [InlineData(800, 600, "cover", "faces", null, "position must be 'center', 'attention' or 'entropy'.")]
+    [InlineData(800, 600, null, "attention", null, "position is only used with fit=cover.")]
+    public void TryParse_Invalid(int? width, int? height, string? fit, string? position, bool? upscale, string expected)
     {
-        Assert.False(Box(width, height, fit, crop, upscale).TryParse(out var resize, out var error));
+        Assert.False(Box(width, height, fit, position, upscale).TryParse(out var resize, out var error));
         Assert.Null(resize);
         Assert.Equal(expected, error);
     }

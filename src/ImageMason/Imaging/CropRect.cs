@@ -14,7 +14,7 @@ public sealed record CropRect(int Left, int Top, int Width, int Height)
     /// <summary>vips extract_area arguments, after the input and output: left top width height.</summary>
     public IEnumerable<string> VipsArguments() => [Format(Left), Format(Top), Format(Width), Format(Height)];
 
-    /// <summary>The rect parameter's form: left,top,width,height.</summary>
+    /// <summary>The crop parameter's form: left,top,width,height.</summary>
     public override string ToString() => $"{Format(Left)},{Format(Top)},{Format(Width)},{Format(Height)}";
 
     private static string Format(int value) => value.ToString(CultureInfo.InvariantCulture);

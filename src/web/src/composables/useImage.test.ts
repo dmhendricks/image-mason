@@ -19,7 +19,7 @@ vi.mock('../api/client', async importOriginal => ({
 const png = (name: string) =>
   new File([new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])], name, { type: 'image/png' })
 
-const plan = { path: '/api/v1/optimize?quality=high', output: null, format: null, errors: {}, action: 'Optimize', working: 'Optimizing', label: 'High' } satisfies JobPlan
+const plan = { path: '/api/v1/transform?quality=high', output: null, format: null, errors: {}, action: 'Optimize', working: 'Optimizing', label: 'High' } satisfies JobPlan
 
 /** A file of these bytes. */
 const bytes = (name: string, ...values: number[]) => new File([new Uint8Array(values)], name)
@@ -163,15 +163,15 @@ describe('useImage', () => {
     await images.open(png('photo.png'), 'photo.png')
 
     await images.run(plan)
-    await images.run({ ...plan, path: '/api/v1/optimize?quality=low', label: 'Low' })
+    await images.run({ ...plan, path: '/api/v1/transform?quality=low', label: 'Low' })
 
     expect(client.uploadImage).toHaveBeenCalledOnce()
     expect(client.uploadImage.mock.calls[0]![0]).toBe('/api/v1/upload')
     expect(client.postImage.mock.calls.map(([path, body]) => [path, body])).toEqual([
-      ['/api/v1/optimize?quality=high&source=stored-1.png', null],
-      ['/api/v1/optimize?quality=low&source=stored-1.png', null],
+      ['/api/v1/transform?quality=high&source=stored-1.png', null],
+      ['/api/v1/transform?quality=low&source=stored-1.png', null],
     ])
-    expect(images.results.value.map(r => r.path)).toEqual(['/api/v1/optimize?quality=high', '/api/v1/optimize?quality=low'])
+    expect(images.results.value.map(r => r.path)).toEqual(['/api/v1/transform?quality=high', '/api/v1/transform?quality=low'])
   })
 
   it('uploads again once when the stored copy has expired', async () => {
@@ -180,10 +180,10 @@ describe('useImage', () => {
     await images.run(plan)
     client.postImage.mockRejectedValueOnce(new ApiError('No stored image has that name.', 404))
 
-    await images.run({ ...plan, path: '/api/v1/optimize?quality=low', label: 'Low' })
+    await images.run({ ...plan, path: '/api/v1/transform?quality=low', label: 'Low' })
 
     expect(client.uploadImage).toHaveBeenCalledTimes(2)
-    expect(client.postImage.mock.calls.at(-1)![0]).toBe('/api/v1/optimize?quality=low&source=stored-2.png')
+    expect(client.postImage.mock.calls.at(-1)![0]).toBe('/api/v1/transform?quality=low&source=stored-2.png')
     expect(images.error.value).toBeNull()
     expect(images.results.value).toHaveLength(2)
   })
@@ -195,12 +195,12 @@ describe('useImage', () => {
     client.uploadImage.mockRejectedValueOnce(new ApiError('The server answered 500.', 500))
 
     await images.run(plan)
-    await images.run({ ...plan, path: '/api/v1/optimize?quality=low', label: 'Low' })
+    await images.run({ ...plan, path: '/api/v1/transform?quality=low', label: 'Low' })
 
     expect(client.uploadImage).toHaveBeenCalledOnce()
     expect(client.postImage.mock.calls.map(([path, body]) => [path, body])).toEqual([
-      ['/api/v1/optimize?quality=high', file],
-      ['/api/v1/optimize?quality=low', file],
+      ['/api/v1/transform?quality=high', file],
+      ['/api/v1/transform?quality=low', file],
     ])
   })
 
@@ -231,7 +231,7 @@ describe('useImage', () => {
     const images = await load()
     await images.open(png('photo.png'), 'photo.png')
     await images.run(plan)
-    await images.run({ ...plan, path: '/api/v1/optimize?quality=low', label: 'Low' })
+    await images.run({ ...plan, path: '/api/v1/transform?quality=low', label: 'Low' })
 
     expect(images.results.value.map(r => r.label)).toEqual(['High', 'Low'])
   })

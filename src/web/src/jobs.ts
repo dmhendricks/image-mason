@@ -1,5 +1,5 @@
 // Turns the current tool, settings and image into a request, the size it should produce, and anything the server
-// would reject, in plain words. The rules mirror ResizeParameters, RectParameter, OptimizeEndpoint and
+// would reject, in plain words. The rules mirror ResizeParameters, CropParameter, TransformEndpoint and
 // ImageOptimizer.CheckOutputSize and EstimateMemory, so a request the interface allows never comes back as a 400 or 422.
 // Once the job runs: its progress and what went wrong, in plain words too.
 
@@ -58,7 +58,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
   if (format !== null)
     query.set('format', format)
   if (tool === 'optimize' && format === null && settings.preferJpeg)
-    query.set('preferJpeg', 'true')
+    query.set('format', 'auto')
 
   // Resize takes a box; the other tools take a max width, sent as a width (it never enlarges).
   let sizing: Parameters<typeof resizeOutput>[0] | null = null
@@ -86,7 +86,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
     if (fit !== 'contain')
       query.set('fit', fit)
     if (fit === 'cover' && settings.focus !== 'center')
-      query.set('crop', settings.focus)
+      query.set('position', settings.focus)
     // Fill always reaches the exact size, so enlarging is implied.
     const upscale = settings.upscale && fit !== 'fill'
     if (upscale)
@@ -110,7 +110,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
     if (!whole || !rectFits(rect, image))
       errors.rect = `The area must lie inside the image, which is ${formatSize(image.width, image.height)}.`
     else {
-      query.set('rect', rectParameter(rect))
+      query.set('crop', rectParameter(rect))
       if (!rectCovers(rect, image)) {
         source = { width: rect.width, height: rect.height }
         cropped = true
@@ -135,7 +135,7 @@ export function planJob(tool: Tool, settings: Settings, image: SourceImage | nul
   }
 
   return {
-    path: `/api/v1/${tool}?${query}`,
+    path: `/api/v1/transform?${query}`,
     output,
     format: resultFormat,
     errors,

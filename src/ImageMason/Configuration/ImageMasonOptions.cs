@@ -141,6 +141,12 @@ public sealed class ImageMasonOptions
     /// <summary>Minimum level for this service's own log messages.</summary>
     public LogLevel LogLevel { get; init; } = LogLevel.Information;
 
+    /// <summary>
+    /// IMAGE_MASON_* variables that aren't settings, such as misspelled or removed ones. Logged at startup rather than
+    /// refused, so an outdated .env doesn't stop the container.
+    /// </summary>
+    public IReadOnlyList<string> UnknownSettings { get; init; } = [];
+
     /// <exception cref="InvalidSettingException">A variable is set to a value that can't be used.</exception>
     public static ImageMasonOptions Load(IConfiguration configuration)
     {
@@ -170,13 +176,33 @@ public sealed class ImageMasonOptions
             UrlAllowedExtensions = settings.Extensions("URL_ALLOWED_EXTENSIONS"),
             UiEnabled = settings.Bool("UI_ENABLED", defaults.UiEnabled),
             LogLevel = settings.Level("LOG_LEVEL", defaults.LogLevel),
+            // Last: every setting above has been read by now.
+            UnknownSettings = settings.Unknown(),
         };
     }
 
     private sealed class Reader(IConfiguration configuration)
     {
+        // Used by docker-compose.yml, and reaches the container through the same .env file.
+        private static readonly string[] NotSettings = ["TAG"];
+
+        private readonly HashSet<string> _read = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The IMAGE_MASON_* variables that are set but weren't read, sorted.</summary>
+        public string[] Unknown() =>
+        [
+            .. configuration.AsEnumerable()
+                .Select(pair => pair.Key)
+                .Where(key => key.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+                .Select(key => key[Prefix.Length..])
+                .Where(name => !_read.Contains(name) && !NotSettings.Contains(name, StringComparer.OrdinalIgnoreCase))
+                .Select(name => Prefix + name)
+                .Order(StringComparer.Ordinal)
+        ];
+
         public string? String(string name)
         {
+            _read.Add(name);
             var value = configuration[Prefix + name];
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }

@@ -2,7 +2,7 @@ using ImageMason.Imaging;
 
 namespace ImageMason.Endpoints;
 
-/// <summary>The width, height, fit, crop and upscale parameters shared by optimize and resize, bound with [AsParameters].</summary>
+/// <summary>transform's width, height, fit, position and upscale parameters, bound with [AsParameters].</summary>
 internal sealed record ResizeParameters
 {
     public const int MaxSide = 65535;
@@ -10,12 +10,12 @@ internal sealed record ResizeParameters
     public int? Width { get; init; }
     public int? Height { get; init; }
     public string? Fit { get; init; }
-    public string? Crop { get; init; }
+    public string? Position { get; init; }
     public bool? Upscale { get; init; }
 
     /// <summary>
     /// Builds the box to resize to, or returns why the parameters can't be used. With no width or height the
-    /// box is null, and fit, crop and upscale must not be sent.
+    /// box is null, and fit, position and upscale must not be sent.
     /// </summary>
     public bool TryParse(out ResizeRequest? resize, out string? error)
     {
@@ -26,17 +26,17 @@ internal sealed record ResizeParameters
             error = $"width and height must be between 1 and {MaxSide}.";
         else if (Width is null && Height is null)
         {
-            if (!string.IsNullOrWhiteSpace(Fit) || !string.IsNullOrWhiteSpace(Crop) || Upscale is not null)
-                error = "fit, crop and upscale need width, height or both.";
+            if (!string.IsNullOrWhiteSpace(Fit) || !string.IsNullOrWhiteSpace(Position) || Upscale is not null)
+                error = "fit, position and upscale need width, height or both.";
         }
         else if (!TryParseFit(Fit, out var resizeFit))
             error = "fit must be 'contain', 'cover' or 'fill'.";
         else if (resizeFit != ResizeFit.Contain && (Width is null || Height is null))
             error = $"fit={resizeFit.ToString().ToLowerInvariant()} needs both width and height.";
-        else if (!TryParseCrop(Crop, out var position))
-            error = "crop must be 'center', 'attention' or 'entropy'.";
-        else if (!string.IsNullOrWhiteSpace(Crop) && resizeFit != ResizeFit.Cover)
-            error = "crop is only used with fit=cover.";
+        else if (!TryParsePosition(Position, out var position))
+            error = "position must be 'center', 'attention' or 'entropy'.";
+        else if (!string.IsNullOrWhiteSpace(Position) && resizeFit != ResizeFit.Cover)
+            error = "position is only used with fit=cover.";
         else
             resize = new ResizeRequest(Width, Height, resizeFit, Upscale ?? false, position);
 
@@ -62,21 +62,21 @@ internal sealed record ResizeParameters
         }
     }
 
-    private static bool TryParseCrop(string? value, out CropPosition crop)
+    private static bool TryParsePosition(string? value, out CropPosition position)
     {
         switch (value?.Trim().ToLowerInvariant())
         {
             case null or "" or "center" or "centre":
-                crop = CropPosition.Center;
+                position = CropPosition.Center;
                 return true;
             case "attention":
-                crop = CropPosition.Attention;
+                position = CropPosition.Attention;
                 return true;
             case "entropy":
-                crop = CropPosition.Entropy;
+                position = CropPosition.Entropy;
                 return true;
             default:
-                crop = default;
+                position = default;
                 return false;
         }
     }

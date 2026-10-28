@@ -3,8 +3,8 @@ using ImageMason.Imaging;
 
 namespace ImageMason.Endpoints;
 
-/// <summary>The rect parameter shared by optimize, convert, resize and crop: left,top,width,height in display pixels.</summary>
-internal static class RectParameter
+/// <summary>transform's crop parameter: the area to keep, as left,top,width,height in display pixels.</summary>
+internal static class CropParameter
 {
     /// <summary>
     /// Parses the area to keep, or returns why it can't be used. Empty means no crop. Whether the area fits the
@@ -24,9 +24,9 @@ internal static class RectParameter
             valid = int.TryParse(parts[i].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out numbers[i]);
 
         if (!valid)
-            error ="rect must be left,top,width,height in whole pixels, such as 80,0,480,480.";
+            error = "crop must be left,top,width,height in whole pixels, such as 80,0,480,480.";
         else if (numbers[2] is < 1 or > ResizeParameters.MaxSide || numbers[3] is < 1 or > ResizeParameters.MaxSide)
-            error = $"rect's width and height must be between 1 and {ResizeParameters.MaxSide}.";
+            error = $"crop's width and height must be between 1 and {ResizeParameters.MaxSide}.";
         else
             rect = new CropRect(numbers[0], numbers[1], numbers[2], numbers[3]);
 

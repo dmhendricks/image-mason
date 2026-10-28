@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ImageMason.Endpoints;
 
-/// <summary>Returned by optimize?output=json and upload. Null properties are omitted.</summary>
+/// <summary>Returned by transform?store=true and upload. Null properties are omitted.</summary>
 public sealed class HostedImageResponse
 {
     /// <summary>URL of the stored result.</summary>
@@ -16,7 +16,7 @@ public sealed class HostedImageResponse
 
     public required string MimeType { get; init; }
     public required long OriginalSize { get; init; }
-    public required long CompressedSize { get; init; }
+    public required long Size { get; init; }
 
     /// <summary>Percent change from the original size: negative when the result is smaller, positive when larger.</summary>
     public required double SizeChangePercent { get; init; }
@@ -73,7 +73,7 @@ public sealed class ImageInfoResponse
     /// <summary>Whether the PNG looks like a photo with no transparency. Only for PNG within the pixel limit.</summary>
     public bool? IsPhoto { get; init; }
 
-    /// <summary>The image is within IMAGE_MASON_MAX_PIXELS, so optimize and convert accept it.</summary>
+    /// <summary>The image is within IMAGE_MASON_MAX_PIXELS, so transform accepts it.</summary>
     public required bool WithinPixelLimit { get; init; }
 
     /// <summary>Camera, date, exposure, author and GPS location from EXIF. Only when present (not read for AVIF yet).</summary>
@@ -103,7 +103,7 @@ public sealed record LimitsResponse(
     bool ApiKeyRequired,
     JobMemoryLimits JobMemory);
 
-/// <param name="Name">The value for convert and resize's format parameter.</param>
+/// <param name="Name">The value for transform's format parameter.</param>
 /// <param name="MaxSide">Largest width or height the format can store; null when only the pixel limit applies.</param>
 /// <param name="BytesPerPixel">Memory a lossless pass in this format needs per pixel; see <see cref="JobMemoryLimits"/>.</param>
 public sealed record FormatLimits(string Name, string MimeType, string Extension, int? MaxSide, long BytesPerPixel);

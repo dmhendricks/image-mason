@@ -88,14 +88,14 @@ logger.LogInformation("Memory for optimization jobs: {Budget} of {Limit} ({Sourc
     options.MemoryLimitBytes is null ? "detected" : ImageMasonOptions.Prefix + "MEMORY_LIMIT");
 if (string.IsNullOrEmpty(options.ApiKey))
     logger.LogWarning("{Setting} is not set; the API accepts unauthenticated requests", ImageMasonOptions.Prefix + "API_KEY");
-// Removed before 1.0; servers that set it would otherwise stop resizing without a word.
-if (!string.IsNullOrWhiteSpace(builder.Configuration[ImageMasonOptions.Prefix + "DEFAULT_MAX_WIDTH"]))
-    logger.LogWarning("{Setting} was removed and is ignored; requests are resized only when they send width or height",
-        ImageMasonOptions.Prefix + "DEFAULT_MAX_WIDTH");
+if (options.UnknownSettings.Count > 0)
+    logger.LogWarning("Ignoring {Settings}: not a setting. Check the spelling, or .env.sample for the current settings",
+        string.Join(", ", options.UnknownSettings));
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseApiKeyCheck(options.ApiKey);
+app.UseQueryCheck();
 app.UseRateLimiter();
 
 app.MapSite(options);

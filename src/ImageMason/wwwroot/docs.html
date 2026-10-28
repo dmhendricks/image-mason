@@ -34,6 +34,9 @@
       --flag: #d1236b;
       --code-bg: #1a1d21;
       --code-ink: #e3e6ea;
+      --get: #1a73c8;
+      --post: #13875a;
+      --delete: #d03030;
       --font: "Barlow", system-ui, sans-serif;
       --font-cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
       --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -51,6 +54,9 @@
         --rule: #2c3137;
         --flag: #ff5c9a;
         --code-bg: #0e1012;
+        --get: #61affe;
+        --post: #49cc90;
+        --delete: #f96060;
       }
     }
 
@@ -64,6 +70,9 @@
       --rule: #2c3137;
       --flag: #ff5c9a;
       --code-bg: #0e1012;
+      --get: #61affe;
+      --post: #49cc90;
+      --delete: #f96060;
     }
 
     * { box-sizing: border-box; }
@@ -220,23 +229,27 @@
       text-transform: uppercase;
     }
 
-    /* HTTP methods as pills in Swagger's hues, a shade deeper so the white text stays readable. */
+    /* HTTP methods as pills in Swagger's hues: a tint of the color, a stronger border, and text a shade darker (or
+       lighter, in the dark theme) so it stays readable. */
     .method {
+      --hue: #1a73c8;
       display: inline-block;
       min-width: 4.1rem;
       margin-right: 0.5rem;
-      padding: 0.1rem 0.45rem;
-      border-radius: var(--radius);
-      color: #fff;
-      font: 700 0.78rem/1.5 var(--font-cond);
-      letter-spacing: 0.04em;
+      padding: 0.05rem 0.45rem;
+      border: 1px solid color-mix(in srgb, var(--hue) 55%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--hue) 12%, transparent);
+      color: color-mix(in srgb, var(--hue) 75%, var(--ink));
+      font: 700 0.75rem/1.5 var(--font-cond);
+      letter-spacing: 0.05em;
       text-align: center;
       vertical-align: 0.05em;
     }
 
-    .method.get { background: #1a73c8; }
-    .method.post { background: #13875a; }
-    .method.delete { background: #d03030; }
+    .method.get { --hue: var(--get); }
+    .method.post { --hue: var(--post); }
+    .method.delete { --hue: var(--delete); }
 
     /* The pill and its path on one line; on phones, every pill above its path, so the rows match. */
     td:has(> .method) { white-space: nowrap; }

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-28
+
 ### Changed
 
 - **Breaking:** one job endpoint, `POST /api/v1/transform`, replaces `optimize`, `convert`, `resize` and `crop`. It takes the parameters they shared, and every result is still optimized.
@@ -28,8 +30,8 @@
 
 ### Removed
 
-- `maxWidth`: send `width` instead, which also shrinks wider images and never enlarges smaller ones.
-- `IMAGE_MASON_DEFAULT_MAX_WIDTH`: results are resized only when a request sends `width` or `height`. `GET /api/v1/limits` no longer reports `defaultMaxWidth`.
+- **Breaking:** `maxWidth`: send `width` instead, which also shrinks wider images and never enlarges smaller ones.
+- **Breaking:** `IMAGE_MASON_DEFAULT_MAX_WIDTH`: results are resized only when a request sends `width` or `height`. `GET /api/v1/limits` no longer reports `defaultMaxWidth`.
 
 ### Fixed
 
@@ -115,7 +117,8 @@
 - Memory admission control that sizes each job before it starts, so large images wait or are rejected instead of running the container out of memory.
 - Errors returned as RFC 9457 Problem Details.
 
-[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/dmhendricks/image-mason/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/dmhendricks/image-mason/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dmhendricks/image-mason/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/dmhendricks/image-mason/compare/v0.1.0...v0.2.0

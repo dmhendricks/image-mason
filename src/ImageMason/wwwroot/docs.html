@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Image Mason</title>
-  <meta name="description" content="Self-hosted API to optimize, convert and temporarily host JPEG, PNG, WebP, AVIF and JPEG XL images.">
+  <meta name="description" content="Self-hosted API to optimize, convert, resize, crop and temporarily host JPEG, PNG, WebP, AVIF and JPEG XL images.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -403,18 +403,18 @@
       </div>
     </header>
 
-    <p class="lede">Send a JPEG, PNG, WebP, AVIF or JPEG XL and get a smaller one back, in the same format or another. Lossy results are held to a perceptual quality score, so a preset describes how the image looks, not an encoder setting.</p>
+    <p class="lede">A self-hosted API that optimizes, converts, resizes and crops JPEG, PNG, WebP, AVIF and JPEG XL images, and can host the results at temporary URLs. Every lossy result is the smallest file that meets a perceptual quality target (SSIMULACRA2), so a preset describes how the image looks, not an encoder setting.</p>
 
     <nav class="toc" aria-label="On this page">
-      <a href="#start">Quick start</a>
+      <a href="#start">Quick Start</a>
       <a href="#features">Features</a>
       <a href="#parameters">Parameters</a>
-      <a href="#response">Response</a>
+      <a href="#headers">Response Headers</a>
       <a href="#endpoints">Endpoints</a>
     </nav>
 
     <section id="start">
-      <h2>Quick start</h2>
+      <h2>Quick Start</h2>
       <pre class="cmd"><span class="prompt">$ </span>curl -sS --data-binary @photo.jpg -o photo.min.jpg \
     {{origin}}/api/v1/transform</pre>
       <pre class="cmd"><span class="prompt">$ </span>curl -sS -G --data-urlencode "url=https://example.com/photo.jpg" \
@@ -542,7 +542,9 @@
             <tr><td><code>?source=f100579f….jpg</code></td><td>Start from a stored image instead of a body</td></tr>
           </tbody>
         </table>
-        <p class="note">Stored images are served at <code>/images/{name}</code> for {{ttlMinutes}} minutes, to anyone with the URL. <code>POST /api/v1/upload</code> stores an image unchanged, so several jobs can use it as <code>source</code> without sending it again.</p>
+        <p class="note">Stored images are served at <code>/images/{name}</code> to anyone with the URL, then deleted when they expire: after {{ttlMinutes}} minutes on this server, at the time in <code>expiresAt</code>.</p>
+        <p class="note">The server's <code>IMAGE_MASON_IMAGE_TTL_MINUTES</code> sets how long, and when storage reaches <code>IMAGE_MASON_MAX_STORE_SIZE</code>, the oldest go first.</p>
+        <p class="note"><code>POST /api/v1/upload</code> stores an image unchanged, so several jobs can use it as <code>source</code> without sending it again.</p>
       </section>
     </section>
 
@@ -568,15 +570,22 @@
       <p class="note">Parameters the server doesn't know get 400, so a typo never goes unnoticed.</p>
     </section>
 
-    <section id="response">
-      <h2>Response</h2>
-      <p class="note lead">The image, with its statistics in headers (or as JSON, with <code>store=true</code>):</p>
+    <section id="headers">
+      <h2>Response Headers</h2>
+      <p class="note lead">The image comes back with these headers. With <code>store=true</code>, the JSON has the same values.</p>
       <table class="params">
         <tbody>
-          <tr><td><code>X-Image-Mason-Size</code></td><td>Bytes, with <code>-Original-Size</code> and <code>-Size-Change-Percent</code></td></tr>
-          <tr><td><code>X-Image-Mason-Dimensions</code></td><td>Width x height, with <code>-Original-Dimensions</code></td></tr>
-          <tr><td><code>X-Image-Mason-Score</code></td><td>The result's score, with <code>-Min-Score</code> and <code>-Quality</code></td></tr>
-          <tr><td><code>X-Image-Mason-Method</code></td><td>How it was made, such as <code>resize+cwebp-q93</code></td></tr>
+          <tr><td><code>X-Image-Mason-Quality</code></td><td>The preset used</td></tr>
+          <tr><td><code>X-Image-Mason-Original-Size</code></td><td>Input size in bytes</td></tr>
+          <tr><td><code>X-Image-Mason-Size</code></td><td>Output size in bytes</td></tr>
+          <tr><td><code>X-Image-Mason-Size-Change-Percent</code></td><td>Change from the input size; negative is smaller</td></tr>
+          <tr><td><code>X-Image-Mason-Original-Dimensions</code></td><td>Input width x height</td></tr>
+          <tr><td><code>X-Image-Mason-Dimensions</code></td><td>Output width x height</td></tr>
+          <tr><td><code>X-Image-Mason-Method</code></td><td>How it was made, such as <code>jpegli-d1.15</code> or <code>crop+resize+cwebp-q93</code></td></tr>
+          <tr><td><code>X-Image-Mason-Score</code></td><td>SSIMULACRA2 score of a lossy result</td></tr>
+          <tr><td><code>X-Image-Mason-Min-Score</code></td><td>The floor the result had to meet</td></tr>
+          <tr><td><code>X-Image-Mason-Is-Photo</code></td><td>For PNG inputs: whether it looks like a photo with no transparency</td></tr>
+          <tr><td><code>X-Image-Mason-Duration-Ms</code></td><td>Processing time</td></tr>
         </tbody>
       </table>
     </section>

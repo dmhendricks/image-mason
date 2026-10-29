@@ -99,13 +99,13 @@ describe('planJob', () => {
   it('enlarges when the typed side is larger', () => {
     const plan = planJob(settings({ resize: true, width: 1280 }), photo, null, limits)
 
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '1280', upscale: 'true' })
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '1280' })
     expect(plan.output).toEqual({ width: 1280, height: 960 })
   })
 
   it('stretches to both sides when the shape isn\'t kept', () => {
     const plan = planJob(settings({ resize: true, lock: false, width: 300, height: 200 }), photo, null, limits)
-    expect(query(plan.path)).toEqual({ quality: 'medium', width: '300', height: '200', fit: 'fill' })
+    expect(query(plan.path)).toEqual({ quality: 'medium', width: '300', height: '200' })
     expect(plan.output).toEqual({ width: 300, height: 200 })
 
     expect(planJob(settings({ resize: true, lock: false, width: 300 }), photo, null, limits).output).toEqual({ width: 300, height: 480 })

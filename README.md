@@ -114,16 +114,20 @@ The result is optimized the same way: the smallest encoding that meets the quali
 
 ### Resize an Image
 
-Add `width`, `height` or both. On its own, `width` shrinks wider images and leaves narrower ones as they are:
+Add `width`, `height` or both. On its own, `width` sets the width and the height follows. Add `upscale=false` to only shrink:
 
 ```bash
-# At most 1200 wide
+# 1200 wide
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo-1200.jpg \
   "http://localhost:8080/api/v1/transform?width=1200"
 
+# At most 1200 wide: smaller images are left as they are
+curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo-max-1200.jpg \
+  "http://localhost:8080/api/v1/transform?width=1200&upscale=false"
+
 # Fit inside 1200x800, keeping the aspect ratio
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o photo-1200x800.jpg \
-  "http://localhost:8080/api/v1/transform?width=1200&height=800"
+  "http://localhost:8080/api/v1/transform?width=1200&height=800&fit=contain"
 
 # A 400x400 square thumbnail as WebP, cropped to the most interesting area
 curl -sS -H "X-Api-Key: change-me" --data-binary @photo.jpg -o thumb.webp \
@@ -239,11 +243,11 @@ Optimizes the image, after cropping, resizing and converting it when asked. The 
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
 | `format` | the input's | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl` to convert. `auto`: JPEG when the input is a PNG photo with no transparency, otherwise the input's format. |
 | `crop` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
-| `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied). On its own, it downscales wider images and leaves narrower ones as they are. |
+| `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied). |
 | `height` | | Resize to a box this high, 1 to 65535. Send `width`, `height` or both; a missing side follows the aspect ratio. |
-| `fit` | `contain` | `contain`: fit inside the box, keeping the aspect ratio (either side may be left out). `cover`: fill the box and crop what overflows. `fill`: stretch to exactly the box. `cover` and `fill` need both sides. |
+| `fit` | `fill` | How to reach a `width` and `height` sent together. `fill`: exactly that size, stretching if the shape differs. `contain`: fit inside the box, keeping the aspect ratio. `cover`: fill the box, keeping the aspect ratio, and crop what overflows. |
 | `position` | `center` | For `fit=cover`: which part to keep. `center`, `attention` (the most interesting area: faces, saturated colors and edges) or `entropy` (the most detail). |
-| `upscale` | `false` | Enlarge images smaller than the box. Without it, `contain` leaves them as they are and `cover` only crops. `fill` always reaches the exact size. |
+| `upscale` | `true` | Enlarge images smaller than the box. `false` only shrinks: `width` or `height` alone and `contain` leave smaller images as they are, and `cover` only crops. `fill` always reaches the exact size. |
 | `url` | | Download the image from this URL instead of reading the body |
 | `source` | | Use a stored image instead of reading the body: the name from `upload` (the last part of its `output` URL), such as `3f2a….jpg`. Send it once with `upload`, then run several jobs on it without sending it again. 404 once it has expired. |
 | `store` | `false` | `true` stores the result and returns its URL and statistics as JSON |

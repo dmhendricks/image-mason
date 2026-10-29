@@ -17,11 +17,12 @@ public sealed class ResizeParametersTests
     }
 
     [Theory]
-    [InlineData(800, null, null, null, null, 800, null, ResizeFit.Contain, false, CropPosition.Center)]
-    [InlineData(null, 600, null, null, null, null, 600, ResizeFit.Contain, false, CropPosition.Center)]
-    [InlineData(800, 600, null, null, null, 800, 600, ResizeFit.Contain, false, CropPosition.Center)]
+    [InlineData(800, null, null, null, null, 800, null, ResizeFit.Contain, true, CropPosition.Center)]
+    [InlineData(null, 600, null, null, false, null, 600, ResizeFit.Contain, false, CropPosition.Center)]
+    [InlineData(800, 600, null, null, null, 800, 600, ResizeFit.Fill, true, CropPosition.Center)]
+    [InlineData(800, 600, "contain", null, null, 800, 600, ResizeFit.Contain, true, CropPosition.Center)]
     [InlineData(800, 600, "Cover", " attention ", true, 800, 600, ResizeFit.Cover, true, CropPosition.Attention)]
-    [InlineData(800, 600, "fill", null, null, 800, 600, ResizeFit.Fill, false, CropPosition.Center)]
+    [InlineData(800, 600, "fill", null, null, 800, 600, ResizeFit.Fill, true, CropPosition.Center)]
     public void TryParse_ValidBox(int? width, int? height, string? fit, string? crop, bool? upscale,
         int? expectedWidth, int? expectedHeight, ResizeFit expectedFit, bool expectedUpscale, CropPosition expectedCrop)
     {
@@ -36,10 +37,13 @@ public sealed class ResizeParametersTests
     [InlineData(null, null, null, "center", null, "fit, position and upscale need width, height or both.")]
     [InlineData(null, null, null, null, true, "fit, position and upscale need width, height or both.")]
     [InlineData(800, 600, "stretch", null, null, "fit must be 'contain', 'cover' or 'fill'.")]
-    [InlineData(800, null, "cover", null, null, "fit=cover needs both width and height.")]
-    [InlineData(null, 600, "fill", null, null, "fit=fill needs both width and height.")]
+    [InlineData(800, null, "contain", null, null, "fit needs both width and height.")]
+    [InlineData(800, null, "cover", null, null, "fit needs both width and height.")]
+    [InlineData(null, 600, "fill", null, null, "fit needs both width and height.")]
     [InlineData(800, 600, "cover", "faces", null, "position must be 'center', 'attention' or 'entropy'.")]
     [InlineData(800, 600, null, "attention", null, "position is only used with fit=cover.")]
+    [InlineData(800, 600, "contain", "attention", null, "position is only used with fit=cover.")]
+    [InlineData(800, null, null, "attention", null, "position is only used with fit=cover.")]
     public void TryParse_Invalid(int? width, int? height, string? fit, string? position, bool? upscale, string expected)
     {
         Assert.False(Box(width, height, fit, position, upscale).TryParse(out var resize, out var error));

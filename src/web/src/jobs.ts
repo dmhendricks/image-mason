@@ -88,8 +88,8 @@ export function planJob(settings: Settings, image: SourceImage | null, rect: Rec
     }
   }
 
-  // Locked: the typed side, which the server scales the other to (enlarging only when it's larger). Unlocked: both,
-  // stretched. Nothing when the size is the source's own.
+  // Locked: the typed side, which the server scales the other to. Unlocked: both, which it stretches to. Nothing
+  // when the size is the source's own.
   let output = source
   if (settings.resize) {
     for (const side of ['width', 'height'] as const) {
@@ -101,12 +101,9 @@ export function planJob(settings: Settings, image: SourceImage | null, rect: Rec
       if (settings.lock) {
         const side = settings.width !== null ? 'width' : 'height'
         query.set(side, String(output[side]))
-        if (output.width > source.width)
-          query.set('upscale', 'true')
       } else {
         query.set('width', String(output.width))
         query.set('height', String(output.height))
-        query.set('fit', 'fill')
       }
     }
   }

@@ -15,7 +15,9 @@ internal sealed record ResizeParameters
 
     /// <summary>
     /// Builds the box to resize to, or returns why the parameters can't be used. With no width or height the
-    /// box is null, and fit, position and upscale must not be sent.
+    /// box is null, and fit, position and upscale must not be sent. With one side the other follows the aspect
+    /// ratio; fit is for both, and defaults to fill. Smaller images are enlarged unless upscale=false, so by default
+    /// the result is the size asked for.
     /// </summary>
     public bool TryParse(out ResizeRequest? resize, out string? error)
     {
@@ -29,25 +31,32 @@ internal sealed record ResizeParameters
             if (!string.IsNullOrWhiteSpace(Fit) || !string.IsNullOrWhiteSpace(Position) || Upscale is not null)
                 error = "fit, position and upscale need width, height or both.";
         }
-        else if (!TryParseFit(Fit, out var resizeFit))
+        else if (!TryParseFit(Fit, out var fit))
             error = "fit must be 'contain', 'cover' or 'fill'.";
-        else if (resizeFit != ResizeFit.Contain && (Width is null || Height is null))
-            error = $"fit={resizeFit.ToString().ToLowerInvariant()} needs both width and height.";
+        else if (fit is not null && (Width is null || Height is null))
+            error = "fit needs both width and height.";
         else if (!TryParsePosition(Position, out var position))
             error = "position must be 'center', 'attention' or 'entropy'.";
-        else if (!string.IsNullOrWhiteSpace(Position) && resizeFit != ResizeFit.Cover)
-            error = "position is only used with fit=cover.";
         else
-            resize = new ResizeRequest(Width, Height, resizeFit, Upscale ?? false, position);
+        {
+            var resizeFit = fit ?? (Width is null || Height is null ? ResizeFit.Contain : ResizeFit.Fill);
+            if (!string.IsNullOrWhiteSpace(Position) && resizeFit != ResizeFit.Cover)
+                error = "position is only used with fit=cover.";
+            else
+                resize = new ResizeRequest(Width, Height, resizeFit, Upscale ?? true, position);
+        }
 
         return error is null;
     }
 
-    private static bool TryParseFit(string? value, out ResizeFit fit)
+    private static bool TryParseFit(string? value, out ResizeFit? fit)
     {
         switch (value?.Trim().ToLowerInvariant())
         {
-            case null or "" or "contain":
+            case null or "":
+                fit = null;
+                return true;
+            case "contain":
                 fit = ResizeFit.Contain;
                 return true;
             case "cover":
@@ -57,7 +66,7 @@ internal sealed record ResizeParameters
                 fit = ResizeFit.Fill;
                 return true;
             default:
-                fit = default;
+                fit = null;
                 return false;
         }
     }

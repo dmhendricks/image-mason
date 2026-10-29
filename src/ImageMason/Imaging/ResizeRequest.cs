@@ -29,9 +29,9 @@ public enum CropPosition
 /// <summary>A target box in display pixels (after the orientation is applied).</summary>
 /// <param name="Width">Box width; null leaves it free (contain only).</param>
 /// <param name="Height">Box height; null leaves it free (contain only).</param>
-/// <param name="Upscale">Enlarge images smaller than the box. Off by default; fill always reaches the exact size.</param>
+/// <param name="Upscale">Enlarge images smaller than the box. On by default; fill always reaches the exact size.</param>
 /// <param name="Position">For cover: which part of the image to keep.</param>
-public sealed record ResizeRequest(int? Width, int? Height, ResizeFit Fit = ResizeFit.Contain, bool Upscale = false,
+public sealed record ResizeRequest(int? Width, int? Height, ResizeFit Fit = ResizeFit.Contain, bool Upscale = true,
     CropPosition Position = CropPosition.Center)
 {
     /// <summary>

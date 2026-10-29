@@ -257,8 +257,10 @@ check "resize to a height, as AVIF, is 200" [ "$code" = 200 ]
 check "  returns an AVIF" [ "$(header resizeconvert content-type)" = image/avif ]
 check "  scales to 100 high" ends_with "$(header resizeconvert x-image-mason-dimensions)" x100
 
-code=$(request resizenoupscale "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/transform?width=2000")
-check "resize never enlarges unless upscale=true" [ "$(header resizenoupscale x-image-mason-dimensions)" = 640x427 ]
+code=$(request resizeupscale "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/transform?width=960")
+check "resize enlarges to the width asked for" [ "$(header resizeupscale x-image-mason-dimensions)" = 960x641 ]
+code=$(request resizenoupscale "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/transform?width=2000&upscale=false")
+check "resize with upscale=false never enlarges" [ "$(header resizenoupscale x-image-mason-dimensions)" = 640x427 ]
 
 code=$(request resizebad "${auth[@]}" --data-binary @"$fixtures/photo.jpg" "$api/transform?width=200&fit=cover")
 check "fit=cover without a height is 400" [ "$code" = 400 ]

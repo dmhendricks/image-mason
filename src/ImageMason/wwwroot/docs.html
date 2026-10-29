@@ -34,6 +34,9 @@
       --flag: #d1236b;
       --code-bg: #1a1d21;
       --code-ink: #e3e6ea;
+      --code-muted: #8f98a3;
+      --out-bg: #24282d;
+      --ok: #49cc90;
       --get: #1a73c8;
       --post: #13875a;
       --delete: #d03030;
@@ -54,6 +57,7 @@
         --rule: #2c3137;
         --flag: #ff5c9a;
         --code-bg: #0e1012;
+        --out-bg: #16191c;
         --get: #61affe;
         --post: #49cc90;
         --delete: #f96060;
@@ -70,6 +74,7 @@
       --rule: #2c3137;
       --flag: #ff5c9a;
       --code-bg: #0e1012;
+      --out-bg: #16191c;
       --get: #61affe;
       --post: #49cc90;
       --delete: #f96060;
@@ -159,12 +164,21 @@
       font-size: 1.08rem;
     }
 
-    section { margin-top: 2.5rem; }
+    section { margin-top: 3rem; }
+    section section { margin-top: 2rem; }
+    h2 + section { margin-top: 0; }
 
     h2 {
+      margin: 0 0 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--rule);
+      font: 700 1.6rem/1.2 var(--font-cond);
+    }
+
+    h3 {
       margin: 0 0 0.8rem;
       color: var(--muted);
-      font: 600 0.8rem var(--font-cond);
+      font: 600 1rem var(--font-cond);
       letter-spacing: 0.1em;
       text-transform: uppercase;
     }
@@ -184,6 +198,12 @@
     }
 
     pre + pre { margin-top: 0.65rem; }
+
+    /* Commands start with a pink prompt that selecting doesn't copy; output has a plain edge and a status line. */
+    .cmd .prompt { color: var(--flag); user-select: none; }
+    pre.out { background: var(--out-bg); border-left-color: var(--rule); }
+    .out .status { display: block; margin-bottom: 0.35rem; color: var(--code-muted); user-select: none; }
+    .out .status b { color: var(--ok); }
 
     code {
       font-family: var(--mono);
@@ -259,6 +279,63 @@
       .method { display: block; width: fit-content; margin: 0 0 0.3rem; }
     }
 
+    /* Links to the sections, under the lede. */
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
+      margin-top: 1.25rem;
+      font-size: 0.93rem;
+    }
+
+    .toc a { color: var(--muted); }
+    .toc a:hover { color: var(--flag); }
+
+    section { scroll-margin-top: 1.5rem; }
+
+    pre + table, table + table, pre + .fits, .note + table { margin-top: 0.65rem; }
+    .note.lead { margin-top: 0; }
+
+    /* Query strings and what they do; long ones wrap anywhere rather than widen the page. */
+    .recipes td:first-child, .params td:first-child { width: 1%; }
+    .recipes td:first-child code, .params td:first-child { white-space: nowrap; }
+    .recipes td:last-child { color: var(--muted); }
+    .recipes td, .params td { font-size: 0.93rem; }
+
+    /* On phones, each row's two cells stack. */
+    @media (max-width: 575.98px) {
+      .recipes td:first-child, .params td:first-child { width: auto; }
+      .params td:first-child { white-space: normal; }
+      .recipes td:first-child code, .params td:first-child code { white-space: normal; word-break: break-all; }
+      .recipes tr, .recipes td, .params tr, .params td { display: block; }
+      .recipes td:first-child, .params td:first-child { padding-bottom: 0; border-bottom: 0; }
+      .recipes tr:not(:last-child) td:last-child, .params tr:not(:last-child) td:last-child { border-bottom: 1px solid var(--rule); }
+    }
+
+    /* The three fits, drawn: a landscape photo sent with a portrait width and height (the dashed box). */
+    .fits {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.65rem;
+    }
+
+    .fits figure {
+      margin: 0;
+      padding: 0.5rem 0.5rem 0.75rem;
+      background: var(--panel);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      text-align: center;
+    }
+
+    .fits svg { display: block; width: 100%; max-width: 8rem; margin: 0 auto; }
+    .fits .overflow { opacity: 0.22; }
+    .fits .box { fill: none; stroke: var(--flag); stroke-width: 1.5; stroke-dasharray: 4 3; }
+
+    .fits figcaption { font-size: 0.85rem; line-height: 1.35; }
+    .fits figcaption span { display: block; margin-top: 0.15rem; color: var(--muted); }
+
     footer {
       display: flex;
       flex-wrap: wrap;
@@ -328,60 +405,183 @@
 
     <p class="lede">Send a JPEG, PNG, WebP, AVIF or JPEG XL and get a smaller one back, in the same format or another. Lossy results are held to a perceptual quality score, so a preset describes how the image looks, not an encoder setting.</p>
 
-    <section>
-      <h2>Optimize</h2>
-      <pre>curl -sS --data-binary @photo.jpg -o photo.min.jpg \
-  {{origin}}/api/v1/transform</pre>
-      <pre>curl -sS -G --data-urlencode "url=https://example.com/photo.jpg" \
-  -o photo.min.jpg {{origin}}/api/v1/transform</pre>
-      <p class="note">Every job goes to <code>transform</code>. The body is the raw image, or <code>url</code> names one to download. With no other parameters, the result is the same image, optimized, with its statistics in <code>X-Image-Mason-*</code> headers. When the server has an API key, send it in the <code>X-Api-Key</code> header.</p>
+    <nav class="toc" aria-label="On this page">
+      <a href="#start">Quick start</a>
+      <a href="#features">Features</a>
+      <a href="#parameters">Parameters</a>
+      <a href="#response">Response</a>
+      <a href="#endpoints">Endpoints</a>
+    </nav>
+
+    <section id="start">
+      <h2>Quick start</h2>
+      <pre class="cmd"><span class="prompt">$ </span>curl -sS --data-binary @photo.jpg -o photo.min.jpg \
+    {{origin}}/api/v1/transform</pre>
+      <pre class="cmd"><span class="prompt">$ </span>curl -sS -G --data-urlencode "url=https://example.com/photo.jpg" \
+    -o photo.min.jpg {{origin}}/api/v1/transform</pre>
+      <p class="note">Every job is a <code>POST</code> to <code>transform</code>, with the image as the body or named by <code>url</code>. With no parameters, you get the same image back, optimized. Add parameters to resize, crop or convert it in the same call. If the server has an API key, send it in the <code>X-Api-Key</code> header.</p>
     </section>
 
-    <section>
-      <h2>Convert</h2>
-      <pre>curl -sS --data-binary @photo.jpg -o photo.webp \
-  "{{origin}}/api/v1/transform?format=webp"</pre>
-      <p class="note"><code>format</code> is <code>jpeg</code>, <code>png</code>, <code>webp</code>, <code>avif</code> or <code>jxl</code>, or <code>auto</code> to turn a PNG that's really a photo into a JPEG.</p>
+    <section id="features">
+      <h2>Features</h2>
+
+      <section id="convert">
+        <h3>Convert</h3>
+        <pre class="cmd"><span class="prompt">$ </span>curl -sS --data-binary @photo.jpg -o photo.webp \
+    "{{origin}}/api/v1/transform?format=webp"</pre>
+        <table class="recipes">
+          <tbody>
+            <tr><td><code>?format=avif</code></td><td>AVIF; also <code>jpeg</code> (or <code>jpg</code>), <code>png</code>, <code>webp</code> and <code>jxl</code></td></tr>
+            <tr><td><code>?format=auto</code></td><td>JPEG if the input is a PNG photo with no transparency; otherwise unchanged</td></tr>
+            <tr><td><code>?format=webp&amp;width=800</code></td><td>WebP, 800 wide</td></tr>
+          </tbody>
+        </table>
+        <p class="note">The result is still optimized: the smallest file that meets the quality preset.</p>
+      </section>
+
+      <section id="resize">
+        <h3>Resize</h3>
+        <pre class="cmd"><span class="prompt">$ </span>curl -sS --data-binary @photo.jpg -o photo-1200.jpg \
+    "{{origin}}/api/v1/transform?width=1200"</pre>
+        <table class="recipes">
+          <tbody>
+            <tr><td><code>?width=1200</code></td><td>1200 wide</td></tr>
+            <tr><td><code>?height=600</code></td><td>600 high</td></tr>
+            <tr><td><code>?width=300&amp;height=700</code></td><td>Exactly 300 × 700</td></tr>
+            <tr><td><code>?width=1200&amp;height=1200&amp;fit=contain</code></td><td>Within 1200 × 1200</td></tr>
+            <tr><td><code>?width=400&amp;height=400&amp;fit=cover</code></td><td>400 × 400, edges cropped</td></tr>
+            <tr><td><code>?width=400&amp;height=400&amp;fit=cover&amp;position=attention</code></td><td>Keeping the most interesting part</td></tr>
+            <tr><td><code>?width=1200&amp;upscale=false</code></td><td>At most 1200 wide</td></tr>
+          </tbody>
+        </table>
+        <p class="note">With one side, the other follows the image's shape. With both, <code>fit</code> decides how a landscape photo reaches a portrait size (the dashed box):</p>
+        <div class="fits">
+          <figure>
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <defs>
+                <g id="photo"><rect fill="#8cc4ef" width="90" height="60" /><circle fill="#f5c542" cx="66" cy="18" r="8" /><polygon fill="#3d8a5f" points="0,60 0,44 26,24 44,40 60,30 90,52 90,60" /></g>
+                <clipPath id="cover-box"><rect x="30" y="15" width="60" height="90" /></clipPath>
+              </defs>
+              <use href="#photo" transform="translate(30 15) scale(0.6667 1.5)" />
+              <rect class="box" x="30" y="15" width="60" height="90" />
+            </svg>
+            <figcaption><code>fill</code><span>The default: that size, stretched</span></figcaption>
+          </figure>
+          <figure>
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <use href="#photo" transform="translate(30 40) scale(0.6667)" />
+              <rect class="box" x="30" y="15" width="60" height="90" />
+            </svg>
+            <figcaption><code>contain</code><span>Fits inside, shape kept</span></figcaption>
+          </figure>
+          <figure>
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <use class="overflow" href="#photo" transform="translate(-7.5 15) scale(1.5)" />
+              <g clip-path="url(#cover-box)"><use href="#photo" transform="translate(-7.5 15) scale(1.5)" /></g>
+              <rect class="box" x="30" y="15" width="60" height="90" />
+            </svg>
+            <figcaption><code>cover</code><span>Fills it, edges cropped</span></figcaption>
+          </figure>
+        </div>
+        <p class="note">Smaller images are enlarged to the size asked for. Add <code>upscale=false</code> to only shrink them.</p>
+      </section>
+
+      <section id="crop">
+        <h3>Crop</h3>
+        <pre class="cmd"><span class="prompt">$ </span>curl -sS --data-binary @photo.jpg -o square.jpg \
+    "{{origin}}/api/v1/transform?crop=80,0,480,480"</pre>
+        <table class="recipes">
+          <tbody>
+            <tr><td><code>?crop=80,0,480,480</code></td><td>The 480 × 480 square 80 pixels from the left</td></tr>
+            <tr><td><code>?crop=80,0,480,480&amp;width=200</code></td><td>That square, resized to 200 × 200</td></tr>
+            <tr><td><code>?crop=0,0,1200,630&amp;format=webp</code></td><td>The top-left 1200 × 630, as WebP</td></tr>
+          </tbody>
+        </table>
+        <p class="note"><code>crop</code> is <code>left,top,width,height</code> in pixels, as the image is displayed. It's cut first, so <code>width</code> and <code>height</code> resize the area. An area past the image's edges gets 400.</p>
+      </section>
+
+      <section id="quality">
+        <h3>Quality</h3>
+        <table>
+          <thead>
+            <tr><th>Preset</th><th>Min score</th><th>Result</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>lossless</code></td><td></td><td>Identical pixels; only the encoding is optimized</td></tr>
+            <tr><td><code>high</code></td><td>{{highScore}}</td><td>No visible difference in place at 1:1</td></tr>
+            <tr><td><code>medium</code></td><td>{{mediumScore}}</td><td>No visible difference side by side at 1:1</td></tr>
+            <tr><td><code>low</code></td><td>{{lowScore}}</td><td>Barely visible difference side by side</td></tr>
+          </tbody>
+        </table>
+        <table class="recipes">
+          <tbody>
+            <tr><td><code>?quality=low</code></td><td>A preset; this server's default is <code>{{defaultQuality}}</code></td></tr>
+            <tr><td><code>?minScore=90</code></td><td>A custom floor instead of the preset's</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Scores are SSIMULACRA2, from 0 to 100, where 100 is identical. A lossy result is the smallest file that scores at least the floor.</p>
+      </section>
+
+      <section id="store">
+        <h3>Store</h3>
+        <pre class="cmd"><span class="prompt">$ </span>curl -sS --data-binary @photo.jpg \
+    "{{origin}}/api/v1/transform?store=true&amp;format=webp"</pre>
+        <pre class="out"><span class="status"><b>200</b> · application/json</span>{
+  "output": "{{origin}}/images/f100579f….webp",
+  "size": 47521,
+  "width": 640,
+  "height": 427,
+  "expiresAt": "2026-10-28T16:32:24-04:00",
+  …
+}</pre>
+        <table class="recipes">
+          <tbody>
+            <tr><td><code>?store=true</code></td><td>JSON with the result's URL and statistics, instead of the image</td></tr>
+            <tr><td><code>?store=true&amp;filename=banner.jpg</code></td><td>Stored under that name, replacing one already there</td></tr>
+            <tr><td><code>?store=true&amp;keepOriginal=true</code></td><td>The input stored too, as <code>input</code></td></tr>
+            <tr><td><code>?source=f100579f….jpg</code></td><td>Start from a stored image instead of a body</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Stored images are served at <code>/images/{name}</code> for {{ttlMinutes}} minutes, to anyone with the URL. <code>POST /api/v1/upload</code> stores an image unchanged, so several jobs can use it as <code>source</code> without sending it again.</p>
+      </section>
     </section>
 
-    <section>
-      <h2>Resize</h2>
-      <pre>curl -sS --data-binary @photo.jpg -o thumb.webp \
-  "{{origin}}/api/v1/transform?width=400&amp;height=400&amp;fit=cover&amp;format=webp"</pre>
-      <p class="note"><code>width</code> on its own shrinks wider images. <code>fit</code> is <code>contain</code> (default), <code>cover</code> (fill the box and crop) or <code>fill</code> (stretch). Images are only enlarged with <code>upscale=true</code>.</p>
-    </section>
-
-    <section>
-      <h2>Crop</h2>
-      <pre>curl -sS --data-binary @photo.jpg -o square.jpg \
-  "{{origin}}/api/v1/transform?crop=80,0,480,480"</pre>
-      <p class="note"><code>crop</code> is <code>left,top,width,height</code> in pixels, as the image is displayed. Add <code>width</code>, <code>height</code> or <code>format</code> to resize or convert the cropped area in the same call.</p>
-    </section>
-
-    <section>
-      <h2>Store</h2>
-      <pre>curl -sS --data-binary @photo.jpg \
-  "{{origin}}/api/v1/transform?store=true"</pre>
-      <p class="note"><code>store=true</code> stores the result and returns its URL and statistics as JSON. <code>POST /api/v1/upload</code> stores an image unchanged; pass the name at the end of its URL as <code>source</code> to run more jobs on it without sending it again. Stored images are served for {{ttlMinutes}} minutes; anyone with the URL can fetch them until then.</p>
-    </section>
-
-    <section>
-      <h2>Quality presets</h2>
-      <table>
-        <thead>
-          <tr><th>Preset</th><th>Result</th></tr>
-        </thead>
+    <section id="parameters">
+      <h2>Parameters</h2>
+      <table class="params">
         <tbody>
-          <tr><td><code>lossless</code></td><td>Identical pixels; only the encoding is optimized</td></tr>
-          <tr><td><code>high</code> (default)</td><td>No visible difference in place at 1:1</td></tr>
-          <tr><td><code>medium</code></td><td>No visible difference side by side at 1:1</td></tr>
-          <tr><td><code>low</code></td><td>Barely visible difference side by side</td></tr>
+          <tr><td><code>url</code></td><td>Download the image from this URL instead of reading the body.</td></tr>
+          <tr><td><code>source</code></td><td>A stored image's name, instead of the body.</td></tr>
+          <tr><td><code>quality</code></td><td><code>lossless</code>, <code>high</code>, <code>medium</code> or <code>low</code>. Default <code>{{defaultQuality}}</code>.</td></tr>
+          <tr><td><code>minScore</code></td><td>A custom floor, 0 to 100, instead of the preset's.</td></tr>
+          <tr><td><code>format</code></td><td><code>jpeg</code>, <code>png</code>, <code>webp</code>, <code>avif</code>, <code>jxl</code> or <code>auto</code>. Default: the input's.</td></tr>
+          <tr><td><code>crop</code></td><td>The area to keep, <code>left,top,width,height</code>. Cut before resizing.</td></tr>
+          <tr><td><code>width</code>, <code>height</code></td><td>1 to 65535. With one, the other follows the shape.</td></tr>
+          <tr><td><code>fit</code></td><td>With both sides: <code>fill</code> (default), <code>contain</code> or <code>cover</code>.</td></tr>
+          <tr><td><code>position</code></td><td>With <code>fit=cover</code>: <code>center</code> (default), <code>attention</code> or <code>entropy</code>.</td></tr>
+          <tr><td><code>upscale</code></td><td><code>false</code> only shrinks, leaving smaller images as they are. Default <code>true</code>.</td></tr>
+          <tr><td><code>store</code></td><td><code>true</code> returns JSON with the stored result's URL.</td></tr>
+          <tr><td><code>filename</code></td><td>The stored name, such as <code>banner.jpg</code>. Needs <code>store=true</code>.</td></tr>
+          <tr><td><code>keepOriginal</code></td><td><code>true</code> stores the input too. Needs <code>store=true</code>.</td></tr>
         </tbody>
       </table>
-      <p class="note"><code>quality</code> picks the preset, and <code>minScore</code> sets a custom quality floor instead (SSIMULACRA2, 0–100). Parameters the server doesn't know get 400, so a typo never goes unnoticed.</p>
+      <p class="note">Parameters the server doesn't know get 400, so a typo never goes unnoticed.</p>
     </section>
 
-    <section>
+    <section id="response">
+      <h2>Response</h2>
+      <p class="note lead">The image, with its statistics in headers (or as JSON, with <code>store=true</code>):</p>
+      <table class="params">
+        <tbody>
+          <tr><td><code>X-Image-Mason-Size</code></td><td>Bytes, with <code>-Original-Size</code> and <code>-Size-Change-Percent</code></td></tr>
+          <tr><td><code>X-Image-Mason-Dimensions</code></td><td>Width x height, with <code>-Original-Dimensions</code></td></tr>
+          <tr><td><code>X-Image-Mason-Score</code></td><td>The result's score, with <code>-Min-Score</code> and <code>-Quality</code></td></tr>
+          <tr><td><code>X-Image-Mason-Method</code></td><td>How it was made, such as <code>resize+cwebp-q93</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="endpoints">
       <h2>Endpoints</h2>
       <table>
         <tbody>

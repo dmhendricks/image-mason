@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** with both `width` and `height`, `fit` now defaults to `fill`, so `width=300&height=700` returns a 300 × 700 image. Send `fit=contain` to fit inside the box instead, or `fit=cover` to crop to it. With one side, the other still follows the aspect ratio, and `fit` is now rejected.
+- **Breaking:** `upscale` now defaults to `true`, so `width=1200` returns an image 1200 wide even from a smaller one. Send `upscale=false` to only shrink.
+
 ## [0.4.0] - 2026-10-28
 
 ### Changed

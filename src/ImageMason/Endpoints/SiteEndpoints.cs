@@ -32,7 +32,11 @@ internal static class SiteEndpoints
         var notBuiltPage = ReadBytes("no-app.html");
         var docsPage = ReadText("docs.html")
             .Replace("{{webInterfaceLink}}", options.UiEnabled ? """<a href="/">Home</a>""" : "", StringComparison.Ordinal)
-            .Replace("{{fontFaces}}", options.UiEnabled ? FontFaces() : "", StringComparison.Ordinal);
+            .Replace("{{fontFaces}}", options.UiEnabled ? FontFaces() : "", StringComparison.Ordinal)
+            .Replace("{{defaultQuality}}", options.DefaultQuality.ToString().ToLowerInvariant(), StringComparison.Ordinal)
+            .Replace("{{highScore}}", options.HighMinScore.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{{mediumScore}}", options.MediumMinScore.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{{lowScore}}", options.LowMinScore.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         var contentTypes = new FileExtensionContentTypeProvider();
 
         app.MapGet("/", (HttpContext http) =>

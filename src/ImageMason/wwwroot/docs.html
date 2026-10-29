@@ -8,21 +8,11 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <script>
-    // The theme chosen in the web interface (same origin, same storage key as useTheme.ts).
-    try {
-      const theme = localStorage.getItem('image-mason.theme')
-      if (theme === 'light' || theme === 'dark')
-        document.documentElement.dataset.theme = theme
-    } catch {
-      // Storage blocked: follow the system.
-    }
-  </script>
   <style>
     /* The web interface's Barlow fonts, when it's served (filled in by SiteEndpoints). */
     {{fontFaces}}
 
-    /* The web interface's colors (src/web/src/styles/global.scss). */
+    /* The web interface's colors (src/web/src/styles/global.scss), light or dark as the browser prefers. */
     :root {
       color-scheme: light;
       --app: #eceef1;
@@ -32,11 +22,11 @@
       --muted: #5f6670;
       --rule: #dde1e6;
       --flag: #d1236b;
-      --code-bg: #1a1d21;
-      --code-ink: #e3e6ea;
-      --code-muted: #8f98a3;
-      --out-bg: #24282d;
-      --ok: #49cc90;
+      --code-bg: #ffffff;
+      --code-ink: #1f2328;
+      --code-muted: #6b727c;
+      --out-bg: #f6f7f9;
+      --ok: #13875a;
       --get: #1a73c8;
       --post: #13875a;
       --delete: #d03030;
@@ -47,7 +37,7 @@
     }
 
     @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
+      :root {
         color-scheme: dark;
         --app: #121417;
         --panel: #1a1d21;
@@ -57,27 +47,14 @@
         --rule: #2c3137;
         --flag: #ff5c9a;
         --code-bg: #0e1012;
+        --code-ink: #e3e6ea;
+        --code-muted: #8f98a3;
         --out-bg: #16191c;
+        --ok: #49cc90;
         --get: #61affe;
         --post: #49cc90;
         --delete: #f96060;
       }
-    }
-
-    :root[data-theme="dark"] {
-      color-scheme: dark;
-      --app: #121417;
-      --panel: #1a1d21;
-      --panel-2: #22262b;
-      --ink: #e3e6ea;
-      --muted: #8f98a3;
-      --rule: #2c3137;
-      --flag: #ff5c9a;
-      --code-bg: #0e1012;
-      --out-bg: #16191c;
-      --get: #61affe;
-      --post: #49cc90;
-      --delete: #f96060;
     }
 
     * { box-sizing: border-box; }

@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-31
+
 ### Changed
 
 - **Breaking:** with both `width` and `height`, `fit` now defaults to `fill`, so `width=300&height=700` returns a 300 × 700 image. Send `fit=contain` to fit inside the box instead, or `fit=cover` to crop to it. With one side, the other still follows the aspect ratio, and `fit` is now rejected.
 - **Breaking:** `upscale` now defaults to `true`, so `width=1200` returns an image 1200 wide even from a smaller one. Send `upscale=false` to only shrink.
+- The docs page (`/docs`) is regrouped into Quick Start, Features, Parameters, Response Headers and Endpoints, with an example for each task, a diagram of the three fits, the server's own preset scores, and when stored images are deleted. It follows the browser's light or dark setting.
+- Web interface: the server's limits read "Max file size" and "Max image size" (were "Largest file" and "Largest image").
+- Working on the web interface needs Node.js 22 or later (was 26).
 
 ## [0.4.0] - 2026-10-28
 
@@ -122,7 +127,8 @@
 - Memory admission control that sizes each job before it starts, so large images wait or are rejected instead of running the container out of memory.
 - Errors returned as RFC 9457 Problem Details.
 
-[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/dmhendricks/image-mason/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/dmhendricks/image-mason/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dmhendricks/image-mason/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/dmhendricks/image-mason/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dmhendricks/image-mason/compare/v0.2.0...v0.2.1

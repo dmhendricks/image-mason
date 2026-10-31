@@ -60,8 +60,8 @@ const floors = computed(() =>
 
       <dl v-else-if="limits" class="facts">
         <dt>Formats</dt><dd>{{ formats }}</dd>
-        <dt>Largest file</dt><dd>{{ formatBytes(limits.maxInputSize) }}</dd>
-        <dt>Largest image</dt><dd>{{ largest }}</dd>
+        <dt>Max file size</dt><dd>{{ formatBytes(limits.maxInputSize) }}</dd>
+        <dt>Max image size</dt><dd>{{ largest }}</dd>
         <dt>Quality floors</dt><dd>{{ floors }}</dd>
         <dt>Shared links</dt><dd>Expire after {{ limits.imageTtlMinutes }} minutes</dd>
         <dt>API key</dt><dd>{{ limits.apiKeyRequired ? 'Required' : 'Not needed' }}</dd>

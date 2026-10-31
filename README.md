@@ -4,7 +4,7 @@
 
 A self-hosted HTTP API that makes JPEG, PNG, WebP, AVIF and JPEG XL images smaller, converts between those formats, and can host the results temporarily. A web UI is included (shown above) for testing and convenience.
 
-Send an image and get a smaller one back, in the same format or another. Lossy results are held to a perceptual quality score ([SSIMULACRA2](https://github.com/cloudinary/ssimulacra2)), so a quality preset describes how the image looks rather than an encoder setting. The service tries several encoders and settings, and returns the smallest result that meets the score, or the original if nothing beats it.
+Compression settings are usually a guess: a setting that suits one photo blurs a diagram or wastes bytes on another. Image Mason measures instead. Each lossy result is scored against the original with [SSIMULACRA2](https://github.com/cloudinary/ssimulacra2), a perceptual quality metric, and the service returns the smallest file that meets the preset's minimum score, searching across several encoders and their settings.
 
 - **JPEG:** lossless recompression with `jpegtran` (mozjpeg), and lossy encoding with Google's [jpegli](https://github.com/google/jpegli).
 - **PNG:** lossless recompression with `oxipng`, and palette quantization with `pngquant`.
@@ -17,7 +17,7 @@ Send an image and get a smaller one back, in the same format or another. Lossy r
 - **Hosting:** results can be stored and served from a URL for a limited time.
 - **Web interface:** open an image in the browser, try the options, compare the result with the original and download it.
 
-The image is about 70 MB, runs as a non-root user with a read-only root filesystem, and is published for `linux/amd64` and `linux/arm64`.
+The image is about 70 MB (30 MB to download), is published for `linux/amd64` and `linux/arm64`, and runs as a non-root user. It works with a read-only root filesystem: only `/data` (stored images) and `/tmp` (scratch files) need to be writable, as in the [Compose file](docker-compose.yml).
 
 ## Contents
 
@@ -448,7 +448,7 @@ To report a vulnerability, see [SECURITY.md](https://github.com/dmhendricks/imag
 
 ## Development
 
-Requires Docker. Running the unit tests outside Docker requires the [.NET 10 SDK](https://dotnet.microsoft.com/download), and working on the web interface requires [Node.js 26](https://nodejs.org/).
+Requires Docker. Running the unit tests outside Docker requires the [.NET 10 SDK](https://dotnet.microsoft.com/download), and working on the web interface requires [Node.js 22 or later](https://nodejs.org/).
 
 ```bash
 git clone https://github.com/dmhendricks/image-mason.git

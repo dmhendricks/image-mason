@@ -10,7 +10,6 @@
 - **Breaking:** `upscale` now defaults to `true`, so `width=1200` returns an image 1200 wide even from a smaller one. Send `upscale=false` to only shrink.
 - The docs page (`/docs`) is regrouped into Quick Start, Features, Parameters, Response Headers and Endpoints, with an example for each task, a diagram of the three fits, the server's own preset scores, and when stored images are deleted. It follows the browser's light or dark setting.
 - Web interface: the server's limits read "Max file size" and "Max image size" (were "Largest file" and "Largest image").
-- Working on the web interface needs Node.js 22 or later (was 26).
 
 ## [0.4.0] - 2026-10-28
 

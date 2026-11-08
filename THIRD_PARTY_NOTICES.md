@@ -103,7 +103,7 @@ Bundled into the web interface's JavaScript, CSS and font files, which are embed
 
 | Component | Version | License | Source |
 |---|---|---|---|
-| Vue (`@vue/runtime-dom`, `@vue/runtime-core`, `@vue/reactivity`, `@vue/shared`) | 3.5.44 | MIT | <https://github.com/vuejs/core> |
+| Vue (`@vue/runtime-dom`, `@vue/runtime-core`, `@vue/reactivity`, `@vue/shared`) | 3.5.45 | MIT | <https://github.com/vuejs/core> |
 | Barlow (font, from `@fontsource/barlow`) | 5.3.0 | OFL-1.1 | <https://github.com/jpt/barlow> |
 | Barlow Semi Condensed (font, from `@fontsource/barlow-semi-condensed`) | 5.3.0 | OFL-1.1 | <https://github.com/jpt/barlow> |
 

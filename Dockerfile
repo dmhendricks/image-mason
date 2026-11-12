@@ -17,7 +17,7 @@
 # stage does that just before the step that uses it: a changed ARG rebuilds every step after that line, so bumping
 # one library leaves the steps above it cached.
 ARG ALPINE_VERSION=3.24
-ARG DOTNET_VERSION=10.0
+ARG DOTNET_VERSION=11.0
 # Node LTS, for building the web interface only.
 ARG NODE_VERSION=26
 # Rust, for building the scorer only.

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded to .NET 11. Running the unit tests outside Docker now requires the .NET 11 SDK.
+
 ## [0.4.1] - 2026-10-31
 
 ### Changed

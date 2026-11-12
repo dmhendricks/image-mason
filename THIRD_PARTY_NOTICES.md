@@ -11,7 +11,7 @@ Full license texts are in the [`licenses/`](licenses/) directory. In the image, 
 | Component | Version | License | Included as | Source |
 |---|---|---|---|---|
 | libjxl (`cjxl`, `djxl`) | 0.12.0 | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/libjxl/libjxl/tree/v0.12.0> |
-| fast-ssim2 (in `ssim2`) | 0.9.0 | BSD-2-Clause | Built from source | <https://github.com/imazen/fast-ssim2/tree/v0.9.0-release> |
+| fast-ssim2 (in `ssim2`) | 0.9.1 | BSD-2-Clause AND BSD-3-Clause AND MIT | Built from source | <https://github.com/imazen/fast-ssim2/tree/v0.9.1> |
 | jpegli (`cjpegli`) | `031a0077` | BSD-3-Clause, plus a patent grant | Built from source | <https://github.com/google/jpegli/tree/031a0077f5799a6041004267fc12b956c1f52a20> |
 | mozjpeg (`jpegtran`) | 4.1.5 | IJG AND BSD-3-Clause AND Zlib | Built from source | <https://github.com/mozilla/mozjpeg/tree/v4.1.5> |
 | libvips (`vips`, `vipsthumbnail`) | 8.18.7 | LGPL-2.1-or-later | Built from source | <https://github.com/libvips/libvips/tree/v8.18.7> |
@@ -30,7 +30,7 @@ Copyright (c) the JPEG XL Project Authors. All rights reserved. See [`licenses/l
 
 ### ssim2 and fast-ssim2
 
-`ssim2` is Image Mason's SSIMULACRA2 scorer, in [`src/ssim2/`](src/ssim2/) under the Apache License 2.0. It's built from source with [fast-ssim2](https://github.com/imazen/fast-ssim2) (Copyright (c) 2022-2022, the rav1e contributors; BSD-2-Clause) and other Rust crates, and links libjpeg-turbo and Little CMS (listed under [Base Image and Shared Libraries](#base-image-and-shared-libraries)) statically. Each crate's license is in `ssim2-THIRD-PARTY-NOTICES.txt`, and the Rust standard library's in `rust-std-COPYRIGHT.html`, both in `/usr/share/licenses/image-mason/licenses/` in the image; the build writes them from the crates it compiles.
+`ssim2` is Image Mason's SSIMULACRA2 scorer, in [`src/ssim2/`](src/ssim2/) under the Apache License 2.0. It's built from source with [fast-ssim2](https://github.com/imazen/fast-ssim2) (Copyright (c) 2022-2022, the rav1e contributors, BSD-2-Clause; its HDR color conversion is ported from libjxl, Copyright (c) Cloudinary and the JPEG XL Project Authors, BSD-3-Clause; and one math routine from Arm's optimized-routines, Copyright (c) Arm Limited, MIT) and other Rust crates, and links libjpeg-turbo and Little CMS (listed under [Base Image and Shared Libraries](#base-image-and-shared-libraries)) statically. Each crate's license is in `ssim2-THIRD-PARTY-NOTICES.txt`, and the Rust standard library's in `rust-std-COPYRIGHT.html`, both in `/usr/share/licenses/image-mason/licenses/` in the image; the build writes them from the crates it compiles.
 
 ### jpegli
 

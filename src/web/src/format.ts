@@ -26,7 +26,7 @@ export function formatMegapixels(pixels: number): string {
   return `${Number.isInteger(megapixels) ? megapixels : megapixels.toFixed(1)} megapixels`
 }
 
-const formatNames: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', avif: 'AVIF', jxl: 'JPEG XL' }
+const formatNames: Record<string, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP', avif: 'AVIF', jxl: 'JPEG XL', heic: 'HEIC' }
 
 /** "webp" → "WebP". */
 export function formatName(format: string): string {

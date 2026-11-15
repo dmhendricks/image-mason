@@ -24,6 +24,8 @@ internal static class ApiEndpoints
             .RequireApiKey();
 
         api.MapPost("/transform", TransformEndpoint.HandleAsync).AllowQuery(TransformEndpoint.Parameters).RequireRateLimiting(JobsPolicy);
+        // For web interfaces; it may change with ours. See PreviewEndpoint.
+        api.MapPost("/preview", PreviewEndpoint.HandleAsync).AllowQuery("url", "source", "size").RequireRateLimiting(JobsPolicy);
         // No tools run, so these don't wait behind jobs; each still holds the image in memory, so they have their own limit.
         api.MapPost("/upload", UploadEndpoint.HandleAsync).AllowQuery(UploadEndpoint.Parameters).RequireRateLimiting(TransfersPolicy);
         api.MapPost("/info", InfoEndpoint.HandleAsync).AllowQuery("url", "source").RequireRateLimiting(TransfersPolicy);

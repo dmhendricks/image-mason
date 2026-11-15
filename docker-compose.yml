@@ -16,7 +16,8 @@ services:
     env_file:
       - path: .env
         required: false
-    # Only /data (stored images) and /tmp (scratch files, deleted after each request) are writable.
+    # Only /data (stored images, and the HEIC decoder when it's on) and /tmp (scratch files, deleted after each request)
+    # are writable.
     read_only: true
     tmpfs:
       - /tmp:size=512m

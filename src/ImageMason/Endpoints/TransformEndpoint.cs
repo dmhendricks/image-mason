@@ -23,7 +23,7 @@ internal static class TransformEndpoint
         [AsParameters] JobParameters job,
         [AsParameters] ResizeParameters box)
     {
-        var (http, options, downloader, optimizer, store, logger) = api;
+        var (http, options, downloader, optimizer, store, logger, _) = api;
 
         if (!CropParameter.TryParse(job.Crop, out var rect, out var cropError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, cropError!);
@@ -69,7 +69,7 @@ internal static class TransformEndpoint
 
             if (storedName is not null)
             {
-                var storedFormat = target ?? detected;
+                var storedFormat = target ?? detected.DefaultTarget();
                 if (storedFormat != ImageFormat.Unknown && !storedName.EndsWith(storedFormat.Extension(), StringComparison.Ordinal))
                     return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"filename must end in {storedFormat.Extension()}.");
             }

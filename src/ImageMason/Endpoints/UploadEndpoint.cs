@@ -4,7 +4,7 @@ using ImageMason.Imaging;
 namespace ImageMason.Endpoints;
 
 /// <summary>
-/// POST /api/v1/upload: stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged and returns the same JSON as transform?store=true.
+/// POST /api/v1/upload: stores a JPEG, PNG, WebP, AVIF, JPEG XL or (when it's turned on) HEIC unchanged and returns the same JSON as transform?store=true.
 /// The file is served at /images/{name} until IMAGE_MASON_IMAGE_TTL_MINUTES, then deleted.
 /// </summary>
 internal static class UploadEndpoint
@@ -14,7 +14,7 @@ internal static class UploadEndpoint
 
     public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, string? filename, string? url)
     {
-        var (http, options, downloader, _, store, logger) = api;
+        var (http, options, downloader, _, store, logger, heic) = api;
 
         if (!ApiRequest.TryParseFilename(filename, out var storedName, out var nameError))
             return ApiRequest.Problem(StatusCodes.Status400BadRequest, nameError!);
@@ -28,7 +28,9 @@ internal static class UploadEndpoint
             input = await ApiRequest.ReadImageAsync(http.Request, downloader, store: null, url, source: null, timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
-                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
+                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {heic.InputNames}.");
+            if (format == ImageFormat.Heic)
+                heic.EnsureReady();
 
             if (storedName is not null && !storedName.EndsWith(format.Extension(), StringComparison.Ordinal))
                 return ApiRequest.Problem(StatusCodes.Status400BadRequest, $"filename must end in {format.Extension()}.");

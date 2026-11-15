@@ -18,7 +18,8 @@ internal sealed record ApiServices(
     [FromServices] ImageDownloader Downloader,
     [FromServices] ImageOptimizer Optimizer,
     [FromServices] ImageStore Store,
-    [FromKeyedServices(ApiServices.LogCategory)] ILogger Logger)
+    [FromKeyedServices(ApiServices.LogCategory)] ILogger Logger,
+    [FromServices] HeicDecoder Heic)
 {
     /// <summary>The log category for every API endpoint, and the key its logger is registered under.</summary>
     public const string LogCategory = "ImageMason.Api";

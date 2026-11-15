@@ -3,10 +3,11 @@ import { computed } from 'vue'
 import { useImage } from '../../composables/useImage'
 import { useServer } from '../../composables/useServer'
 import { formatName, outputFormats } from '../../format'
-import { type ImageFormat, chosenFormat } from '../../settings'
+import { type ImageFormat, chosenFormat, defaultTarget } from '../../settings'
 
 // The output format: "Keep" (null) sends no format, so the result stays in the input's. The input's own format
-// isn't listed, since "Keep" names it, and a saved choice of that format shows as "Keep".
+// isn't listed, since "Keep" names it, and a saved choice of that format shows as "Keep". HEIC can't be kept, so for a
+// HEIC image the first choice is JPEG, which the server makes of it when no format is sent.
 
 const model = defineModel<ImageFormat | null>({ required: true })
 
@@ -18,9 +19,18 @@ const selected = computed({
   set: (format: ImageFormat | null) => { model.value = format },
 })
 
-const formats = computed(() => outputFormats(limits.value).filter(format => format !== image.value?.format))
+const kept = computed(() => image.value && defaultTarget(image.value.format))
 
-const keepLabel = computed(() => image.value ? `Keep (${formatName(image.value.format)})` : 'Keep the same')
+const formats = computed(() => outputFormats(limits.value).filter(format => format !== kept.value))
+
+const keepLabel = computed(() => {
+  if (!image.value)
+    return 'Keep the same'
+  return image.value.format === 'heic' ? 'JPEG' : `Keep (${formatName(image.value.format)})`
+})
+
+// The format the result will be in, when one is chosen or the input's can't be kept.
+const hinted = computed(() => selected.value ?? (image.value?.format === 'heic' ? 'jpeg' : null))
 
 const hints: Record<ImageFormat, string> = {
   jpeg: 'Opens everywhere. Best for photos; no transparency.',
@@ -35,11 +45,11 @@ const hints: Record<ImageFormat, string> = {
   <div class="group">
     <h3><label for="format">Format</label></h3>
     <span class="select">
-      <select id="format" v-model="selected" class="field" :aria-describedby="selected ? 'format-hint' : undefined">
+      <select id="format" v-model="selected" class="field" :aria-describedby="hinted ? 'format-hint' : undefined">
         <option :value="null">{{ keepLabel }}</option>
         <option v-for="format in formats" :key="format" :value="format">{{ formatName(format) }}</option>
       </select>
     </span>
-    <p v-if="selected" id="format-hint" class="hint">{{ hints[selected] }}</p>
+    <p v-if="hinted" id="format-hint" class="hint">{{ hints[hinted] }}</p>
   </div>
 </template>

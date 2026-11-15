@@ -138,6 +138,15 @@ public sealed class ImageMasonOptions
     /// <summary>False turns the web interface off: / redirects to the usage examples at /docs. The API is unaffected.</summary>
     public bool UiEnabled { get; init; } = true;
 
+    /// <summary>
+    /// Accept HEIC images. The image ships no HEVC decoder (HEVC is patent-licensed), so turning this on downloads
+    /// Alpine's libheif and libde265 into <see cref="HeicPath"/> at startup; see <see cref="Imaging.HeicDecoder"/>.
+    /// </summary>
+    public bool HeicEnabled { get; init; }
+
+    /// <summary>Where the HEIC decoder is downloaded to: on the /data volume, since Docker mounts /tmp noexec.</summary>
+    public string HeicPath { get; init; } = "/data/heic";
+
     /// <summary>Minimum level for this service's own log messages.</summary>
     public LogLevel LogLevel { get; init; } = LogLevel.Information;
 
@@ -175,6 +184,7 @@ public sealed class ImageMasonOptions
             UrlAllowedHosts = settings.Hosts("URL_ALLOWED_HOSTS"),
             UrlAllowedExtensions = settings.Extensions("URL_ALLOWED_EXTENSIONS"),
             UiEnabled = settings.Bool("UI_ENABLED", defaults.UiEnabled),
+            HeicEnabled = settings.Bool("HEIC_ENABLED", defaults.HeicEnabled),
             LogLevel = settings.Level("LOG_LEVEL", defaults.LogLevel),
             // Last: every setting above has been read by now.
             UnknownSettings = settings.Unknown(),

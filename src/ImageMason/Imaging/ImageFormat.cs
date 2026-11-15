@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 
 namespace ImageMason.Imaging;
 
@@ -9,12 +10,15 @@ public enum ImageFormat
     Jpeg,
     WebP,
     Avif,
-    Jxl
+    Jxl,
+
+    /// <summary>Input only, and only when the server has downloaded a decoder for it (see <see cref="HeicDecoder"/>).</summary>
+    Heic
 }
 
 public static class ImageFormatDetector
 {
-    /// <summary>Every format the API reads and writes.</summary>
+    /// <summary>Every format the API writes, and reads without <see cref="HeicDecoder"/>.</summary>
     public static readonly ImageFormat[] Supported =
         [ImageFormat.Png, ImageFormat.WebP, ImageFormat.Jpeg, ImageFormat.Jxl, ImageFormat.Avif];
 
@@ -43,6 +47,9 @@ public static class ImageFormatDetector
         if (data.StartsWith((ReadOnlySpan<byte>)[0xFF, 0x0A]) || data.StartsWith(JxlContainer))
             return ImageFormat.Jxl;
 
+        if (HasBrand(data, "heic", "heix", "heim", "heis", "hevc", "hevs"))
+            return ImageFormat.Heic;
+
         return ImageFormat.Unknown;
     }
 
@@ -68,6 +75,7 @@ public static class ImageFormatDetector
         ImageFormat.WebP => "image/webp",
         ImageFormat.Avif => "image/avif",
         ImageFormat.Jxl => "image/jxl",
+        ImageFormat.Heic => "image/heic",
         _ => "application/octet-stream"
     };
 
@@ -78,6 +86,7 @@ public static class ImageFormatDetector
         ImageFormat.WebP => ".webp",
         ImageFormat.Avif => ".avif",
         ImageFormat.Jxl => ".jxl",
+        ImageFormat.Heic => ".heic",
         _ => ".bin"
     };
 
@@ -89,13 +98,14 @@ public static class ImageFormatDetector
         ".webp" => ImageFormat.WebP,
         ".avif" => ImageFormat.Avif,
         ".jxl" => ImageFormat.Jxl,
+        ".heic" => ImageFormat.Heic,
         _ => ImageFormat.Unknown
     };
 
-    /// <summary>Lowercase name used in responses and logs: jpeg, png, webp, avif, jxl.</summary>
+    /// <summary>Lowercase name used in responses and logs: jpeg, png, webp, avif, jxl, heic.</summary>
     public static string Name(this ImageFormat format) => format.ToString().ToLowerInvariant();
 
-    /// <summary>The name people write, for error messages: JPEG, PNG, WebP, AVIF, JPEG XL.</summary>
+    /// <summary>The name people write, for error messages: JPEG, PNG, WebP, AVIF, JPEG XL, HEIC.</summary>
     public static string DisplayName(this ImageFormat format) => format switch
     {
         ImageFormat.Png => "PNG",
@@ -103,11 +113,20 @@ public static class ImageFormatDetector
         ImageFormat.WebP => "WebP",
         ImageFormat.Avif => "AVIF",
         ImageFormat.Jxl => "JPEG XL",
+        ImageFormat.Heic => "HEIC",
         _ => "unknown"
     };
 
+    /// <summary>The format a result is in when the request names none: the input's own, or JPEG for HEIC, which is
+    /// never written.</summary>
+    public static ImageFormat DefaultTarget(this ImageFormat input) => input == ImageFormat.Heic ? ImageFormat.Jpeg : input;
+
     // ISO BMFF: the first box is ftyp, with "avif" (still image) or "avis" (sequence) as a brand.
-    private static bool IsAvif(ReadOnlySpan<byte> data)
+    private static bool IsAvif(ReadOnlySpan<byte> data) => HasBrand(data, "avif", "avis");
+
+    // HEIC's brands (ISO/IEC 23008-12) are heic and heix (still images), heim and heis (multi-layer and scalable), and
+    // hevc and hevs (sequences). A bare mif1 says only "HEIF", which AVIF files carry too, so it isn't one of them.
+    private static bool HasBrand(ReadOnlySpan<byte> data, params ReadOnlySpan<string> brands)
     {
         if (data.Length < 16 || !data[4..8].SequenceEqual("ftyp"u8))
             return false;
@@ -120,8 +139,11 @@ public static class ImageFormatDetector
         for (var offset = 8; offset + 4 <= size; offset += offset == 8 ? 8 : 4)
         {
             var brand = data.Slice(offset, 4);
-            if (brand.SequenceEqual("avif"u8) || brand.SequenceEqual("avis"u8))
-                return true;
+            foreach (var wanted in brands)
+            {
+                if (Ascii.Equals(brand, wanted))
+                    return true;
+            }
         }
 
         return false;
@@ -148,7 +170,7 @@ public readonly record struct ImageInfo(int Width, int Height, int Orientation, 
         ImageFormat.Png => PngHeader.Read(data),
         ImageFormat.Jpeg => JpegHeader.Read(data),
         ImageFormat.WebP => WebPHeader.Read(data),
-        ImageFormat.Avif => AvifHeader.Read(data),
+        ImageFormat.Avif or ImageFormat.Heic => HeifHeader.Read(data),
         ImageFormat.Jxl => JxlHeader.Read(data),
         _ => default
     };
@@ -167,7 +189,7 @@ public static class ImageHeader
         ImageFormat.Png => PngHeader.ReadDetails(data),
         ImageFormat.Jpeg => JpegHeader.ReadDetails(data),
         ImageFormat.WebP => WebPHeader.ReadDetails(data),
-        ImageFormat.Avif => AvifHeader.ReadDetails(data),
+        ImageFormat.Avif or ImageFormat.Heic => HeifHeader.ReadDetails(data),
         ImageFormat.Jxl => JxlHeader.ReadDetails(data),
         _ => new(8, false, false)
     };

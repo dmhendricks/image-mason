@@ -11,7 +11,7 @@ internal sealed record PreparedPixels(string Reference, string Input, bool Icc);
 /// Turns a job's source into the pixels it encodes and scores: cropped, resized and made upright as asked, decoded to
 /// PNG when the encoders or the scorer can't read the source, and flattened onto white for JPEG.
 /// </summary>
-internal sealed class Preprocessor(ToolRunner tools, ILogger logger)
+internal sealed class Preprocessor(ToolRunner tools, HeicDecoder heic, ILogger logger)
 {
     // Enough of a PNG to reach the first IDAT, where the iCCP and tRNS chunks end.
     private const int PngHeadBytes = 4 * 1024 * 1024;
@@ -28,7 +28,7 @@ internal sealed class Preprocessor(ToolRunner tools, ILogger logger)
     {
         // The encoders and the scorer read PNG and JPEG; oxipng and pngquant read PNG only.
         var normalize = resize is not null || rotate
-            || format is ImageFormat.WebP or ImageFormat.Avif or ImageFormat.Jxl
+            || format is ImageFormat.WebP or ImageFormat.Avif or ImageFormat.Jxl or ImageFormat.Heic
             || (target == ImageFormat.Png && format != ImageFormat.Png);
         string reference;
         if (crop is not null)
@@ -69,30 +69,31 @@ internal sealed class Preprocessor(ToolRunner tools, ILogger logger)
     }
 
     /// <summary>
+    /// A copy of the image for a client that can't display its format, such as a browser and HEIC: upright, fitted
+    /// within <paramref name="maxSide"/> pixels (never enlarged), as WebP, which every current browser shows and which
+    /// keeps transparency.
+    /// </summary>
+    public async Task<string> PreviewAsync(string work, string source, ImageFormat format, int maxSide, CancellationToken ct)
+    {
+        var failed = $"Could not decode the {format.DisplayName()} image. It may be damaged.";
+        var input = await DecodeAsync(source, format, work, failed, ct);
+        var output = Path.Combine(work, "preview.webp");
+        await _tools.RequireOutputAsync("vipsthumbnail", [input, "--size", $"{maxSide}x{maxSide}>", "-o", $"{output}[Q=85,keep=icc]"],
+            output, failed, ct);
+        return output;
+    }
+
+    /// <summary>
     /// Writes the pixels the encoders start from as a lossless PNG, resized by <paramref name="sizeArguments"/> (a
-    /// no-op size just bakes in the orientation), keeping only the ICC profile.
-    /// AVIF is decoded by avifdec and JPEG XL by djxl first; vipsthumbnail reads the other formats. Work PNGs are
-    /// uncompressed: they are read on every attempt, and compressed ones made scoring a third slower.
+    /// no-op size just bakes in the orientation), keeping only the ICC profile. Work PNGs are uncompressed: they are
+    /// read on every attempt, and compressed ones made scoring a third slower.
     /// </summary>
     /// <param name="name">The output file in <paramref name="work"/>.</param>
     private async Task<string> NormalizeAsync(string source, ImageFormat format, string work, IEnumerable<string> sizeArguments,
         CancellationToken ct, string name = "reference.png")
     {
         var failed = $"Could not decode the {format.DisplayName()} image. It may be damaged.";
-        var input = source;
-        if (format == ImageFormat.Avif)
-        {
-            // avifdec applies the irot/imir transforms. Its PNG can carry a cICP chunk with an "unspecified"
-            // transfer function that some tools can't read, so vipsthumbnail rewrites it either way.
-            input = Path.Combine(work, "decoded.png");
-            await _tools.RequireOutputAsync("avifdec", ["--png-compress", "0", source, input], input, failed, ct);
-        }
-        else if (format == ImageFormat.Jxl)
-        {
-            // djxl applies the codestream orientation and writes no EXIF, so vipsthumbnail doesn't rotate it again.
-            input = Path.Combine(work, "decoded.png");
-            await _tools.RequireOutputAsync("djxl", [source, input, "--quiet"], input, failed, ct);
-        }
+        var input = await DecodeAsync(source, format, work, failed, ct);
 
         var output = Path.Combine(work, name);
         await _tools.RequireOutputAsync("vipsthumbnail", [input, .. sizeArguments, "-o", $"{output}[keep=icc,compression=0]"],
@@ -102,14 +103,44 @@ internal sealed class Preprocessor(ToolRunner tools, ILogger logger)
     }
 
     /// <summary>
+    /// The file vipsthumbnail reads the image from: the source itself, or for the formats it can't read, an upright
+    /// uncompressed PNG decoded by their own tool (avifdec, djxl, heif-dec).
+    /// </summary>
+    private async Task<string> DecodeAsync(string source, ImageFormat format, string work, string failed, CancellationToken ct)
+    {
+        var decoded = Path.Combine(work, "decoded.png");
+        switch (format)
+        {
+            case ImageFormat.Avif:
+                // avifdec applies the irot/imir transforms. Its PNG can carry a cICP chunk with an "unspecified"
+                // transfer function that some tools can't read, so vipsthumbnail rewrites it either way.
+                await _tools.RequireOutputAsync("avifdec", ["--png-compress", "0", source, decoded], decoded, failed, ct);
+                return decoded;
+            case ImageFormat.Jxl:
+                // djxl applies the codestream orientation and writes no EXIF, so vipsthumbnail doesn't rotate it again.
+                await _tools.RequireOutputAsync("djxl", [source, decoded, "--quiet"], decoded, failed, ct);
+                return decoded;
+            case ImageFormat.Heic:
+                // heif-dec applies the irot/imir transforms and sets the EXIF orientation it writes to 1, so vipsthumbnail
+                // doesn't rotate it again. It keeps libheif's limits on image size, which bound its memory.
+                heic.EnsureReady();
+                await _tools.RequireOutputAsync(heic.DecoderPath, ["--quiet", "--png-compression-level", "0", source, decoded],
+                    decoded, failed, ct, heic.Environment);
+                return decoded;
+            default:
+                return source;
+        }
+    }
+
+    /// <summary>
     /// Cuts <paramref name="rect"/> out of the upright image as a lossless PNG, keeping only the ICC profile. The
     /// vips CLI reads JPEG, PNG and WebP but doesn't apply the orientation tag, and the rectangle is in display
-    /// pixels, so an AVIF, a JPEG XL or a rotated image is made upright first.
+    /// pixels, so an AVIF, a JPEG XL, a HEIC or a rotated image is made upright first.
     /// </summary>
     private async Task<string> CropAsync(string source, ImageFormat format, ImageInfo info, CropRect rect, string work,
         CancellationToken ct)
     {
-        var input = info.Orientation == 1 && format is not (ImageFormat.Avif or ImageFormat.Jxl)
+        var input = info.Orientation == 1 && format is not (ImageFormat.Avif or ImageFormat.Jxl or ImageFormat.Heic)
             ? source
             : await NormalizeAsync(source, format, work, ["--size", $"{info.DisplayWidth}x"], ct, "upright.png");
 

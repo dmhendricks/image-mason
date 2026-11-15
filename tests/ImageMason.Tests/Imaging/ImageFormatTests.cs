@@ -14,7 +14,7 @@ public sealed class ImageFormatTests
         Assert.Equal(ImageFormat.Avif, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "avis")));
         Assert.Equal(ImageFormat.Jxl, ImageFormatDetector.Detect(TestImages.JxlCodestream(4, 4)));
         Assert.Equal(ImageFormat.Jxl, ImageFormatDetector.Detect(TestImages.JxlContainer(TestImages.JxlCodestream(4, 4))));
-        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "heic")[..16]));
+        Assert.Equal(ImageFormat.Heic, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "heic")));
         Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect("GIF89a"u8));
         Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect("RIFF\0\0\0\0WAVE"u8));
         Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect([]));
@@ -116,6 +116,63 @@ public sealed class ImageFormatTests
 
         for (var length = 0; length < avif.Length; length += 7)
             Assert.Equal(0, ImageInfo.Read(avif.AsSpan(0, length), ImageFormat.Avif).Width);
+    }
+
+    [Theory]
+    [InlineData("heic")]
+    [InlineData("heix")]
+    [InlineData("heim")]
+    [InlineData("heis")]
+    [InlineData("hevc")]
+    [InlineData("hevs")]
+    public void Detect_Heic_ByItsMajorBrand(string brand)
+    {
+        Assert.Equal(ImageFormat.Heic, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: brand)));
+    }
+
+    [Fact]
+    public void Detect_Heic_ByACompatibleBrand()
+    {
+        Assert.Equal(ImageFormat.Heic, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "mif1", compatible: ["miaf", "heic"])));
+    }
+
+    [Fact]
+    public void Detect_BareHeifIsNotHeic_AndAvifStaysAvif()
+    {
+        Assert.Equal(ImageFormat.Unknown, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "mif1")));
+        Assert.Equal(ImageFormat.Avif, ImageFormatDetector.Detect(TestImages.AvifHeader(4, 4, brand: "mif1", compatible: ["avif", "miaf"])));
+    }
+
+    [Fact]
+    public void Heic_IsReadButNeverWritten()
+    {
+        Assert.DoesNotContain(ImageFormat.Heic, ImageFormatDetector.Supported);
+        Assert.False(ImageFormatDetector.TryParse("heic", out _));
+        Assert.Equal(ImageFormat.Jpeg, ImageFormat.Heic.DefaultTarget());
+        Assert.Equal(ImageFormat.Png, ImageFormat.Png.DefaultTarget());
+        Assert.Equal(ImageFormat.Heic, ImageFormatDetector.FromExtension(".heic"));
+        Assert.Equal("image/heic", ImageFormat.Heic.ContentType());
+    }
+
+    [Fact]
+    public void ReadHeic_LikeAvif_WithRotationAsOrientation()
+    {
+        // An iPhone photo: stored landscape, with irot 3 (270 degrees counterclockwise) to show it portrait.
+        var info = ImageInfo.Read(TestImages.AvifHeader(4032, 3024, rotation: 3, brand: "heic"), ImageFormat.Heic);
+
+        Assert.Equal(new ImageInfo(4032, 3024, 6), info);
+        Assert.Equal((3024, 4032), (info.DisplayWidth, info.DisplayHeight));
+        Assert.Equal(new ImageDetails(10, false, true),
+            ImageHeader.ReadDetails(TestImages.AvifHeader(4, 4, brand: "heic", bitDepth: 10, icc: true), ImageFormat.Heic));
+    }
+
+    [Theory]
+    [InlineData("hevc", true)]
+    [InlineData("hevs", true)]
+    [InlineData("heic", false)]
+    public void ReadHeic_FlagsImageSequences(string brand, bool animated)
+    {
+        Assert.Equal(animated, ImageInfo.Read(TestImages.AvifHeader(10, 10, brand: brand), ImageFormat.Heic).Animated);
     }
 
     [Fact]

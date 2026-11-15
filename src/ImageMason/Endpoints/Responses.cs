@@ -91,6 +91,7 @@ public sealed class ImageInfoResponse
 /// <param name="ApiKeyRequired">Whether /api requests need the X-Api-Key header.</param>
 /// <param name="JobMemory">The memory jobs share, and how much one needs, so a client can tell before sending an
 /// image whether the server can process it (422 otherwise).</param>
+/// <param name="Heic">Whether HEIC images are read: disabled, installing (503 until it's done), ready or failed.</param>
 public sealed record LimitsResponse(
     IReadOnlyList<FormatLimits> Formats,
     long MaxInputSize,
@@ -101,7 +102,8 @@ public sealed record LimitsResponse(
     int TimeoutSeconds,
     bool UrlFetch,
     bool ApiKeyRequired,
-    JobMemoryLimits JobMemory);
+    JobMemoryLimits JobMemory,
+    string Heic);
 
 /// <param name="Name">The value for transform's format parameter.</param>
 /// <param name="MaxSide">Largest width or height the format can store; null when only the pixel limit applies.</param>
@@ -116,7 +118,8 @@ public sealed record FormatLimits(string Name, string MimeType, string Extension
 /// <param name="Budget">Bytes all running jobs share (the memory limit minus what the service itself keeps).</param>
 public sealed record JobMemoryLimits(long Budget, long Overhead, long ScoringBytesPerPixel);
 
-public sealed record HealthResponse(string Status, string Uptime, string Timestamp, BuildInfo Build);
+/// <param name="Heic">HEIC input (IMAGE_MASON_HEIC_ENABLED): disabled, installing, ready or failed.</param>
+public sealed record HealthResponse(string Status, string Uptime, string Timestamp, BuildInfo Build, string Heic);
 
 /// <summary>Fixed when the image is built.</summary>
 /// <param name="Date">When the image was built, in the container timezone.</param>

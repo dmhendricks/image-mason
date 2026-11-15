@@ -9,7 +9,7 @@ namespace ImageMason.Endpoints;
 /// </summary>
 internal static class LimitsEndpoint
 {
-    public static IResult Handle(ImageMasonOptions options, JobMemoryGate jobMemory)
+    public static IResult Handle(ImageMasonOptions options, JobMemoryGate jobMemory, HeicDecoder heic)
     {
         return Results.Ok(new LimitsResponse(
             Formats: [.. ImageFormatDetector.Supported.Select(f => new FormatLimits(f.Name(), f.ContentType(), f.Extension(), ImageOptimizer.MaxSide(f),
@@ -28,6 +28,7 @@ internal static class LimitsEndpoint
             TimeoutSeconds: options.TimeoutSeconds,
             UrlFetch: options.UrlFetchEnabled,
             ApiKeyRequired: !string.IsNullOrEmpty(options.ApiKey),
-            JobMemory: new JobMemoryLimits(jobMemory.BudgetBytes, ImageOptimizer.JobOverheadBytes, ImageOptimizer.ScoringBytesPerPixel)));
+            JobMemory: new JobMemoryLimits(jobMemory.BudgetBytes, ImageOptimizer.JobOverheadBytes, ImageOptimizer.ScoringBytesPerPixel),
+            Heic: heic.Status.ToString().ToLowerInvariant()));
     }
 }

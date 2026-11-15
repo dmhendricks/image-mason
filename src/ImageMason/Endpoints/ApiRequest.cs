@@ -13,6 +13,9 @@ internal static class ApiRequest
     /// <summary>Retry-After for 503s: the job queue was full, or an image tool ran out of memory.</summary>
     public const string RetryAfterSeconds = "30";
 
+    /// <summary>Retry-After while the HEIC decoder is being installed, which takes a few seconds.</summary>
+    private const string HeicRetryAfterSeconds = "5";
+
     public static IResult Problem(int statusCode, string detail) =>
         Results.Problem(detail: detail, statusCode: statusCode);
 
@@ -21,7 +24,8 @@ internal static class ApiRequest
     public static bool IsExpected(Exception exception, HttpContext http) => exception switch
     {
         BadHttpRequestException or ImageDownloadException or UnsupportedImageException or CropOutsideImageException
-            or ImageTooLargeException or ImageProcessingException or JobTooLargeException or ToolKilledException => true,
+            or ImageTooLargeException or ImageProcessingException or JobTooLargeException or ToolKilledException
+            or HeicNotReadyException => true,
         // A timeout, rather than the client going away.
         OperationCanceledException => !http.RequestAborted.IsCancellationRequested,
         _ => false,
@@ -57,6 +61,9 @@ internal static class ApiRequest
                 api.Http.Response.Headers.RetryAfter = RetryAfterSeconds;
                 return Problem(StatusCodes.Status503ServiceUnavailable,
                     "The server ran out of memory while optimizing this image. Retry later, or send a smaller image or a width.");
+            case HeicNotReadyException:
+                api.Http.Response.Headers.RetryAfter = HeicRetryAfterSeconds;
+                return Problem(StatusCodes.Status503ServiceUnavailable, exception.Message);
             case OperationCanceledException:
                 if (job is not null)
                     logger.LogWarning("{Job} of {Bytes} bytes timed out after {Seconds} s", job, inputBytes, api.Options.TimeoutSeconds);

@@ -24,6 +24,23 @@ const plan = { path: '/api/v1/transform?quality=high', source: null, output: nul
 /** A file of these bytes. */
 const bytes = (name: string, ...values: number[]) => new File([new Uint8Array(values)], name)
 
+/** The start of a HEIC file: its ftyp box, with the heic brand and mif1 compatible. */
+const heic = (name: string) => bytes(name, 0, 0, 0, 20, ...[...'ftypheic\0\0\0\0mif1'].map(c => c.charCodeAt(0)))
+
+/** Makes the server's limits arrive, saying whether it reads HEIC. */
+function serverReadsHeic(heic: string) {
+  client.getJson.mockImplementation(async path => path.includes('limits')
+    ? { formats: [], maxInputSize: 25 * 1024 * 1024, maxPixels: 50_000_000, presets: {}, defaultQuality: 'high',
+        imageTtlMinutes: 60, timeoutSeconds: 120, urlFetch: true, apiKeyRequired: false, heic }
+    : { build: { version: 'test' } })
+}
+
+/** The preview the server sends for a HEIC image, of a 3024 × 4032 photo. */
+const heicPreview = (): ImageResponse => ({
+  blob: new Blob(['preview'], { type: 'image/webp' }),
+  header: name => name === 'X-Image-Mason-Display-Dimensions' ? '3024x4032' : null,
+})
+
 /** A job the test finishes. */
 function pendingJob() {
   let finish!: (response: ImageResponse) => void
@@ -350,8 +367,7 @@ describe('useImage', () => {
 
   it.each([
     ['empty.png', bytes('empty.png'), '“empty.png” is empty.'],
-    ['phone.heic', bytes('phone.heic', 0, 0, 0, 24, ...[...'ftypheic'].map(c => c.charCodeAt(0))),
-      '“phone.heic” is a HEIC image, which Image Mason doesn\'t read. Export it as JPEG first.'],
+    ['phone.heic', heic('phone.heic'), '“phone.heic” is a HEIC image, which this server doesn\'t read. Export it as JPEG first.'],
     ['notes.txt', bytes('notes.txt', ...[...'hello, world'].map(c => c.charCodeAt(0))),
       '“notes.txt” isn\'t a PNG, WebP, AVIF, JPEG or JPEG XL image.'],
   ])('says why %s can\'t be opened', async (name, file, message) => {
@@ -360,6 +376,51 @@ describe('useImage', () => {
     expect(await images.open(file, name)).toBe(false)
     expect(images.openError.value).toBe(message)
     expect(images.image.value).toBeNull()
+  })
+
+  it('opens a HEIC image from the server\'s stored copy and preview, and runs jobs on the stored copy', async () => {
+    serverReadsHeic('ready')
+    const images = await load()
+    await vi.waitFor(() => expect(client.getJson).toHaveBeenCalled())
+    client.uploadImage.mockResolvedValueOnce('photo.heic')
+    client.postImage.mockResolvedValueOnce(heicPreview())
+
+    expect(await images.open(heic('IMG_0042.heic'), 'IMG_0042.heic')).toBe(true)
+
+    expect(client.uploadImage).toHaveBeenCalledWith('/api/v1/upload', expect.any(File), expect.anything())
+    expect(client.postImage.mock.calls[0]![0]).toMatch(/^\/api\/v1\/preview\?source=photo\.heic&size=\d+$/)
+    expect(images.image.value).toMatchObject({ name: 'IMG_0042.heic', format: 'heic', width: 3024, height: 4032 })
+
+    await images.run(plan)
+
+    expect(client.uploadImage).toHaveBeenCalledOnce()
+    expect(client.postImage.mock.calls[1]![0]).toBe('/api/v1/transform?quality=high&source=photo.heic')
+    expect(images.results.value[0]!.format).toBe('png')
+  })
+
+  it('deletes a HEIC image\'s stored copy when the server can\'t preview it', async () => {
+    serverReadsHeic('ready')
+    const images = await load()
+    await vi.waitFor(() => expect(client.getJson).toHaveBeenCalled())
+    client.uploadImage.mockResolvedValueOnce('big.heic')
+    client.postImage.mockRejectedValueOnce(new ApiError('The image is 10000x8000 (80 megapixels); the limit is 50 megapixels.', 422))
+
+    expect(await images.open(heic('big.heic'), 'big.heic')).toBe(false)
+
+    expect(images.openError.value).toBe('The image is 10000x8000 (80 megapixels); the limit is 50 megapixels.')
+    expect(client.deleteStoredImage).toHaveBeenCalledWith('big.heic', expect.anything())
+  })
+
+  it('asks again whether HEIC is ready when the page loaded while the server was setting it up', async () => {
+    serverReadsHeic('installing')
+    const images = await load()
+    await vi.waitFor(() => expect(client.getJson).toHaveBeenCalled())
+
+    expect(await images.open(heic('phone.heic'), 'phone.heic')).toBe(false)
+
+    expect(images.openError.value).toBe('This server is still setting up HEIC support. Try “phone.heic” again in a few seconds.')
+    expect(client.getJson.mock.calls.filter(([path]) => path.includes('limits'))).toHaveLength(2)
+    expect(client.uploadImage).not.toHaveBeenCalled()
   })
 
   it('says when the browser can\'t display an image', async () => {

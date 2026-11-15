@@ -29,6 +29,7 @@ public sealed class ImageMasonOptionsTests
         Assert.True(options.UrlAllowPrivate);
         Assert.Empty(options.UrlAllowedHosts);
         Assert.True(options.UiEnabled);
+        Assert.False(options.HeicEnabled);
         Assert.Equal(LogLevel.Information, options.LogLevel);
         Assert.Empty(options.UnknownSettings);
     }
@@ -65,6 +66,7 @@ public sealed class ImageMasonOptionsTests
             ("URL_ALLOWED_HOSTS", "CDN.example.com, *.example.org"),
             ("URL_ALLOWED_EXTENSIONS", ".PNG,*.jpg, jpeg"),
             ("UI_ENABLED", "false"),
+            ("HEIC_ENABLED", "true"),
             ("LOG_LEVEL", "debug"));
 
         Assert.Equal("secret", options.ApiKey);
@@ -85,6 +87,7 @@ public sealed class ImageMasonOptionsTests
         Assert.Equal(["cdn.example.com", "*.example.org"], options.UrlAllowedHosts);
         Assert.Equal(["png", "jpg", "jpeg"], options.UrlAllowedExtensions);
         Assert.False(options.UiEnabled);
+        Assert.True(options.HeicEnabled);
         Assert.Equal(LogLevel.Debug, options.LogLevel);
     }
 

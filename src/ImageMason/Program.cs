@@ -33,6 +33,8 @@ builder.Services.AddSingleton<ToolRunner>();
 var memoryLimit = options.MemoryLimitBytes ?? JobMemoryGate.DetectMemoryLimit();
 var jobMemory = new JobMemoryGate(Math.Max(0, memoryLimit - ImageMasonOptions.ServiceReserveBytes));
 builder.Services.AddSingleton(jobMemory);
+builder.Services.AddSingleton<HeicDecoder>();
+builder.Services.AddHostedService<HeicInstallService>();
 builder.Services.AddSingleton<ImageOptimizer>();
 builder.Services.AddSingleton<ImageStore>();
 builder.Services.AddHostedService<ImageStoreCleanupService>();

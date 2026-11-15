@@ -2,7 +2,10 @@ using ImageMason.Imaging;
 
 namespace ImageMason.Endpoints;
 
-/// <summary>POST /api/v1/info: format, dimensions and other header details of an image, without decoding it.</summary>
+/// <summary>
+/// POST /api/v1/info: format, dimensions and other header details of an image, without decoding it. Answers for HEIC
+/// even when the service can't decode it, since nothing is decoded.
+/// </summary>
 internal static class InfoEndpoint
 {
     public static async Task<IResult> HandleAsync([AsParameters] ApiServices api, string? url, string? source)
@@ -14,7 +17,7 @@ internal static class InfoEndpoint
             var input = await ApiRequest.ReadImageAsync(api.Http.Request, api.Downloader, api.Store, url, source, timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
-                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
+                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"Unsupported image format; expected {api.Heic.InputNames}.");
 
             var info = ImageInfo.Read(input, format);
             if (info.Width <= 0 || info.Height <= 0)

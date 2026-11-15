@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { HeicStatus } from '../../api/types'
 import { useImage } from '../../composables/useImage'
 import { useServer } from '../../composables/useServer'
 import { formatBytes, formatMegapixels, formatName, sortFormats } from '../../format'
@@ -18,6 +19,14 @@ const formats = computed(() => {
   const names = sortFormats((limits.value?.formats ?? []).map(f => f.name)).map(formatName)
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names.join('')
 })
+
+// HEIC is read but never written, so it's a note rather than one of the formats.
+const heicNotes: Partial<Record<HeicStatus, string>> = {
+  ready: 'Enabled (input only)',
+  installing: 'Setting up HEIC support…',
+  failed: 'Enabled, but failed to install the decoder (see the server log)',
+}
+const heic = computed(() => limits.value?.heic ? heicNotes[limits.value.heic] : undefined)
 
 // What a lossy job can take at full size, when memory, not the pixel limit, is what stops it.
 const largest = computed(() => {
@@ -60,6 +69,7 @@ const floors = computed(() =>
 
       <dl v-else-if="limits" class="facts">
         <dt>Formats</dt><dd>{{ formats }}</dd>
+        <template v-if="heic"><dt>HEIC support</dt><dd>{{ heic }}</dd></template>
         <dt>Max file size</dt><dd>{{ formatBytes(limits.maxInputSize) }}</dd>
         <dt>Max image size</dt><dd>{{ largest }}</dd>
         <dt>Quality floors</dt><dd>{{ floors }}</dd>

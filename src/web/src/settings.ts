@@ -8,6 +8,13 @@ export const shapes = ['free', '1:1', '4:3', '3:4', '16:9'] as const
 
 export type Quality = typeof qualities[number]
 export type ImageFormat = typeof imageFormats[number]
+/** An opened image's format: one the server writes, or HEIC, which it only reads (and only when it's turned on). */
+export type SourceFormat = ImageFormat | 'heic'
+
+/** The format a result is in when none is chosen: the input's own, or JPEG for HEIC (ImageFormat.DefaultTarget). */
+export function defaultTarget(input: SourceFormat): ImageFormat {
+  return input === 'heic' ? 'jpeg' : input
+}
 export type Shape = typeof shapes[number]
 
 export interface Settings {
@@ -36,11 +43,12 @@ export interface Settings {
 }
 
 /**
- * The format to ask for: null ("Keep") when none is chosen, or when the chosen one is the input's own. The
- * saved choice stays as it is, so it still converts the next image that's in another format.
+ * The format to ask for: null ("Keep") when none is chosen, or when the chosen one is what the result would be anyway
+ * (the input's own; JPEG for HEIC). The saved choice stays as it is, so it still converts the next image that's in
+ * another format.
  */
-export function chosenFormat(format: ImageFormat | null, input: ImageFormat | undefined): ImageFormat | null {
-  return format === input ? null : format
+export function chosenFormat(format: ImageFormat | null, input: SourceFormat | undefined): ImageFormat | null {
+  return input !== undefined && format === defaultTarget(input) ? null : format
 }
 
 /** The preset in effect: the chosen one, else the server's default, else high (as the server's own default). */

@@ -33,12 +33,14 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
     // How long to wait for a killed tool to exit, so its files are closed before the job deletes its work folder.
     private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(5);
 
+    /// <param name="environment">Variables to set for this tool only, such as where it finds its libraries.</param>
     /// <exception cref="ToolKilledException">The tool was killed from outside the service.</exception>
-    public async Task<ToolResult> RunAsync(string tool, IEnumerable<string> args, CancellationToken ct)
+    public async Task<ToolResult> RunAsync(string tool, IEnumerable<string> args, CancellationToken ct,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var arguments = args.ToList();
         var stopwatch = Stopwatch.StartNew();
-        using var process = Start(tool, arguments, standardInput: false);
+        using var process = Start(tool, arguments, standardInput: false, environment);
 
         var stdOut = ReadCappedAsync(process.StandardOutput);
         var stdErr = ReadCappedAsync(process.StandardError);
@@ -72,7 +74,8 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
     public ToolSession StartSession(string tool, IEnumerable<string> args) =>
         new(tool, Start(tool, args.ToList(), standardInput: true), this);
 
-    private static Process Start(string tool, List<string> arguments, bool standardInput)
+    private static Process Start(string tool, List<string> arguments, bool standardInput,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var psi = new ProcessStartInfo(CanAdjustOomScore ? "/bin/sh" : tool)
         {
@@ -89,6 +92,8 @@ public sealed class ToolRunner(ILogger<ToolRunner> logger)
         }
         foreach (var arg in arguments)
             psi.ArgumentList.Add(arg);
+        foreach (var (name, value) in environment ?? new Dictionary<string, string>())
+            psi.Environment[name] = value;
 
         return Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {tool}");
     }

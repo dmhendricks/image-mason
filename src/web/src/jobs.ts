@@ -8,13 +8,13 @@ import { maxAttempts } from './api/retry'
 import type { Limits } from './api/types'
 import { formatBytes, formatChange, formatMegapixels, formatName, formatSize } from './format'
 import { type Rect, type Size, rectCovers, rectFits, rectParameter, resizeOutput } from './geometry'
-import { type ImageFormat, type Settings, chosenFormat, effectiveQuality } from './settings'
+import { type ImageFormat, type Settings, type SourceFormat, chosenFormat, defaultTarget, effectiveQuality } from './settings'
 
 /** Largest width or height the API accepts (ResizeParameters.MaxSide). */
 export const maxSide = 65535
 
 export interface SourceImage extends Size {
-  format: ImageFormat
+  format: SourceFormat
 }
 
 export type Field = 'minScore' | 'width' | 'height' | 'rect' | 'output'
@@ -108,12 +108,12 @@ export function planJob(settings: Settings, image: SourceImage | null, rect: Rec
     }
   }
 
-  const resultFormat = format ?? image?.format ?? null
+  const resultFormat = format ?? (image ? defaultTarget(image.format) : null)
   if (output && image && Object.keys(errors).length === 0) {
     let problem = outputProblem(output, resultFormat, limits)
     if (!problem) {
       // As in ImageOptimizer: lossy presets are scored, and so is lossless to JPEG once the pixels change.
-      const target = resultFormat ?? image.format
+      const target = resultFormat ?? defaultTarget(image.format)
       const changed = cropped || output.width !== image.width || output.height !== image.height || target !== image.format
       const scored = !lossless || (target === 'jpeg' && changed)
       problem = memoryProblem(image, output, target, scored, lossless, limits)
@@ -163,7 +163,8 @@ function memoryProblem(image: SourceImage, output: Size, target: ImageFormat, sc
   if (!memory)
     return null
 
-  const perPixel = (format: ImageFormat) => limits.formats.find(f => f.name === format)?.bytesPerPixel ?? 0
+  // HEIC isn't listed, since it's never written; the result's format stands in for it.
+  const perPixel = (format: SourceFormat) => limits.formats.find(f => f.name === format)?.bytesPerPixel ?? 0
   const outputPixels = output.width * output.height
   const needed = memory.overhead
     + Math.max(image.width * image.height, outputPixels) * Math.max(perPixel(image.format), perPixel(target))

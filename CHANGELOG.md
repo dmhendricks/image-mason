@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- HEIC input, off by default: with `IMAGE_MASON_HEIC_ENABLED=true`, HEIC images, such as iPhone photos, can be converted to any of the five formats (JPEG when no `format` is sent). The image still includes no HEVC decoder; the service downloads Alpine's libheif and libde265 at startup. See "HEIC Input" in the README for the patent notice.
+- Web interface: HEIC photos can be opened when the server reads them. Since most browsers can't display HEIC, the canvas shows a copy the server makes; jobs still start from the original.
+- `/api/v1/limits` and `/health` report the HEIC status.
+
 ### Changed
 
 - Upgraded to .NET 11. Running the unit tests outside Docker now requires the .NET 11 SDK.

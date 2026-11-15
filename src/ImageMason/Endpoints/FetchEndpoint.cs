@@ -21,7 +21,9 @@ internal static class FetchEndpoint
             var input = await api.Downloader.DownloadAsync(url.Trim(), timeout.Token);
             var format = ImageFormatDetector.Detect(input);
             if (format == ImageFormat.Unknown)
-                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"That address isn't a {ImageFormatDetector.SupportedNames} image.");
+                return ApiRequest.Problem(StatusCodes.Status415UnsupportedMediaType, $"That address isn't a {api.Heic.InputNames} image.");
+            if (format == ImageFormat.Heic)
+                api.Heic.EnsureReady();
 
             api.Http.Response.Headers.CacheControl = "no-store";
             return Results.Bytes(input, format.ContentType());

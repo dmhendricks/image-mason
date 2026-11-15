@@ -118,11 +118,13 @@ internal static class TestImages
     }
 
     /// <summary>
-    /// An AVIF header: ftyp, then meta with pitm (item 1), and iprp holding the image's ispe, irot, pixi and colr,
-    /// plus a smaller ispe and an optional alpha auxC that belong to a second item.
+    /// An AVIF header (or with another <paramref name="brand"/>, such as heic, any HEIF): ftyp, then meta with pitm
+    /// (item 1), and iprp holding the image's ispe, irot, pixi and colr, plus a smaller ispe and an optional alpha auxC
+    /// that belong to a second item.
     /// </summary>
+    /// <param name="compatible">The ftyp's compatible brands; mif1 and miaf by default.</param>
     public static byte[] AvifHeader(int width, int height, int rotation = 0, string brand = "avif", bool associations = true,
-        int bitDepth = 8, bool alpha = false, bool icc = false)
+        int bitDepth = 8, bool alpha = false, bool icc = false, string[]? compatible = null)
     {
         var ispe = FullBox("ispe", [.. U32(width), .. U32(height)]);
         var thumbnail = FullBox("ispe", [.. U32(width / 4), .. U32(height / 4)]);
@@ -139,7 +141,8 @@ internal static class TestImages
 
         var pitm = FullBox("pitm", [0, 1]);
         var meta = FullBox("meta", [.. Box("hdlr", new byte[20]), .. pitm, .. iprp]);
-        var ftyp = Box("ftyp", [.. System.Text.Encoding.ASCII.GetBytes(brand), 0, 0, 0, 0, .. "mif1"u8, .. "miaf"u8]);
+        var brands = (compatible ?? ["mif1", "miaf"]).SelectMany(System.Text.Encoding.ASCII.GetBytes);
+        var ftyp = Box("ftyp", [.. System.Text.Encoding.ASCII.GetBytes(brand), 0, 0, 0, 0, .. brands]);
         return [.. ftyp, .. meta];
     }
 

@@ -3,13 +3,16 @@
 import type { Limits } from './api/types'
 import { formatBytes, formatMegapixels, formatSize } from './format'
 import type { Size } from './geometry'
-import { type ImageFormat, imageFormats } from './settings'
+import { type ImageFormat, type SourceFormat, imageFormats } from './settings'
 
 const ascii = (bytes: Uint8Array, start: number, length: number) =>
   String.fromCharCode(...bytes.subarray(start, start + length))
 
-/** The format from the file's first bytes, as the server detects it (Imaging/ImageFormat.cs); null for anything else. */
-export function sniffFormat(bytes: Uint8Array): ImageFormat | null {
+/**
+ * The format from the file's first bytes, as the server detects it (Imaging/ImageFormat.cs); null for anything else.
+ * HEIC is detected whether or not the server reads it, so the interface can say why it's refused.
+ */
+export function sniffFormat(bytes: Uint8Array): SourceFormat | null {
   const startsWith = (signature: number[]) => signature.every((byte, i) => bytes[i] === byte)
 
   if (startsWith([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
@@ -18,15 +21,19 @@ export function sniffFormat(bytes: Uint8Array): ImageFormat | null {
     return 'jpeg'
   if (bytes.length >= 12 && ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WEBP')
     return 'webp'
-  if (isAvif(bytes))
+  if (hasBrand(bytes, ['avif', 'avis']))
     return 'avif'
   // JPEG XL: a bare codestream, or the container's signature box.
   if (startsWith([0xFF, 0x0A]) || startsWith([0, 0, 0, 0x0C, 0x4A, 0x58, 0x4C, 0x20, 0x0D, 0x0A, 0x87, 0x0A]))
     return 'jxl'
+  // HEIC's brands; a bare mif1 says only "HEIF", which AVIF files carry too.
+  if (hasBrand(bytes, ['heic', 'heix', 'heim', 'heis', 'hevc', 'hevs']))
+    return 'heic'
   return null
 }
 
-function isAvif(bytes: Uint8Array): boolean {
+/** Whether an ISO BMFF file's ftyp box has one of the brands, as its major brand or a compatible one. */
+function hasBrand(bytes: Uint8Array, brands: string[]): boolean {
   if (bytes.length < 16 || ascii(bytes, 4, 4) !== 'ftyp')
     return false
 
@@ -34,16 +41,10 @@ function isAvif(bytes: Uint8Array): boolean {
   const size = Math.min(boxSize, bytes.length)
   // Major brand at 8, minor version at 12, compatible brands from 16.
   for (let offset = 8; offset + 4 <= size; offset += offset === 8 ? 8 : 4) {
-    const brand = ascii(bytes, offset, 4)
-    if (brand === 'avif' || brand === 'avis')
+    if (brands.includes(ascii(bytes, offset, 4)))
       return true
   }
   return false
-}
-
-/** HEIC and friends: worth naming, since phones save them by default. */
-export function isHeif(bytes: Uint8Array): boolean {
-  return bytes.length >= 12 && ascii(bytes, 4, 4) === 'ftyp' && /^(heic|heix|hevc|heim|heis|mif1|msf1)$/.test(ascii(bytes, 8, 4))
 }
 
 /**
@@ -165,11 +166,21 @@ const fileTypes: Record<ImageFormat, { type: string, extensions: string[] }> = {
   jxl: { type: 'image/jxl', extensions: ['.jxl'] },
 }
 
-/** The file picker's accept attribute: the formats' media types, then their extensions. */
-export const accept = [
-  ...imageFormats.map(format => fileTypes[format].type),
-  ...imageFormats.flatMap(format => fileTypes[format].extensions),
-].join(',')
+/** HEIC's media types and extensions, for the file picker when the server reads it. */
+const heicTypes = { types: ['image/heic', 'image/heif'], extensions: ['.heic', '.heif'] }
+
+/**
+ * The file picker's accept attribute: the formats' media types, then their extensions. HEIC only when the server reads
+ * it: otherwise iPhones convert a photo to JPEG as it's chosen, which is better than a file the server refuses.
+ */
+export function acceptFor(heic: boolean): string {
+  return [
+    ...imageFormats.map(format => fileTypes[format].type),
+    ...(heic ? heicTypes.types : []),
+    ...imageFormats.flatMap(format => fileTypes[format].extensions),
+    ...(heic ? heicTypes.extensions : []),
+  ].join(',')
+}
 
 const formatsByType: Record<string, ImageFormat> =
   Object.fromEntries(imageFormats.map(format => [fileTypes[format].type, format]))

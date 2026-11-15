@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import ImageCanvas from './components/canvas/ImageCanvas.vue'
 import SettingsPanel from './components/inspector/SettingsPanel.vue'
@@ -9,13 +9,14 @@ import { useApiKey } from './composables/useApiKey'
 import { useImage } from './composables/useImage'
 import { useResults } from './composables/useResults'
 import { useServer } from './composables/useServer'
-import { accept, isWebUrl } from './files'
+import { acceptFor, isWebUrl } from './files'
 
 const { limits } = useServer()
 const { open, openUrl } = useImage()
 const { hasUnsavedResults } = useResults()
 const apiKey = useApiKey()
 
+const accept = computed(() => acceptFor(limits.value?.heic === 'ready'))
 const fileInput = ref<HTMLInputElement | null>(null)
 const keyOpen = ref(false)
 const fileOver = ref(false)

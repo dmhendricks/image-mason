@@ -23,6 +23,7 @@ public sealed class ImageStoreTests : IDisposable
     [InlineData("banner.webp", true)]
     [InlineData("banner.avif", true)]
     [InlineData("banner.jxl", true)]
+    [InlineData("IMG_0042.heic", true)]
     [InlineData("photo.jpeg", false)]
     [InlineData(".jpg", false)]
     [InlineData("photo.gif", false)]

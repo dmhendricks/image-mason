@@ -14,7 +14,6 @@ import {
   type Measured,
   fileNameFromUrl,
   formatFromContentType,
-  isHeif,
   limitProblem,
   loadImage,
   measure,
@@ -23,7 +22,7 @@ import {
 } from '../files'
 import { type Rect, type Size, centeredRect, insetRect, scaledRect, wholeImage } from '../geometry'
 import { type Job, type JobError, type JobPlan, type SourceImage, describeFailure } from '../jobs'
-import { type Settings, shapeAspect } from '../settings'
+import { type Settings, defaultTarget, shapeAspect } from '../settings'
 import { useApiKey } from './useApiKey'
 import { useResults } from './useResults'
 import { useServer } from './useServer'
@@ -42,6 +41,12 @@ export interface OpenedImage extends SourceImage {
   preview: ImageBitmap | null
   /** The web address it was opened from, so the server can download it again instead of the browser uploading it. */
   address?: string
+}
+
+/** A checked image, ready to open: what OpenedImage adds to it is known before the check. */
+type Checked = SourceImage & Measured & {
+  /** Its copy on the server, when the check stored it (HEIC, which the browser can't display). */
+  storedAs?: string
 }
 
 /** An image being read, or downloaded by the server first. */
@@ -70,7 +75,7 @@ let openController: AbortController | null = null
 
 export function useImage() {
   const apiKey = useApiKey()
-  const { limits } = useServer()
+  const { limits, reload } = useServer()
   const { hasUnsavedResults, add, clear } = useResults()
   const { settings } = useSettings()
 
@@ -144,7 +149,7 @@ export function useImage() {
 
   async function load(file: Blob, name: string, signal: AbortSignal, confirmDiscard?: () => boolean,
     address?: string): Promise<boolean> {
-    const checked = await check(file, name)
+    const checked = await check(file, name, signal)
     const superseded = signal.aborted
     if (typeof checked === 'string') {
       if (!superseded)
@@ -155,20 +160,25 @@ export function useImage() {
     // Asked here rather than when the open started: a result can arrive while a download or a large image is read.
     if (superseded || (hasUnsavedResults.value && confirmDiscard && !confirmDiscard())) {
       discard(checked)
+      if (checked.storedAs)
+        void deleteStoredImage(checked.storedAs, apiKey.headers())
       return false
     }
 
     const previous = image.value && { width: image.value.width, height: image.value.height }
     cancel()
     release()
-    image.value = { ...checked, name, blob: file, size: file.size, address }
+    const { storedAs, ...shown } = checked
+    image.value = { ...shown, name, blob: file, size: file.size, address }
+    if (storedAs)
+      stored = { image: image.value, name: storedAs }
     Object.assign(rect, nextRect(settings, rect, previous, checked))
     error.value = null
     return true
   }
 
   /** The image's format and size, or why it can't be used. */
-  async function check(file: Blob, name: string): Promise<string | SourceImage & Measured> {
+  async function check(file: Blob, name: string, signal: AbortSignal): Promise<string | Checked> {
     const max = limits.value
     const sizeProblem = limitProblem(name, file.size, null, max)
     if (sizeProblem)
@@ -182,11 +192,10 @@ export function useImage() {
       return `Couldn't read “${name}”. It may have been moved, or not be downloaded to this device yet.`
     }
     const format = sniffFormat(head)
-    if (!format) {
-      return isHeif(head)
-        ? `“${name}” is a HEIC image, which Image Mason doesn't read. Export it as JPEG first.`
-        : `“${name}” isn't a PNG, WebP, AVIF, JPEG or JPEG XL image.`
-    }
+    if (!format)
+      return `“${name}” isn't a PNG, WebP, AVIF, JPEG${limits.value?.heic === 'ready' ? ', JPEG XL or HEIC' : ' or JPEG XL'} image.`
+    if (format === 'heic')
+      return await checkHeic(file, name, signal)
 
     // Not every browser decodes JPEG XL yet; the file is most likely fine.
     const undisplayable = format === 'jxl'
@@ -210,6 +219,52 @@ export function useImage() {
       URL.revokeObjectURL(loaded.url)
       return undisplayable
     }
+  }
+
+  /**
+   * A HEIC image, which most browsers can't display. The server stores it and sends a copy to show (POST
+   * /api/v1/preview); jobs name the stored original, so the copy is only ever looked at.
+   */
+  async function checkHeic(file: Blob, name: string, signal: AbortSignal): Promise<string | Checked> {
+    // The limits were read when the page loaded, maybe while the server was still setting HEIC up.
+    if (limits.value?.heic === 'installing')
+      await reload()
+    if (limits.value?.heic !== 'ready') {
+      return limits.value?.heic === 'installing'
+        ? `This server is still setting up HEIC support. Try “${name}” again in a few seconds.`
+        : `“${name}” is a HEIC image, which this server doesn't read. Export it as JPEG first.`
+    }
+
+    const options: PostImageOptions = { headers: apiKey.headers(), signal }
+    let storedAs: string
+    try {
+      storedAs = await uploadImage('/api/v1/upload', file, options)
+    } catch (failure) {
+      return openFailure(failure, name)
+    }
+
+    try {
+      const size = Math.min(4096, Math.max(2048, Math.round(Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1))))
+      const response = await postImage(`/api/v1/preview?source=${encodeURIComponent(storedAs)}&size=${size}`, null, options)
+      const [width = 0, height = 0] = (response.header('X-Image-Mason-Display-Dimensions') ?? '').split('x').map(Number)
+      const shown = await measure(response.blob)
+      if (shown && width > 0 && height > 0)
+        return { format: 'heic', width, height, url: shown.url, preview: shown.preview, storedAs }
+      if (shown)
+        discard(shown)
+      void deleteStoredImage(storedAs, apiKey.headers())
+      return `Your browser couldn't display “${name}”. The file may be damaged.`
+    } catch (failure) {
+      void deleteStoredImage(storedAs, apiKey.headers())
+      return openFailure(failure, name)
+    }
+  }
+
+  /** What to say when the server couldn't take an image being opened. */
+  function openFailure(failure: unknown, name: string): string {
+    if (failure instanceof ApiError && failure.status === 401)
+      apiKey.reject()
+    return failure instanceof Error ? failure.message : `“${name}” could not be opened.`
   }
 
   /**
@@ -271,7 +326,7 @@ export function useImage() {
       if (image.value !== source)
         return
 
-      const format = formatFromContentType(response.blob.type || response.header('Content-Type')) ?? plan.format ?? source.format
+      const format = formatFromContentType(response.blob.type || response.header('Content-Type')) ?? plan.format ?? defaultTarget(source.format)
       // Not decodable (JPEG XL in some browsers): the canvas says so, and it can still be downloaded.
       const shown = await measure(response.blob)
       if (image.value !== source) {

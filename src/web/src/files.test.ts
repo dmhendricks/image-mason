@@ -3,8 +3,8 @@ import type { Limits } from './api/types'
 import {
   baseName,
   fileNameFromUrl,
+  acceptFor,
   formatFromContentType,
-  isHeif,
   isWebUrl,
   limitProblem,
   previewSize,
@@ -33,17 +33,24 @@ describe('sniffFormat', () => {
     expect(sniffFormat(ftyp('mif1', 'miaf', 'avif'))).toBe('avif')
   })
 
-  it('rejects anything else', () => {
+  it('recognizes HEIC by its major or a compatible brand, as the server does', () => {
+    expect(sniffFormat(ftyp('heic', 'mif1'))).toBe('heic')
+    expect(sniffFormat(ftyp('mif1', 'miaf', 'heic'))).toBe('heic')
+    expect(sniffFormat(ftyp('hevc', 'mif1'))).toBe('heic')
+  })
+
+  it('rejects anything else, including HEIF that is neither AVIF nor HEIC', () => {
     expect(sniffFormat(bytes('GIF89a'))).toBeNull()
-    expect(sniffFormat(ftyp('heic', 'mif1'))).toBeNull()
+    expect(sniffFormat(ftyp('mif1', 'miaf'))).toBeNull()
     expect(sniffFormat(bytes(''))).toBeNull()
   })
 })
 
-describe('isHeif', () => {
-  it('names HEIC so the message can', () => {
-    expect(isHeif(ftyp('heic', 'mif1'))).toBe(true)
-    expect(isHeif(bytes([0xFF, 0xD8, 0xFF, 0xE0]))).toBe(false)
+describe('acceptFor', () => {
+  it('lists HEIC only when the server reads it', () => {
+    expect(acceptFor(false)).not.toContain('heic')
+    expect(acceptFor(false)).toContain('image/jpeg')
+    expect(acceptFor(true).split(',')).toEqual(expect.arrayContaining(['image/heic', 'image/heif', '.heic', '.heif', '.jxl']))
   })
 })
 

@@ -15,7 +15,12 @@ export interface Limits {
   apiKeyRequired: boolean
   /** The memory jobs share and what one needs (see JobMemoryLimits); absent from older servers. */
   jobMemory?: JobMemoryLimits
+  /** Whether HEIC images are read (IMAGE_MASON_HEIC_ENABLED); absent from older servers, which don't. */
+  heic?: HeicStatus
 }
+
+/** installing: the server is downloading its decoder, and answers HEIC with 503 until it's done. */
+export type HeicStatus = 'disabled' | 'installing' | 'ready' | 'failed'
 
 export interface FormatLimits {
   name: string

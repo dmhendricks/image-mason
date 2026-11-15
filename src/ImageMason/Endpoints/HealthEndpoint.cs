@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using ImageMason.Imaging;
 
 namespace ImageMason.Endpoints;
 
@@ -16,14 +17,15 @@ internal static class HealthEndpoint
             Arch: Architecture());
         var startedAt = new DateTimeOffset(Process.GetCurrentProcess().StartTime);
 
-        app.MapGet("/health", () =>
+        app.MapGet("/health", (HeicDecoder heic) =>
         {
             var now = DateTimeOffset.Now;
             return Results.Ok(new HealthResponse(
                 Status: "healthy",
                 Uptime: FormatUptime(now - startedAt),
                 Timestamp: RoundToSecond(now).ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture),
-                Build: build));
+                Build: build,
+                Heic: heic.Status.ToString().ToLowerInvariant()));
         });
     }
 

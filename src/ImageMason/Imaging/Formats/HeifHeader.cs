@@ -3,11 +3,11 @@ using System.Buffers.Binary;
 namespace ImageMason.Imaging;
 
 /// <summary>
-/// AVIF (ISO BMFF/HEIF): reads the primary item's properties: ispe (dimensions), irot (rotation), pixi (bit depth)
-/// and colr (ICC profile). An auxC alpha property anywhere means the image has alpha. Image sequences (the "avis"
-/// major brand) are reported as animated.
+/// AVIF and HEIC (both ISO BMFF/HEIF): reads the primary item's properties: ispe (dimensions), irot (rotation), pixi
+/// (bit depth) and colr (ICC profile). An auxC alpha property anywhere means the image has alpha. Image sequences (the
+/// "avis", "hevc" and "hevs" major brands) are reported as animated.
 /// </summary>
-internal static class AvifHeader
+internal static class HeifHeader
 {
     private readonly record struct Box(string Type, int Start, int Length);
 
@@ -29,7 +29,8 @@ internal static class AvifHeader
 
     private static Properties ReadProperties(ReadOnlySpan<byte> data)
     {
-        var animated = data.Length >= 12 && data[8..12].SequenceEqual("avis"u8);
+        var animated = data.Length >= 12
+            && (data[8..12].SequenceEqual("avis"u8) || data[8..12].SequenceEqual("hevc"u8) || data[8..12].SequenceEqual("hevs"u8));
         var empty = new Properties(0, 0, 0, 8, false, false, animated);
 
         // meta is a full box: 4 bytes of version and flags before its children.

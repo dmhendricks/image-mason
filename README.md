@@ -12,12 +12,13 @@ Compression settings are usually a guess: a setting that suits one photo blurs a
 - **AVIF:** lossy and lossless encoding with `avifenc` (libavif, with the aom AV1 encoder).
 - **JPEG XL:** lossy and lossless encoding with `cjxl` (libjxl), and lossless recompression of JPEGs.
 - **Conversion:** any of the five formats to any other, with the same quality presets.
+- **HEIC input (optional):** HEIC images, such as iPhone photos, can be converted to any of the five formats once the operator turns it on. See [HEIC Input](#heic-input).
 - **Resizing:** fit into a box, fill it and crop (centered or on the most interesting area), or stretch, with libvips.
 - **Cropping:** keep an exact area, then resize or convert it in the same call.
 - **Hosting:** results can be stored and served from a URL for a limited time.
 - **Web interface:** open an image in the browser, try the options, compare the result with the original and download it.
 
-The image is about 70 MB (30 MB to download), is published for `linux/amd64` and `linux/arm64`, and runs as a non-root user. It works with a read-only root filesystem: only `/data` (stored images) and `/tmp` (scratch files) need to be writable, as in the [Compose file](docker-compose.yml).
+The image is about 70 MB (30 MB to download), is published for `linux/amd64` and `linux/arm64`, and runs as a non-root user. It works with a read-only root filesystem: only `/data` (stored images, and the HEIC decoder when it's turned on) and `/tmp` (scratch files) need to be writable, as in the [Compose file](docker-compose.yml).
 
 ## Contents
 
@@ -25,6 +26,7 @@ The image is about 70 MB (30 MB to download), is published for `linux/amd64` and
 - [Usage](#usage)
 - [Endpoints](#endpoints)
 - [Configuration](#configuration)
+- [HEIC Input](#heic-input)
 - [Memory](#memory)
 - [Security](#security)
 - [Development](#development)
@@ -241,7 +243,7 @@ Optimizes the image, after cropping, resizing and converting it when asked. The 
 |---|---|---|
 | `quality` | `high` (`IMAGE_MASON_DEFAULT_QUALITY`) | `lossless`, `high`, `medium` or `low` |
 | `minScore` | | Custom minimum SSIMULACRA2 score, 0 to 100. Overrides the preset's floor. |
-| `format` | the input's | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl` to convert. `auto`: JPEG when the input is a PNG photo with no transparency, otherwise the input's format. |
+| `format` | the input's (JPEG for HEIC) | `jpeg` (or `jpg`), `png`, `webp`, `avif` or `jxl` to convert. `auto`: JPEG when the input is a PNG photo with no transparency, otherwise the input's format. |
 | `crop` | | Keep only this area: `left,top,width,height` in display pixels (after the orientation is applied), such as `80,0,480,480`. Cropped before any resize, so the sizes below apply to the area. |
 | `width` | | Resize to a box this wide, 1 to 65535, in display pixels (after the orientation is applied). |
 | `height` | | Resize to a box this high, 1 to 65535. Send `width`, `height` or both; a missing side follows the aspect ratio. |
@@ -293,7 +295,7 @@ When the output format matches the input, the original is always a candidate, so
 
 ### `POST /api/v1/upload`
 
-Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged, animated ones included, and returns the same JSON as `transform?store=true`. It doesn't wait for a job slot. Accepts the image as the body or `url`, and `filename`. The name in `output` can then be passed as `source` to `transform` and `info`.
+Stores a JPEG, PNG, WebP, AVIF or JPEG XL unchanged (or a HEIC, when [HEIC input](#heic-input) is on), animated ones included, and returns the same JSON as `transform?store=true`. It doesn't wait for a job slot. Accepts the image as the body or `url`, and `filename`. The name in `output` can then be passed as `source` to `transform` and `info`.
 
 ### `POST /api/v1/info`
 
@@ -345,6 +347,22 @@ When a JPEG, PNG or WebP carries EXIF, `exif` summarizes it. Fields the image do
 
 `gps` is where the photo was taken.
 
+### `POST /api/v1/preview` (for web interfaces)
+
+A web interface usually shows the image before anything is done to it, so the user can pick an area to crop and compare results with the original, and it relies on the browser to decode the image. That fails for formats the browser can't decode: Chrome, Firefox and Edge can't display HEIC, and not every browser displays JPEG XL. Image Mason can read those formats, so this endpoint has the server decode the image and return a copy the browser can show.
+
+The copy is upright, WebP, and at most `size` pixels on its longest side (default `2048`, at most `4096`; never enlarged). It's only for display: jobs should still send the original, or name it with `source`. It waits for a job slot like `transform`, but needs no quality search, so it's quick. Accepts the image as the body, `url` or `source`.
+
+```bash
+# A HEIC image, at most 1600 pixels on its longest side; -D - prints the response headers
+curl -sS -H "X-Api-Key: change-me" --data-binary @IMG_0042.heic -o preview.webp -D - \
+  "http://localhost:8080/api/v1/preview?size=1600"
+```
+
+`X-Image-Mason-Display-Dimensions` gives the original's size as displayed, such as `3024x4032`. The copy is usually smaller, so a canvas showing it should use these dimensions, which `crop` is measured in.
+
+This endpoint exists for the bundled web interface and may change along with it.
+
 ### `GET /api/v1/limits`
 
 What this server accepts, so a client can check an image before sending it. The values come from the [configuration](#configuration). It needs no API key, so a client can read `apiKeyRequired` before asking for one.
@@ -366,11 +384,12 @@ What this server accepts, so a client can check an image before sending it. The 
   "timeoutSeconds": 120,
   "urlFetch": true,
   "apiKeyRequired": true,
-  "jobMemory": { "budget": 4026531840, "overhead": 67108864, "scoringBytesPerPixel": 150 }
+  "jobMemory": { "budget": 4026531840, "overhead": 67108864, "scoringBytesPerPixel": 150 },
+  "heic": "disabled"
 }
 ```
 
-`maxSide` is the largest width or height a format can store; without it, only `maxPixels` applies. `presets` gives each preset's minimum score.
+`maxSide` is the largest width or height a format can store; without it, only `maxPixels` applies. `presets` gives each preset's minimum score. `heic` says whether HEIC images are read: `disabled`, `installing`, `ready` or `failed` (see [HEIC Input](#heic-input)).
 
 `jobMemory` tells a client whether the server has the memory for a job before it sends the image (see [Memory](#memory)). A job needs `overhead`, plus the larger of the input's and the result's pixel counts times the larger of the two formats' `bytesPerPixel`, plus the result's pixels times `scoringBytesPerPixel` when it's held to a score (every preset but `lossless`, and `lossless` to JPEG when the image is cropped, resized or converted). A job that needs more than `budget` gets 422.
 
@@ -388,7 +407,7 @@ curl -sS -X DELETE -H "X-Api-Key: change-me" http://localhost:8080/images/banner
 
 ### `GET /health`
 
-Returns the service status, uptime and build information (version, build date, .NET runtime and architecture). The image's `HEALTHCHECK` uses this endpoint.
+Returns the service status, uptime and build information (version, build date, .NET runtime and architecture), and whether HEIC input is `disabled`, `installing`, `ready` or `failed`. The image's `HEALTHCHECK` uses this endpoint.
 
 ## Configuration
 
@@ -415,14 +434,30 @@ All settings are environment variables, and all are optional. Sizes are in bytes
 | `IMAGE_MASON_URL_ALLOWED_HOSTS` | | Comma-separated hosts `url` may point to. `*.example.com` matches subdomains. Empty allows any host. |
 | `IMAGE_MASON_URL_ALLOWED_EXTENSIONS` | | Comma-separated extensions the `url` path must end in, such as `png,jpg,jpeg,webp,avif,jxl`. Empty allows any. |
 | `IMAGE_MASON_UI_ENABLED` | `true` | `false` turns the web interface off: `/` redirects to the usage examples at `/docs`. The API is unaffected. |
+| `IMAGE_MASON_HEIC_ENABLED` | `false` | `true` accepts HEIC images by downloading a decoder at startup. See [HEIC Input](#heic-input). |
 | `IMAGE_MASON_LOG_LEVEL` | `Information` | `Trace`, `Debug`, `Information`, `Warning` or `Error` |
 | `TZ` | `UTC` | Timezone for logs and timestamps, such as `America/New_York` |
 
 Stored images are kept in `/data/images`. Mount a volume at `/data` to keep them across container restarts; they still expire after `IMAGE_MASON_IMAGE_TTL_MINUTES`.
 
+## HEIC Input
+
+Image Mason can **read** HEIC images and convert them to any of its five formats (JPEG when the request names none), but it's **off by default**, and the image doesn't include the decoder.
+
+**Patents.** HEIC images are compressed with HEVC, which is covered by patents. Image Mason doesn't include an HEVC decoder. Setting `IMAGE_MASON_HEIC_ENABLED=true` downloads `libheif` and `libde265` from Alpine's package repositories onto your server. Whether you need a license to decode HEVC is your responsibility.
+
+When it's turned on:
+
+- At startup, the service downloads Alpine's `libheif`, `libheif-libde265`, `libde265` and `libheif-tools` packages (about 1 MB) in the background. `apk` checks them against the Alpine signing keys in the image. They're unpacked into `/data/heic`, since `/tmp` doesn't allow running programs.
+- On every start, the service checks Alpine's package index and downloads the packages only when there's a newer version, so a restart picks up Alpine's security fixes. When Alpine's repositories can't be reached, the copy from the last start is used. With no copy, HEIC stays off and the log says why; the service runs either way.
+- Until the download finishes, usually a second or two, HEIC requests get 503 with `Retry-After`. `/api/v1/limits` and `/health` report the status.
+- HEIC images are decoded by `heif-dec` in a separate process, under the same memory limits as every other job. HEIC is never written: without `format`, the result is JPEG.
+- If you set `IMAGE_MASON_URL_ALLOWED_EXTENSIONS`, add `heic` to it to accept HEIC addresses.
+- The web interface accepts HEIC files. Since most browsers can't display HEIC, it shows a copy the server makes with [`preview`](#post-apiv1preview-for-web-interfaces); every job still starts from the original.
+
 ## Memory
 
-Scoring a lossy result takes far more memory than encoding it: about **150 MB per megapixel**. A 12 MP phone photo needs about 2 GB at `high`, `medium` or `low`, whatever the output format. Lossless jobs need much less: up to about 16 MB per megapixel for JPEG, 32 MB for WebP and JPEG XL, 40 MB for AVIF and 48 MB for PNG.
+Scoring a lossy result takes far more memory than encoding it: about **150 MB per megapixel**. A 12 MP phone photo needs about 2 GB at `high`, `medium` or `low`, whatever the output format. Lossless jobs need much less: up to about 16 MB per megapixel for JPEG, 32 MB for WebP and JPEG XL, 40 MB for AVIF and HEIC, and 48 MB for PNG.
 
 Time grows with size the same way. With 4 CPUs, a 15 MP photo at `high` takes about 10 seconds as JPEG and 10 to 20 seconds as AVIF or WebP, which need more encoding attempts. Raise `IMAGE_MASON_TIMEOUT_SECONDS` if you send large images with a short timeout.
 

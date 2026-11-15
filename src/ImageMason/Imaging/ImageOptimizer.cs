@@ -19,7 +19,7 @@ public enum QualityPreset
 }
 
 /// <param name="MinScore">Overrides the preset's minimum score. Ignored for lossless unless the result can't be lossless.</param>
-/// <param name="Format">Output format. Null keeps the input's format.</param>
+/// <param name="Format">Output format. Null keeps the input's format (JPEG for HEIC; see <see cref="ImageFormatDetector.DefaultTarget"/>).</param>
 /// <param name="Resize">Resize to a box; see <see cref="ResizeRequest"/>. Applies to the cropped area when <paramref name="Rect"/> is set.</param>
 /// <param name="Rect">The area to keep, cut out before any resize.</param>
 /// <param name="IsPhoto">For a PNG input, <see cref="PngPhoto.IsPhoto"/> when the caller already checked; checked when
@@ -51,7 +51,12 @@ public sealed class CropOutsideImageException(string message) : Exception(messag
 /// </summary>
 public sealed class ImageProcessingException(string message) : Exception(message);
 
-public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, ImageMasonOptions options, ILogger<ImageOptimizer> logger)
+/// <summary>A copy of an image to display; see <see cref="ImageOptimizer.PreviewAsync"/>.</summary>
+/// <param name="Info">The original's dimensions and orientation, which the copy is smaller than.</param>
+public sealed record PreviewResult(byte[] Data, ImageInfo Info);
+
+public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, ImageMasonOptions options, HeicDecoder heic,
+    ILogger<ImageOptimizer> logger)
 {
     private const string Original = "original";
 
@@ -63,12 +68,15 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
     internal const long WebPLosslessBytesPerPixel = 32;
     internal const long AvifLosslessBytesPerPixel = 40;
 
+    // heif-dec alone peaked at 4.5 bytes per pixel (48 MP); the steps after it are the same as for AVIF.
+    internal const long HeicLosslessBytesPerPixel = AvifLosslessBytesPerPixel;
+
     // cjxl alone peaked at 23 bytes per pixel lossless and 33 lossy (effort 7, 12 MP), djxl at 8; a whole lossless
     // JPEG-to-JPEG XL job at 15.6 MP came to 22. Lossy encodes run between scoring passes, which dominate.
     internal const long JxlLosslessBytesPerPixel = 32;
     internal const long JobOverheadBytes = 64L * 1024 * 1024;
 
-    private readonly Preprocessor _preprocessor = new(tools, logger);
+    private readonly Preprocessor _preprocessor = new(tools, heic, logger);
     private readonly JpegEncoder _jpeg = new(tools, options, logger);
     private readonly PngEncoder _png = new(tools, options, logger);
     private readonly WebPEncoder _webP = new(tools, options, logger);
@@ -77,15 +85,8 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
 
     public async Task<OptimizeResult> OptimizeAsync(byte[] input, OptimizeRequest request, CancellationToken ct)
     {
-        var format = ImageFormatDetector.Detect(input);
-        if (format == ImageFormat.Unknown)
-            throw new UnsupportedImageException($"Unsupported image format; expected {ImageFormatDetector.SupportedNames}.");
-
-        var info = ReadInfo(input, format, options.MaxPixels);
-        if (info.Animated)
-            throw new UnsupportedImageException("Animated images are not supported.");
-
-        var target = request.Format ?? format;
+        var (format, info) = ReadInput(input);
+        var target = request.Format ?? format.DefaultTarget();
         var converting = target != format;
         var lossless = request.Quality == QualityPreset.Lossless;
         var rect = request.Rect;
@@ -194,14 +195,63 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         }
         finally
         {
-            try
-            {
-                work.Delete(recursive: true);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                logger.LogWarning(ex, "Failed to delete work directory {Path}", work.FullName);
-            }
+            DeleteWork(work);
+        }
+    }
+
+    /// <summary>
+    /// A copy of the image fitted within <paramref name="maxSide"/> pixels, upright, as WebP: for clients that can't
+    /// display the original's format, such as browsers and HEIC. Quick: one decode and one resize, no quality search.
+    /// </summary>
+    public async Task<PreviewResult> PreviewAsync(byte[] input, int maxSide, CancellationToken ct)
+    {
+        var (format, info) = ReadInput(input);
+        var scale = Math.Min(1, (double)maxSide / Math.Max(info.Width, info.Height));
+        var outputPixels = (long)Math.Ceiling(info.PixelCount * scale * scale);
+        using var reservation = await memory.ReserveAsync(EstimateMemory(format, ImageFormat.WebP, info.PixelCount, outputPixels, scored: false), ct);
+
+        var work = Directory.CreateTempSubdirectory("image-mason-");
+        try
+        {
+            var source = Path.Combine(work.FullName, "source" + format.Extension());
+            await File.WriteAllBytesAsync(source, input, ct);
+            var preview = await _preprocessor.PreviewAsync(work.FullName, source, format, maxSide, ct);
+            return new PreviewResult(await File.ReadAllBytesAsync(preview, ct), info);
+        }
+        finally
+        {
+            DeleteWork(work);
+        }
+    }
+
+    /// <summary>The input's format and header, refusing what the service can't read before anything is decoded.</summary>
+    /// <exception cref="UnsupportedImageException">Not a format the service reads, or animated.</exception>
+    /// <exception cref="HeicNotReadyException">A HEIC image while its decoder is still being installed.</exception>
+    /// <exception cref="ImageTooLargeException">Over the pixel limit.</exception>
+    private (ImageFormat Format, ImageInfo Info) ReadInput(byte[] input)
+    {
+        var format = ImageFormatDetector.Detect(input);
+        if (format == ImageFormat.Unknown)
+            throw new UnsupportedImageException($"Unsupported image format; expected {heic.InputNames}.");
+        if (format == ImageFormat.Heic)
+            heic.EnsureReady();
+
+        var info = ReadInfo(input, format, options.MaxPixels);
+        if (info.Animated)
+            throw new UnsupportedImageException("Animated images are not supported.");
+
+        return (format, info);
+    }
+
+    private void DeleteWork(DirectoryInfo work)
+    {
+        try
+        {
+            work.Delete(recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Failed to delete work directory {Path}", work.FullName);
         }
     }
 
@@ -223,6 +273,7 @@ public sealed class ImageOptimizer(ToolRunner tools, JobMemoryGate memory, Image
         ImageFormat.WebP => WebPLosslessBytesPerPixel,
         ImageFormat.Avif => AvifLosslessBytesPerPixel,
         ImageFormat.Jxl => JxlLosslessBytesPerPixel,
+        ImageFormat.Heic => HeicLosslessBytesPerPixel,
         _ => JpegLosslessBytesPerPixel
     };
 
